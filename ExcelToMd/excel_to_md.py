@@ -1,8 +1,8 @@
 """
 Excel (.xlsx) → Markdown。
 
-表格一律为 **GFM 管道表**（`| ... |`）。合并单元格在导出时对每个格子 **重复左上角格的值**，
-以便用纯 Markdown 表达（不再使用 <table>/<tr>/<td>）。
+表格一律为 **GFM 管道表**（`| ... |`）。合并单元格仅在 **左上角一格** 写内容，同合并区内其它格导出为空，
+避免整段文字在管道表里重复出现（不再使用 <table>/<tr>/<td>）。
 
 跳过整表无文字行；输出折叠连续空行。
 
@@ -48,10 +48,15 @@ def _merge_master_map(ws: Worksheet) -> dict[tuple[int, int], tuple[int, int]]:
     return m
 
 
-def _effective_cell_value(
+def _pipe_cell_value(
     ws: Worksheet, r: int, c: int, master_map: dict[tuple[int, int], tuple[int, int]]
 ) -> object:
+    """
+    管道表导出用：合并区只在左上角一格保留值，其余合并格导出为空（避免整段文字重复）。
+    """
     top = master_map.get((r, c), (r, c))
+    if (r, c) != top:
+        return None
     return ws.cell(top[0], top[1]).value
 
 
@@ -71,7 +76,7 @@ def _row_has_visible_text(
     master_map: dict[tuple[int, int], tuple[int, int]],
 ) -> bool:
     for c in range(min_col, max_col + 1):
-        if not _value_is_blank(_effective_cell_value(ws, r, c, master_map)):
+        if not _value_is_blank(_pipe_cell_value(ws, r, c, master_map)):
             return True
     return False
 
@@ -85,7 +90,7 @@ def _format_pipe_cell(v: object) -> str:
 
 
 def sheet_to_pipe_markdown_table(ws: Worksheet, max_rows: int | None = None) -> str:
-    """GFM 管道表；合并格按 Excel 语义用左上角值填满各格。"""
+    """GFM 管道表；合并格仅在左上角一格写值，同合并区内其它格为空。"""
     min_row, min_col, max_row, max_col = _sheet_bounds(ws)
     if max_rows is not None:
         max_row = min(max_row, min_row + max_rows - 1)
@@ -99,7 +104,7 @@ def sheet_to_pipe_markdown_table(ws: Worksheet, max_rows: int | None = None) -> 
         if not _row_has_visible_text(ws, r, min_col, max_col, master_map):
             continue
         cells = [
-            _format_pipe_cell(_effective_cell_value(ws, r, c, master_map))
+            _format_pipe_cell(_pipe_cell_value(ws, r, c, master_map))
             for c in range(min_col, max_col + 1)
         ]
         body_lines.append("| " + " | ".join(cells) + " |")
@@ -515,7 +520,7 @@ def main(argv: Iterable[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="excel_to_md",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        description="将 .xlsx 转为 Markdown：GFM 管道表（合并格重复主格值）；可选导出嵌入图及配套 HTML（--export-images）。UTF-8。",
+        description="将 .xlsx 转为 Markdown：GFM 管道表（合并格仅左上角有值）；可选导出嵌入图及配套 HTML（--export-images）。UTF-8。",
         epilog="""
 默认行为（重要）：
   不读取文本框/形状/示意图层，只导出单元格网格。
