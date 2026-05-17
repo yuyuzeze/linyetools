@@ -37,13 +37,20 @@ def build_output_path(
         n += 1
 
 
+def resolve_file_output_dir(input_dir: Path, output_dir: Path, xlsx: Path) -> Path:
+    rel_parent = xlsx.parent.relative_to(input_dir)
+    file_output_dir = output_dir / rel_parent
+    file_output_dir.mkdir(parents=True, exist_ok=True)
+    return file_output_dir
+
+
 def convert_folder(input_dir: Path, output_dir: Path, fmt: int) -> int:
     output_dir.mkdir(parents=True, exist_ok=True)
     ext, _ = FORMAT_EXPORTERS[fmt]
 
-    xlsx_files = sorted(input_dir.glob("*.xlsx"))
+    xlsx_files = sorted(input_dir.rglob("*.xlsx"))
     if not xlsx_files:
-        print(f"未在 {input_dir} 中找到 .xlsx 文件")
+        print(f"未在 {input_dir}（含子目录）中找到 .xlsx 文件")
         return 0
 
     files_processed = 0
@@ -52,6 +59,8 @@ def convert_folder(input_dir: Path, output_dir: Path, fmt: int) -> int:
     used_paths: set[Path] = set()
 
     for xlsx in xlsx_files:
+        rel_display = xlsx.relative_to(input_dir).as_posix()
+        file_output_dir = resolve_file_output_dir(input_dir, output_dir, xlsx)
         try:
             wb = load_workbook_from_path(xlsx)
             files_processed += 1
@@ -60,15 +69,15 @@ def convert_folder(input_dir: Path, output_dir: Path, fmt: int) -> int:
                 if not grid:
                     continue
                 out_path = build_output_path(
-                    output_dir, xlsx.stem, sheet_name, ext, used_paths
+                    file_output_dir, xlsx.stem, sheet_name, ext, used_paths
                 )
                 export(grid, out_path, fmt)
                 sheets_written += 1
                 print(f"已生成: {out_path}")
             wb.close()
         except Exception as e:
-            errors.append(f"{xlsx.name}: {e}")
-            print(f"失败: {xlsx.name} - {e}", file=sys.stderr)
+            errors.append(f"{rel_display}: {e}")
+            print(f"失败: {rel_display} - {e}", file=sys.stderr)
 
     print(
         f"\n完成: 处理 {files_processed} 个 Excel 文件, "
@@ -84,19 +93,19 @@ def convert_folder(input_dir: Path, output_dir: Path, fmt: int) -> int:
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="将文件夹内 .xlsx 转为 MD / CSV / HTML（每工作表一个文件）"
+        description="递归将文件夹内 .xlsx 转为 MD / CSV / HTML（每工作表一个文件，保持目录结构）"
     )
     parser.add_argument(
         "-i", "--input",
         dest="input_dir",
         required=True,
-        help="输入文件夹路径",
+        help="输入文件夹路径（递归扫描子目录）",
     )
     parser.add_argument(
         "-o", "--output",
         dest="output_dir",
         required=True,
-        help="输出文件夹路径",
+        help="输出文件夹路径（按输入相对路径递归创建子目录）",
     )
     parser.add_argument(
         "-f", "--format",
