@@ -215,8 +215,16 @@ def _cell_raw_value(
     c: int,
     master_map: dict[tuple[int, int], tuple[int, int]],
 ) -> object:
-    top = master_map.get((r, c), (r, c))
-    return ws.cell(top[0], top[1]).value
+    """合并区仅在左上角返回原值，其余格视为空（避免表紙情報重复）。"""
+    return _pipe_cell_value(ws, r, c, master_map)
+
+
+def _next_col_after_cell(ws: Worksheet, r: int, c: int) -> int:
+    """返回单元格 (r,c) 所在合并区之后的第一列（无合并则 c+1）。"""
+    for mr in ws.merged_cells.ranges:
+        if mr.min_row <= r <= mr.max_row and mr.min_col <= c <= mr.max_col:
+            return mr.max_col + 1
+    return c + 1
 
 
 def _format_metadata_value(v: object) -> str:
@@ -274,14 +282,15 @@ def _extract_row_metadata_entries(
         text = _format_metadata_value(raw)
         if _is_standalone_metadata_cell(text):
             entries.append(("standalone", text))
-            c += 1
+            c = _next_col_after_cell(ws, r, c)
             continue
 
         if _is_known_metadata_label(text):
             label = _normalize_label(text)
             value_text: str | None = None
             value_col = c
-            for c2 in range(c + 1, max_col + 1):
+            search = _next_col_after_cell(ws, r, c)
+            for c2 in range(search, max_col + 1):
                 raw2 = _cell_raw_value(ws, r, c2, master_map)
                 if _value_is_blank(raw2):
                     continue
@@ -293,14 +302,14 @@ def _extract_row_metadata_entries(
                 break
             if value_text is not None:
                 entries.append(("kv", label, value_text))
-                c = value_col + 1
+                c = _next_col_after_cell(ws, r, value_col)
             else:
                 entries.append(("standalone", text))
-                c += 1
+                c = _next_col_after_cell(ws, r, c)
             continue
 
         entries.append(("standalone", text))
-        c += 1
+        c = _next_col_after_cell(ws, r, c)
     return entries
 
 
@@ -314,6 +323,10 @@ def _metadata_to_markdown(
 ) -> str:
     """表紙メタデータ区 → key-value リスト（セル位置に基づくペア）。"""
     lines: list[str] = []
+    seen_kv: set[str] = set()
+    seen_standalone: set[str] = set()
+    seen_legend: set[str] = set()
+
     for r in range(min_row, table_start_row):
         if not _row_has_visible_text(ws, r, min_col, max_col, master_map):
             continue
@@ -322,24 +335,42 @@ def _metadata_to_markdown(
             continue
 
         legend_bits: list[str] = []
+        seen_bit: set[str] = set()
         for entry in entries:
             if entry[0] == "kv":
-                lines.append(f"- **{entry[1]}**: {entry[2]}\n")
+                label = entry[1]
+                if label in seen_kv:
+                    continue
+                seen_kv.add(label)
+                lines.append(f"- **{label}**: {entry[2]}\n")
             else:
                 text = entry[1]
                 if text.startswith("■") or text in _STANDALONE_TITLE_CELLS or (
                     "一覧" in text and len(text) >= 6
                 ):
+                    if text in seen_standalone:
+                        continue
+                    seen_standalone.add(text)
                     lines.append(f"**{text}**\n")
                 elif "：" in text or ":" in text:
-                    legend_bits.append(text)
+                    if text not in seen_bit:
+                        seen_bit.add(text)
+                        legend_bits.append(text)
                 elif text.startswith("※"):
+                    if text in seen_standalone:
+                        continue
+                    seen_standalone.add(text)
                     lines.append(f"- {text}\n")
                 else:
-                    legend_bits.append(text)
+                    if text not in seen_bit:
+                        seen_bit.add(text)
+                        legend_bits.append(text)
 
         if legend_bits:
-            lines.append(f"- {' | '.join(legend_bits)}\n")
+            legend_line = f"- {' | '.join(legend_bits)}\n"
+            if legend_line not in seen_legend:
+                seen_legend.add(legend_line)
+                lines.append(legend_line)
 
     if not lines:
         return ""
