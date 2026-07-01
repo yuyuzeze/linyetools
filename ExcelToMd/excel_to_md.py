@@ -191,11 +191,33 @@ _KNOWN_METADATA_LABELS = frozenset({
     "更新日",
     "更新者",
     "版数",
+    "バージョン",
+    "文書番号",
     "I/O",
     "表示",
     "活性",
     "必須",
 })
+
+_COVER_ATTR_LABELS = frozenset({
+    "文書番号",
+    "バージョン",
+    "作成者",
+    "作成日",
+    "更新者",
+    "更新日",
+    "承認者",
+    "承認日",
+    "レビュー者",
+    "レビュー日",
+})
+
+_DOC_TYPE_MARKERS = (
+    "画面設計書",
+    "詳細設計書",
+    "基本設計書",
+    "要件定義書",
+)
 
 _STANDALONE_TITLE_CELLS = frozenset({
     "基本設計",
@@ -241,6 +263,141 @@ def _format_metadata_value(v: object) -> str:
     if m:
         return f"{int(m.group(1))}/{int(m.group(2))}/{int(m.group(3))}"
     return s.replace("\\", "\\\\").replace("|", "\\|")
+
+
+def _is_cover_attr_label(text: str) -> bool:
+    return _normalize_label(text) in _COVER_ATTR_LABELS
+
+
+def _looks_like_screen_id(text: str) -> bool:
+    t = text.strip()
+    return bool(re.fullmatch(r"SCR-A\d+", t, re.I))
+
+
+def _is_doc_type_text(text: str) -> bool:
+    t = text.strip()
+    return any(t.endswith(m) or m == t for m in _DOC_TYPE_MARKERS)
+
+
+def _is_cover_sheet(
+    ws: Worksheet,
+    master_map: dict[tuple[int, int], tuple[int, int]],
+    min_row: int,
+    max_row: int,
+    min_col: int,
+    max_col: int,
+) -> bool:
+    """表紙シート（縦積みタイトル + 文書属性表）を判定。"""
+    name = ws.title.strip()
+    if name in ("表紙", "封面", "Cover"):
+        return True
+
+    has_doc_type = False
+    has_attr_table = False
+    for r in range(min_row, max_row + 1):
+        cells = _row_nonempty_cells(ws, r, min_col, max_col, master_map)
+        if any(_is_doc_type_text(c) for c in cells):
+            has_doc_type = True
+        if len(cells) == 2 and _is_cover_attr_label(cells[0]):
+            has_attr_table = True
+
+    if has_doc_type and has_attr_table:
+        return (
+            _detect_main_table_start_row(
+                ws, min_row, max_row, min_col, max_col, master_map
+            )
+            is None
+        )
+    return False
+
+
+def _classify_cover_line(text: str) -> str:
+    """表紙タイトルブロック内の行種別。"""
+    t = text.strip()
+    if t in _STANDALONE_TITLE_CELLS:
+        return "phase"
+    if _looks_like_screen_id(t):
+        return "screen_id"
+    if _is_doc_type_text(t):
+        return "doc_type"
+    if len(t) > 30:
+        return "project"
+    if re.search(r"[_＿]", t) or "平時" in t:
+        return "subsystem"
+    return "screen_name"
+
+
+def cover_sheet_to_markdown(ws: Worksheet) -> str:
+    """
+    表紙シート専用レイアウト:
+      プロジェクト帯 → サブシステム → 設計フェーズ → 画面ID → 画面名 → 書類種別
+      下部: 文書番号 / バージョン / 作成者 / 作成日 などの 2 列属性表
+    """
+    min_row, min_col, max_row, max_col = _sheet_bounds(ws)
+    master_map = _merge_master_map(ws)
+
+    preamble: list[str] = []
+    attrs: list[tuple[str, str]] = []
+    seen_attr: set[str] = set()
+
+    for r in range(min_row, max_row + 1):
+        cells = _row_nonempty_cells(ws, r, min_col, max_col, master_map)
+        if not cells:
+            continue
+        if len(cells) == 2 and _is_cover_attr_label(cells[0]):
+            label = _normalize_label(cells[0])
+            if label not in seen_attr:
+                seen_attr.add(label)
+                attrs.append((label, cells[1]))
+        elif len(cells) == 1:
+            text = cells[0].strip()
+            if text and (not preamble or preamble[-1] != text):
+                preamble.append(text)
+
+    fields: dict[str, str] = {}
+    screen_name: str | None = None
+    doc_type: str | None = None
+
+    for text in preamble:
+        role = _classify_cover_line(text)
+        if role == "doc_type":
+            doc_type = text
+        elif role == "screen_id":
+            fields["画面ID"] = text
+        elif role == "phase":
+            fields["設計フェーズ"] = text
+        elif role == "project":
+            fields["プロジェクト"] = text
+        elif role == "subsystem":
+            fields["サブシステム"] = text
+        elif role == "screen_name" and screen_name is None:
+            screen_name = text
+
+    lines: list[str] = ["### 表紙\n\n"]
+    if screen_name and doc_type:
+        lines.append(f"**{screen_name} — {doc_type}**\n\n")
+    elif doc_type:
+        lines.append(f"**{doc_type}**\n\n")
+    elif screen_name:
+        lines.append(f"**{screen_name}**\n\n")
+
+    info_order = ("プロジェクト", "サブシステム", "設計フェーズ", "画面ID")
+    info_rows = [(k, fields[k]) for k in info_order if k in fields]
+    if info_rows:
+        lines.append("#### プロジェクト情報\n\n")
+        lines.append("| 区分 | 内容 |\n| --- | --- |\n")
+        for k, v in info_rows:
+            lines.append(f"| {k} | {v} |\n")
+        lines.append("\n")
+
+    if attrs:
+        lines.append("#### 文書属性\n\n")
+        lines.append("| 項目 | 内容 |\n| --- | --- |\n")
+        for k, v in attrs:
+            lines.append(f"| {k} | {v} |\n")
+        lines.append("\n")
+
+    return "".join(lines) if len(lines) > 1 else "_（空）_\n"
 
 
 def _is_known_metadata_label(text: str) -> bool:
@@ -411,12 +568,14 @@ def _rows_to_pipe_markdown(rows: list[list[str]]) -> str:
 
 
 def sheet_to_markdown_content(ws: Worksheet) -> str:
-    """表头元数据（key-value）+ 主表（管道表）；自动识别分界行。"""
+    """表紙 / 表紙情報 + 一覧；シート種別を自動判定。"""
     min_row, min_col, max_row, max_col = _sheet_bounds(ws)
     if max_col < min_col:
         return "_（空）_"
 
     master_map = _merge_master_map(ws)
+    if _is_cover_sheet(ws, master_map, min_row, max_row, min_col, max_col):
+        return cover_sheet_to_markdown(ws)
     table_start = _detect_main_table_start_row(
         ws, min_row, max_row, min_col, max_col, master_map
     )
@@ -824,6 +983,73 @@ def convert_workbook(
     return written
 
 
+def _collect_xlsx_files(path: Path, *, recursive: bool = False) -> list[Path]:
+    """收集待转换的 .xlsx（跳过 Excel 临时文件 ~$*.xlsx）。"""
+    path = path.resolve()
+    if path.is_file():
+        return [path]
+    if not path.is_dir():
+        return []
+    pattern = "**/*.xlsx" if recursive else "*.xlsx"
+    files = [
+        f
+        for f in sorted(path.glob(pattern))
+        if f.is_file() and not f.name.startswith("~$")
+    ]
+    return files
+
+
+def _batch_output_dir(out_dir: Path, input_root: Path, xlsx_path: Path) -> Path:
+    """批量模式下为每个 xlsx 生成独立输出子目录。"""
+    try:
+        rel_parent = xlsx_path.parent.relative_to(input_root)
+    except ValueError:
+        rel_parent = Path(".")
+    if rel_parent == Path("."):
+        return out_dir / xlsx_path.stem
+    safe_parts = [re.sub(r'[<>:"/\\|?*]', "_", p) for p in rel_parent.parts]
+    return out_dir / Path(*safe_parts) / xlsx_path.stem
+
+
+def convert_path(
+    input_path: Path,
+    out_dir: Path,
+    *,
+    one_file: bool,
+    include_shapes: bool,
+    export_images: bool,
+    recursive: bool = False,
+) -> list[Path]:
+    """
+    单文件：直接写入 out_dir。
+    文件夹：out_dir 下为每个 xlsx 创建独立子文件夹并分别转换。
+    """
+    input_path = input_path.resolve()
+    out_dir = out_dir.resolve()
+    xlsx_files = _collect_xlsx_files(input_path, recursive=recursive)
+    if not xlsx_files:
+        return []
+
+    written: list[Path] = []
+    batch_mode = input_path.is_dir()
+    for xlsx_path in xlsx_files:
+        target_dir = (
+            _batch_output_dir(out_dir, input_path, xlsx_path)
+            if batch_mode
+            else out_dir
+        )
+        written.extend(
+            convert_workbook(
+                xlsx_path,
+                target_dir,
+                one_file=one_file,
+                include_shapes=include_shapes,
+                export_images=export_images,
+            )
+        )
+    return written
+
+
 def main(argv: Iterable[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="excel_to_md",
@@ -842,9 +1068,18 @@ def main(argv: Iterable[str] | None = None) -> int:
 依赖：仅 pip 安装 openpyxl；不调用 LibreOffice 或 Excel。
 """.strip(),
     )
-    parser.add_argument("xlsx", type=Path, help="输入 .xlsx 文件路径")
-    parser.add_argument("-o", "--output-dir", type=Path, required=True, help="输出目录（将创建）")
-    parser.add_argument("--one-file", action="store_true", help="所有工作表写入单个 .md")
+    parser.add_argument(
+        "input",
+        type=Path,
+        help="入力 .xlsx ファイル、または .xlsx を含むフォルダ",
+    )
+    parser.add_argument("-o", "--output-dir", type=Path, required=True, help="出力ディレクトリ（自動作成）")
+    parser.add_argument("--one-file", action="store_true", help="全シートを 1 つの .md にまとめる")
+    parser.add_argument(
+        "--recursive",
+        action="store_true",
+        help="フォルダ入力時、サブフォルダ内の .xlsx も再帰的に変換",
+    )
     parser.add_argument(
         "--no-shapes",
         action="store_true",
@@ -857,20 +1092,32 @@ def main(argv: Iterable[str] | None = None) -> int:
     )
     args = parser.parse_args(list(argv) if argv is not None else None)
 
-    if not args.xlsx.is_file():
-        print(f"错误：文件不存在 {args.xlsx}", file=sys.stderr)
-        return 2
-    if args.xlsx.suffix.lower() != ".xlsx":
-        print("错误：仅支持 .xlsx", file=sys.stderr)
+    input_path = args.input.resolve()
+    if not input_path.exists():
+        print(f"エラー：パスが存在しません {input_path}", file=sys.stderr)
         return 2
 
-    for path in convert_workbook(
-        args.xlsx,
+    if input_path.is_file():
+        if input_path.suffix.lower() != ".xlsx":
+            print("エラー：.xlsx のみ対応しています", file=sys.stderr)
+            return 2
+    elif not input_path.is_dir():
+        print(f"エラー：ファイルまたはフォルダを指定してください {input_path}", file=sys.stderr)
+        return 2
+
+    written = convert_path(
+        input_path,
         args.output_dir,
         one_file=args.one_file,
         include_shapes=not args.no_shapes,
         export_images=not args.no_export_images,
-    ):
+        recursive=args.recursive,
+    )
+    if not written:
+        print(f"エラー：変換対象の .xlsx が見つかりません {input_path}", file=sys.stderr)
+        return 2
+
+    for path in written:
         print(path)
     return 0
 
