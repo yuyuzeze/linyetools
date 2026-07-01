@@ -4,10 +4,10 @@ Excel (.xlsx) → Markdown。
 表格一律为 **GFM 管道表**（`| ... |`）。合并单元格仅在 **左上角一格** 写内容，同合并区内其它格导出为空，
 避免整段文字在管道表里重复出现（不再使用 <table>/<tr>/<td>）。
 
-跳过整表无文字行；输出折叠连续空行。
+跳过整表无文字行；剔除全空列；输出折叠连续空行。
 
-默认不读取文本框/形状；需要时加 --include-shapes（顺序与箭头拓扑不保真）。
-加 --export-images 时从嵌入图导出图片文件，并为每张图生成独立 HTML（文件名形如「图1-1 xxx」）。
+默认读取文本框/形状内文字（顺序与箭头拓扑不保真）；可用 --no-shapes 关闭。
+默认从嵌入图导出图片文件并在 Markdown 中直接引用（文件名形如「图1-1 xxx」）；可用 --no-export-images 关闭。
 
 依赖：openpyxl；形状/图片解析用标准库 zipfile + xml.etree。
 """
@@ -89,31 +89,225 @@ def _format_pipe_cell(v: object) -> str:
     return s.replace("\\", "\\\\").replace("|", "\\|")
 
 
-def sheet_to_pipe_markdown_table(ws: Worksheet, max_rows: int | None = None) -> str:
-    """GFM 管道表；合并格仅在左上角一格写值，同合并区内其它格为空。"""
-    min_row, min_col, max_row, max_col = _sheet_bounds(ws)
-    if max_rows is not None:
-        max_row = min(max_row, min_row + max_rows - 1)
-    ncols = max_col - min_col + 1
-    if ncols < 1:
-        return "_（空表）_"
+def _trim_empty_columns(rows: list[list[str]]) -> list[list[str]]:
+    """去掉在全部行中均为空的列（合并单元格产生的冗余物理列）。"""
+    if not rows:
+        return rows
+    ncols = len(rows[0])
+    keep = [c for c in range(ncols) if any(row[c].strip() for row in rows)]
+    if not keep:
+        return [[]]
+    return [[row[c] for c in keep] for row in rows]
 
-    master_map = _merge_master_map(ws)
-    body_lines: list[str] = []
+
+def _row_nonempty_cells(
+    ws: Worksheet,
+    r: int,
+    min_col: int,
+    max_col: int,
+    master_map: dict[tuple[int, int], tuple[int, int]],
+) -> list[str]:
+    """一行内从左到右的非空单元格文本（合并格仅左上角）。"""
+    out: list[str] = []
+    for c in range(min_col, max_col + 1):
+        v = _pipe_cell_value(ws, r, c, master_map)
+        if not _value_is_blank(v):
+            out.append(_format_pipe_cell(v))
+    return out
+
+
+_TABLE_HEADER_HINTS = (
+    "画面項目",
+    "項目名",
+    "種別",
+    "データ元",
+    "初期値",
+    "イベント",
+    "必須",
+    "活性",
+    "補足説明",
+    "チェック",
+    "画面レイアウト",
+)
+
+
+def _is_likely_table_header_row(cells: list[str]) -> bool:
+    """判断一行是否像主表表头（日语设计书常见列名）。"""
+    if len(cells) < 3:
+        return False
+    if any(re.fullmatch(r"No\.?", t.strip(), re.I) for t in cells):
+        return True
+    if any("画面項目" in t or "項目名" in t for t in cells):
+        return True
+    hit = sum(1 for h in _TABLE_HEADER_HINTS if any(h in t for t in cells))
+    return len(cells) >= 5 and hit >= 2
+
+
+def _detect_main_table_start_row(
+    ws: Worksheet,
+    min_row: int,
+    max_row: int,
+    min_col: int,
+    max_col: int,
+    master_map: dict[tuple[int, int], tuple[int, int]],
+) -> int | None:
+    """返回主表表头行号（1-based）；无法识别时返回 None。"""
     for r in range(min_row, max_row + 1):
         if not _row_has_visible_text(ws, r, min_col, max_col, master_map):
             continue
-        cells = [
-            _format_pipe_cell(_pipe_cell_value(ws, r, c, master_map))
-            for c in range(min_col, max_col + 1)
-        ]
-        body_lines.append("| " + " | ".join(cells) + " |")
+        cells = _row_nonempty_cells(ws, r, min_col, max_col, master_map)
+        if _is_likely_table_header_row(cells):
+            return r
 
-    if not body_lines:
+    counts: list[tuple[int, int]] = []
+    for r in range(min_row, min(min_row + 30, max_row + 1)):
+        if not _row_has_visible_text(ws, r, min_col, max_col, master_map):
+            continue
+        counts.append((r, len(_row_nonempty_cells(ws, r, min_col, max_col, master_map))))
+    if not counts:
+        return None
+
+    median = sorted(n for _, n in counts)[len(counts) // 2]
+    threshold = max(6, median + 3)
+    for r, n in counts:
+        if n >= threshold:
+            follow = 0
+            for r2 in range(r + 1, min(r + 4, max_row + 1)):
+                if len(_row_nonempty_cells(ws, r2, min_col, max_col, master_map)) >= 2:
+                    follow += 1
+            if follow >= 1:
+                return r
+    return None
+
+
+def _metadata_to_markdown(
+    ws: Worksheet,
+    min_row: int,
+    table_start_row: int,
+    min_col: int,
+    max_col: int,
+    master_map: dict[tuple[int, int], tuple[int, int]],
+) -> str:
+    """表头元数据区 → key-value 列表。"""
+    lines: list[str] = []
+    for r in range(min_row, table_start_row):
+        if not _row_has_visible_text(ws, r, min_col, max_col, master_map):
+            continue
+        texts = _row_nonempty_cells(ws, r, min_col, max_col, master_map)
+        if not texts:
+            continue
+
+        if len(texts) == 1:
+            t = texts[0]
+            if "一覧" in t or t.startswith("■") or len(t) > 24:
+                lines.append(f"**{t}**\n")
+            else:
+                lines.append(f"- {t}\n")
+            continue
+
+        i = 0
+        while i < len(texts):
+            if i + 1 < len(texts) and _looks_like_metadata_label(texts[i]):
+                lines.append(f"- **{texts[i]}**: {texts[i + 1]}\n")
+                i += 2
+            else:
+                lines.append(f"- {texts[i]}\n")
+                i += 1
+
+    if not lines:
+        return ""
+    return "### 表头信息\n\n" + "".join(lines) + "\n"
+
+
+def _looks_like_metadata_label(text: str) -> bool:
+    """短标签更像字段名，长句或含符号更像值。"""
+    t = text.strip()
+    if len(t) > 40:
+        return False
+    if re.search(r"[●○▲△×]", t):
+        return False
+    if t.endswith(("：", ":")):
+        return True
+    # 日语表头字段名常见模式
+    if re.search(
+        r"(プロジェクト|サブシステム|画面名|作成日|作成者|更新日|更新者|版数|システム|凡例|ドキュメント|画面|機能)",
+        t,
+    ):
+        return True
+    return len(t) <= 20 and not re.search(r"\d{4}[/年-]\d", t)
+
+
+def _collect_pipe_rows(
+    ws: Worksheet,
+    start_row: int,
+    end_row: int,
+    min_col: int,
+    max_col: int,
+    master_map: dict[tuple[int, int], tuple[int, int]],
+) -> list[list[str]]:
+    raw_rows: list[list[str]] = []
+    for r in range(start_row, end_row + 1):
+        if not _row_has_visible_text(ws, r, min_col, max_col, master_map):
+            continue
+        raw_rows.append(
+            [
+                _format_pipe_cell(_pipe_cell_value(ws, r, c, master_map))
+                for c in range(min_col, max_col + 1)
+            ]
+        )
+    return raw_rows
+
+
+def _rows_to_pipe_markdown(rows: list[list[str]]) -> str:
+    if not rows:
+        return ""
+    trimmed = _trim_empty_columns(rows)
+    if not trimmed or not trimmed[0]:
+        return ""
+    body_lines = ["| " + " | ".join(cells) + " |" for cells in trimmed]
+    ncol_out = len(trimmed[0])
+    sep = "| " + " | ".join(["---"] * ncol_out) + " |"
+    return "\n".join([body_lines[0], sep] + body_lines[1:])
+
+
+def sheet_to_markdown_content(ws: Worksheet) -> str:
+    """表头元数据（key-value）+ 主表（管道表）；自动识别分界行。"""
+    min_row, min_col, max_row, max_col = _sheet_bounds(ws)
+    if max_col < min_col:
         return "_（空表）_"
 
-    sep = "| " + " | ".join(["---"] * ncols) + " |"
-    return "\n".join([body_lines[0], sep] + body_lines[1:])
+    master_map = _merge_master_map(ws)
+    table_start = _detect_main_table_start_row(
+        ws, min_row, max_row, min_col, max_col, master_map
+    )
+
+    parts: list[str] = []
+    if table_start is not None and table_start > min_row:
+        meta = _metadata_to_markdown(
+            ws, min_row, table_start, min_col, max_col, master_map
+        )
+        if meta:
+            parts.append(meta)
+        data_start = table_start
+    else:
+        data_start = min_row
+
+    table_md = _rows_to_pipe_markdown(
+        _collect_pipe_rows(ws, data_start, max_row, min_col, max_col, master_map)
+    )
+    if table_md:
+        if parts:
+            parts.append("### 主表\n\n")
+        parts.append(table_md)
+
+    if not parts:
+        return "_（空表）_"
+    return "".join(parts)
+
+
+def sheet_to_pipe_markdown_table(ws: Worksheet) -> str:
+    """兼容旧名；等同 sheet_to_markdown_content。"""
+    return sheet_to_markdown_content(ws)
 
 
 def collapse_extra_blank_lines(text: str) -> str:
@@ -250,13 +444,13 @@ def export_sheet_embedded_images(
     sheet_index: int,
 ) -> tuple[list[Path], str]:
     """
-    导出当前 sheet 的嵌入位图：图片文件 + 同主名的 .html。
+    导出当前 sheet 的嵌入位图文件。
     文件名：图{sheet_index}-{序号} [Excel中图片说明/名称].ext
-    返回 (生成的 html 路径列表, 可追加到 md 的 Markdown 片段)。
+    返回 (生成的图片路径列表, 可追加到 md 的 Markdown 片段)。
     """
     figures_dir.mkdir(parents=True, exist_ok=True)
     rel_fig = figures_dir.name
-    html_paths: list[Path] = []
+    img_paths: list[Path] = []
     md_lines: list[str] = []
 
     r_ns = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id"
@@ -326,28 +520,13 @@ def export_sheet_embedded_images(
             base = base[:120].rstrip(" .")
 
             img_name = _unique_stem(figures_dir, base, ext)
-            html_name = Path(img_name).with_suffix(".html").name
             img_path = figures_dir / img_name
-            html_path = figures_dir / html_name
             img_path.write_bytes(raw)
+            img_paths.append(img_path)
 
-            title_esc = html.escape(label or f"图{sheet_index}-{idx}")
-            img_esc = html.escape(img_name)
-            html_body = (
-                "<!DOCTYPE html>\n"
-                '<html lang="ja">\n<head>\n'
-                '<meta charset="utf-8">\n'
-                f"<title>{title_esc}</title>\n"
-                "</head>\n<body>\n"
-                f'<figure><img src="{img_esc}" alt="{title_esc}">'
-                f"<figcaption>{title_esc}</figcaption></figure>\n"
-                "</body>\n</html>\n"
-            )
-            html_path.write_text(html_body, encoding="utf-8")
-            html_paths.append(html_path)
-
-            href = _md_uri_path(f"{rel_fig}/{html_path.name}")
-            md_lines.append(f"- [{html.escape(html_path.name)}]({href})\n")
+            alt = label or f"图{sheet_index}-{idx}"
+            href = _md_uri_path(f"{rel_fig}/{img_name}")
+            md_lines.append(f"![{alt}]({href})\n")
 
     if not md_lines:
         return [], ""
@@ -357,7 +536,7 @@ def export_sheet_embedded_images(
         + "".join(md_lines)
         + "\n"
     )
-    return html_paths, appendix
+    return img_paths, appendix
 
 
 def extract_shape_texts_from_xlsx(xlsx_path: Path, sheet_index: int) -> list[str]:
@@ -416,7 +595,6 @@ def build_markdown_for_sheet(
     workbook_path: Path,
     sheet_index: int,
     include_shapes: bool,
-    max_rows: int | None,
     figures_appendix: str = "",
 ) -> str:
     parts: list[str] = [f"## {ws.title}\n"]
@@ -426,13 +604,8 @@ def build_markdown_for_sheet(
         f"exported: {datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')}"
         " -->\n"
     )
-    if not include_shapes:
-        parts.append(
-            "<!-- 已跳过形状/文本框（默认）。仅单元格进入下方表格；"
-            "需要形状内文字请加 --include-shapes（箭头关系仍不保真） -->\n"
-        )
 
-    parts.append(sheet_to_pipe_markdown_table(ws, max_rows=max_rows))
+    parts.append(sheet_to_markdown_content(ws))
     parts.append("\n")
 
     if include_shapes:
@@ -456,7 +629,6 @@ def convert_workbook(
     *,
     one_file: bool,
     include_shapes: bool,
-    max_rows: int | None,
     export_images: bool,
 ) -> list[Path]:
     xlsx_path = xlsx_path.resolve()
@@ -471,17 +643,16 @@ def convert_workbook(
         chunks = [f"# {xlsx_path.stem}\n\n"]
         for i, ws in enumerate(wb.worksheets, start=1):
             fig_append = ""
-            fig_html: list[Path] = []
+            fig_imgs: list[Path] = []
             if figures_dir is not None:
-                fig_html, fig_append = export_sheet_embedded_images(xlsx_path, figures_dir, i)
-                written.extend(fig_html)
+                fig_imgs, fig_append = export_sheet_embedded_images(xlsx_path, figures_dir, i)
+                written.extend(fig_imgs)
             chunks.append(
                 build_markdown_for_sheet(
                     ws,
                     workbook_path=xlsx_path,
                     sheet_index=i,
                     include_shapes=include_shapes,
-                    max_rows=max_rows,
                     figures_appendix=fig_append,
                 )
             )
@@ -492,10 +663,10 @@ def convert_workbook(
     else:
         for i, ws in enumerate(wb.worksheets, start=1):
             fig_append = ""
-            fig_html: list[Path] = []
+            fig_imgs: list[Path] = []
             if figures_dir is not None:
-                fig_html, fig_append = export_sheet_embedded_images(xlsx_path, figures_dir, i)
-                written.extend(fig_html)
+                fig_imgs, fig_append = export_sheet_embedded_images(xlsx_path, figures_dir, i)
+                written.extend(fig_imgs)
             safe = re.sub(r'[<>:"/\\|?*]', "_", ws.title) or f"sheet{i}"
             out_path = out_dir / f"{xlsx_path.stem}__{safe}.md"
             body = build_markdown_for_sheet(
@@ -503,7 +674,6 @@ def convert_workbook(
                 workbook_path=xlsx_path,
                 sheet_index=i,
                 include_shapes=include_shapes,
-                max_rows=max_rows,
                 figures_appendix=fig_append,
             )
             out_path.write_text(
@@ -520,17 +690,16 @@ def main(argv: Iterable[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="excel_to_md",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        description="将 .xlsx 转为 Markdown：GFM 管道表（合并格仅左上角有值）；可选导出嵌入图及配套 HTML（--export-images）。UTF-8。",
+        description="将 .xlsx 转为 Markdown：GFM 管道表（合并格仅左上角有值，自动剔除全空行列）；默认导出嵌入图并在 md 中直接引用。UTF-8。",
         epilog="""
-默认行为（重要）：
-  不读取文本框/形状/示意图层，只导出单元格网格。
-  若说明只写在文本框里而未写入单元格，默认模式下不会出现在 Markdown 中。
+默认行为：
+  导出单元格网格为管道表，自动去掉合并产生的全空行/列。
+  从 DrawingML 抽取形状/文本框内可见文字（列表形式；顺序可能与画面不一致，箭头拓扑不保真）。
+  导出嵌入图片到「工作簿名_images/」，在 .md 末尾以 Markdown 图片语法直接引用。
 
-可选：
-  --include-shapes  从 DrawingML 抽取形状内可见文字（列表形式）；
-                    顺序可能与画面上不一致，且不表示箭头/连接线拓扑。
-  --export-images   导出嵌入图片到「工作簿名_images/」，文件名 图sheet-序号 及 Excel 图片名称/说明；
-                    每张图配一个同主名 .html；对应 .md 末尾追加链接列表。
+可选关闭：
+  --no-shapes         不解析形状/文本框内文字。
+  --no-export-images  不导出嵌入图片。
 
 依赖：仅 pip 安装 openpyxl；不调用 LibreOffice 或 Excel。
 """.strip(),
@@ -539,21 +708,14 @@ def main(argv: Iterable[str] | None = None) -> int:
     parser.add_argument("-o", "--output-dir", type=Path, required=True, help="输出目录（将创建）")
     parser.add_argument("--one-file", action="store_true", help="所有工作表写入单个 .md")
     parser.add_argument(
-        "--include-shapes",
+        "--no-shapes",
         action="store_true",
-        help="额外解析形状/文本框内文字（见上方说明）",
+        help="不解析形状/文本框内文字",
     )
     parser.add_argument(
-        "--max-rows",
-        type=int,
-        default=None,
-        metavar="N",
-        help="每个表最多导出 N 行（从该表 min_row 起计数）",
-    )
-    parser.add_argument(
-        "--export-images",
+        "--no-export-images",
         action="store_true",
-        help="导出嵌入图片与同主名 HTML 到 工作簿名_images/，并在 md 中追加链接",
+        help="不导出嵌入图片",
     )
     args = parser.parse_args(list(argv) if argv is not None else None)
 
@@ -568,9 +730,8 @@ def main(argv: Iterable[str] | None = None) -> int:
         args.xlsx,
         args.output_dir,
         one_file=args.one_file,
-        include_shapes=args.include_shapes,
-        max_rows=args.max_rows,
-        export_images=args.export_images,
+        include_shapes=not args.no_shapes,
+        export_images=not args.no_export_images,
     ):
         print(path)
     return 0
