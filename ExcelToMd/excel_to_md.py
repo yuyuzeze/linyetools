@@ -19,7 +19,7 @@ import html
 import re
 import sys
 import zipfile
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Iterable
 from urllib.parse import quote
@@ -180,6 +180,130 @@ def _detect_main_table_start_row(
     return None
 
 
+_KNOWN_METADATA_LABELS = frozenset({
+    "プロダクト",
+    "プロジェクト",
+    "サブシステム",
+    "画面名",
+    "画面ID",
+    "作成日",
+    "作成者",
+    "更新日",
+    "更新者",
+    "版数",
+    "I/O",
+    "表示",
+    "活性",
+    "必須",
+})
+
+_STANDALONE_TITLE_CELLS = frozenset({
+    "基本設計",
+    "詳細設計",
+    "画面設計",
+    "要件定義",
+})
+
+
+def _normalize_label(text: str) -> str:
+    return text.strip().rstrip("：:")
+
+
+def _cell_raw_value(
+    ws: Worksheet,
+    r: int,
+    c: int,
+    master_map: dict[tuple[int, int], tuple[int, int]],
+) -> object:
+    top = master_map.get((r, c), (r, c))
+    return ws.cell(top[0], top[1]).value
+
+
+def _format_metadata_value(v: object) -> str:
+    """表紙メタデータ用の表示（日付は Excel 風 YYYY/M/D）。"""
+    if v is None:
+        return ""
+    if isinstance(v, datetime):
+        return f"{v.year}/{v.month}/{v.day}"
+    if isinstance(v, date):
+        return f"{v.year}/{v.month}/{v.day}"
+    s = str(v).replace("\r\n", "\n").replace("\r", "\n")
+    s = " ".join(line.strip() for line in s.split("\n") if line.strip())
+    m = re.match(r"^(\d{4})-(\d{2})-(\d{2})", s)
+    if m:
+        return f"{int(m.group(1))}/{int(m.group(2))}/{int(m.group(3))}"
+    return s.replace("\\", "\\\\").replace("|", "\\|")
+
+
+def _is_known_metadata_label(text: str) -> bool:
+    return _normalize_label(text) in _KNOWN_METADATA_LABELS
+
+
+def _is_standalone_metadata_cell(text: str) -> bool:
+    t = text.strip()
+    if t.startswith("■") or t.startswith("※"):
+        return True
+    if t in _STANDALONE_TITLE_CELLS:
+        return True
+    if "一覧" in t and len(t) >= 6:
+        return True
+    if t == "凡例":
+        return True
+    return False
+
+
+def _extract_row_metadata_entries(
+    ws: Worksheet,
+    r: int,
+    min_col: int,
+    max_col: int,
+    master_map: dict[tuple[int, int], tuple[int, int]],
+) -> list[tuple[str, ...]]:
+    """
+    行を左から走査し、既知ラベルは右隣の非空セルを値としてペア化。
+    戻り値: ('standalone', text) または ('kv', label, value)
+    """
+    entries: list[tuple[str, ...]] = []
+    c = min_col
+    while c <= max_col:
+        raw = _cell_raw_value(ws, r, c, master_map)
+        if _value_is_blank(raw):
+            c += 1
+            continue
+
+        text = _format_metadata_value(raw)
+        if _is_standalone_metadata_cell(text):
+            entries.append(("standalone", text))
+            c += 1
+            continue
+
+        if _is_known_metadata_label(text):
+            label = _normalize_label(text)
+            value_text: str | None = None
+            value_col = c
+            for c2 in range(c + 1, max_col + 1):
+                raw2 = _cell_raw_value(ws, r, c2, master_map)
+                if _value_is_blank(raw2):
+                    continue
+                candidate = _format_metadata_value(raw2)
+                if _is_known_metadata_label(candidate):
+                    break
+                value_text = candidate
+                value_col = c2
+                break
+            if value_text is not None:
+                entries.append(("kv", label, value_text))
+                c = value_col + 1
+            else:
+                entries.append(("standalone", text))
+                c += 1
+            continue
+
+        entries.append(("standalone", text))
+        c += 1
+    return entries
+
+
 def _metadata_to_markdown(
     ws: Worksheet,
     min_row: int,
@@ -188,53 +312,38 @@ def _metadata_to_markdown(
     max_col: int,
     master_map: dict[tuple[int, int], tuple[int, int]],
 ) -> str:
-    """表头元数据区 → key-value 列表。"""
+    """表紙メタデータ区 → key-value リスト（セル位置に基づくペア）。"""
     lines: list[str] = []
     for r in range(min_row, table_start_row):
         if not _row_has_visible_text(ws, r, min_col, max_col, master_map):
             continue
-        texts = _row_nonempty_cells(ws, r, min_col, max_col, master_map)
-        if not texts:
+        entries = _extract_row_metadata_entries(ws, r, min_col, max_col, master_map)
+        if not entries:
             continue
 
-        if len(texts) == 1:
-            t = texts[0]
-            if "一覧" in t or t.startswith("■") or len(t) > 24:
-                lines.append(f"**{t}**\n")
+        legend_bits: list[str] = []
+        for entry in entries:
+            if entry[0] == "kv":
+                lines.append(f"- **{entry[1]}**: {entry[2]}\n")
             else:
-                lines.append(f"- {t}\n")
-            continue
+                text = entry[1]
+                if text.startswith("■") or text in _STANDALONE_TITLE_CELLS or (
+                    "一覧" in text and len(text) >= 6
+                ):
+                    lines.append(f"**{text}**\n")
+                elif "：" in text or ":" in text:
+                    legend_bits.append(text)
+                elif text.startswith("※"):
+                    lines.append(f"- {text}\n")
+                else:
+                    legend_bits.append(text)
 
-        i = 0
-        while i < len(texts):
-            if i + 1 < len(texts) and _looks_like_metadata_label(texts[i]):
-                lines.append(f"- **{texts[i]}**: {texts[i + 1]}\n")
-                i += 2
-            else:
-                lines.append(f"- {texts[i]}\n")
-                i += 1
+        if legend_bits:
+            lines.append(f"- {' | '.join(legend_bits)}\n")
 
     if not lines:
         return ""
-    return "### 表头信息\n\n" + "".join(lines) + "\n"
-
-
-def _looks_like_metadata_label(text: str) -> bool:
-    """短标签更像字段名，长句或含符号更像值。"""
-    t = text.strip()
-    if len(t) > 40:
-        return False
-    if re.search(r"[●○▲△×]", t):
-        return False
-    if t.endswith(("：", ":")):
-        return True
-    # 日语表头字段名常见模式
-    if re.search(
-        r"(プロジェクト|サブシステム|画面名|作成日|作成者|更新日|更新者|版数|システム|凡例|ドキュメント|画面|機能)",
-        t,
-    ):
-        return True
-    return len(t) <= 20 and not re.search(r"\d{4}[/年-]\d", t)
+    return "### 表紙情報\n\n" + "".join(lines) + "\n"
 
 
 def _collect_pipe_rows(
@@ -274,7 +383,7 @@ def sheet_to_markdown_content(ws: Worksheet) -> str:
     """表头元数据（key-value）+ 主表（管道表）；自动识别分界行。"""
     min_row, min_col, max_row, max_col = _sheet_bounds(ws)
     if max_col < min_col:
-        return "_（空表）_"
+        return "_（空）_"
 
     master_map = _merge_master_map(ws)
     table_start = _detect_main_table_start_row(
@@ -297,11 +406,11 @@ def sheet_to_markdown_content(ws: Worksheet) -> str:
     )
     if table_md:
         if parts:
-            parts.append("### 主表\n\n")
+            parts.append("### 一覧\n\n")
         parts.append(table_md)
 
     if not parts:
-        return "_（空表）_"
+        return "_（空）_"
     return "".join(parts)
 
 
@@ -514,9 +623,9 @@ def export_sheet_embedded_images(
 
             label = _sanitize_figure_label(caption)
             if label:
-                base = f"图{sheet_index}-{idx} {label}"
+                base = f"図{sheet_index}-{idx} {label}"
             else:
-                base = f"图{sheet_index}-{idx}"
+                base = f"図{sheet_index}-{idx}"
             base = base[:120].rstrip(" .")
 
             img_name = _unique_stem(figures_dir, base, ext)
@@ -524,7 +633,7 @@ def export_sheet_embedded_images(
             img_path.write_bytes(raw)
             img_paths.append(img_path)
 
-            alt = label or f"图{sheet_index}-{idx}"
+            alt = label or f"図{sheet_index}-{idx}"
             href = _md_uri_path(f"{rel_fig}/{img_name}")
             md_lines.append(f"![{alt}]({href})\n")
 
@@ -532,7 +641,7 @@ def export_sheet_embedded_images(
         return [], ""
 
     appendix = (
-        f"\n### 嵌入图片（{rel_fig}/）\n\n"
+        f"\n### 埋め込み画像（{rel_fig}/）\n\n"
         + "".join(md_lines)
         + "\n"
     )
@@ -610,12 +719,10 @@ def build_markdown_for_sheet(
 
     if include_shapes:
         shape_lines = extract_shape_texts_from_xlsx(workbook_path, sheet_index)
-        parts.append("\n### 形状内文字（DrawingML，顺序不保证）\n")
         if shape_lines:
+            parts.append("\n### シェイプ内テキスト（DrawingML、順序は保証されません）\n")
             for line in shape_lines:
                 parts.append(f"- {html.escape(line)}\n")
-        else:
-            parts.append("（未发现可解析文本）\n")
 
     if figures_appendix:
         parts.append(figures_appendix)
