@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "exceltomd"
+version = "1.0.0"
+description = "Convert Excel (.xlsx) sheets to Markdown (GFM pipe tables, Japanese design docs)"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "openpyxl>=3.1.0,<4",
+]
+
+[project.scripts]
+exceltomd = "excel_to_md:main"
+
+[tool.setuptools]
+py-modules = ["excel_to_md"]
+packages = []

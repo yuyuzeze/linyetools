@@ -29,6 +29,12 @@
 pip install -r requirements.txt
 ```
 
+注册为命令行工具（任意目录可用 `excelconvert`）：
+
+```bash
+pip install -e .
+```
+
 ---
 
 ## 基本用法

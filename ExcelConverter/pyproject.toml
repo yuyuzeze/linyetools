@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "excelconvert"
+version = "1.0.0"
+description = "Batch convert Excel (.xlsx) folders to Markdown, CSV, or HTML (one file per sheet)"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "openpyxl>=3.1.0",
+]
+
+[project.scripts]
+excelconvert = "excel_converter:main"
+
+[tool.setuptools]
+py-modules = ["excel_converter", "excel_reader", "exporters"]
+packages = []
