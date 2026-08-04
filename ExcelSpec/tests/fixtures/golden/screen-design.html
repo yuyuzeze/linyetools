@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>脱敏利用者検索画面</title><style>:root { color-scheme: light dark; --bg:#fff; --fg:#202124; --muted:#5f6368;
+  --line:#dfe1e5; --panel:#f8f9fa; --accent:#1769aa; }
+@media (prefers-color-scheme:dark) { :root { --bg:#171717; --fg:#eee;
+  --muted:#aaa; --line:#444; --panel:#222; --accent:#7db7e8; } }
+* { box-sizing:border-box; } html { scroll-behavior:smooth; }
+body { margin:0; color:var(--fg); background:var(--bg);
+  font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif; }
+.layout { display:grid; grid-template-columns:minmax(14rem,20rem) minmax(0,1fr);
+  gap:2rem; max-width:90rem; margin:auto; padding:2rem; }
+nav { position:sticky; top:1rem; align-self:start; max-height:calc(100vh - 2rem);
+  overflow:auto; padding:1rem; background:var(--panel); border-radius:.6rem; }
+nav ol { padding-left:1.25rem; } nav a { color:var(--accent); }
+main { min-width:0; } section { margin:0 0 2.5rem; scroll-margin-top:1rem; }
+.metadata { display:grid; grid-template-columns:max-content minmax(0,1fr);
+  gap:.35rem 1rem; } .metadata dt { font-weight:700; }
+.table-wrap { width:100%; overflow:auto; margin:1rem 0; }
+table { border-collapse:collapse; min-width:36rem; width:100%; }
+th,td { border:1px solid var(--line); padding:.45rem .6rem; vertical-align:top; }
+th { background:var(--panel); text-align:left; } img { max-width:100%; height:auto; }
+figure { margin:1rem 0; } figcaption { color:var(--muted); }
+@media (max-width:50rem) { .layout { display:block; padding:1rem; }
+  nav { position:static; max-height:none; margin-bottom:2rem; } }</style></head><body><div class="layout"><nav aria-label="目录"><strong>目录</strong><ol><li><a href="#sheet-0-sheet-1">表紙</a><ol><li><a href="#sheet-0-sheet-1-region-0-document-info">表紙</a></li><li><a href="#sheet-0-sheet-1-region-1-screen-layout">画面レイアウト</a></li><li><a href="#sheet-0-sheet-1-region-2-unrecognized-1">unrecognized-1</a></li><li><a href="#sheet-0-sheet-1-region-3-unrecognized-grid-residual">unrecognized-grid-residual</a></li></ol></li><li><a href="#sheet-1-sheet-2">改訂履歴</a><ol><li><a href="#sheet-1-sheet-2-region-0-revision-history">改訂履歴</a></li></ol></li><li><a href="#sheet-2-sheet-3">画面項目</a><ol><li><a href="#sheet-2-sheet-3-region-0-screen-item-table">画面項目表</a></li><li><a href="#sheet-2-sheet-3-region-1-unrecognized-1">unrecognized-1</a></li><li><a href="#sheet-2-sheet-3-region-2-unrecognized-2">unrecognized-2</a></li><li><a href="#sheet-2-sheet-3-region-3-unrecognized-grid-residual">unrecognized-grid-residual</a></li></ol></li></ol></nav><main><h1>脱敏利用者検索画面</h1><dl class="metadata"><dt>文档 ID</dt><dd>screen-design</dd><dt>Schema 版本</dt><dd>1.0</dd><dt>模板</dt><dd>fixture-screen-design v1.0</dd><dt>ingestor</dt><dd>openpyxl+ooxml</dd><dt>creator</dt><dd>Fixture Team</dd><dt>last_modified_by</dt><dd>None</dd><dt>asset_directory</dt><dd>fixtures/assets</dd><dt>template_match</dt><dd>{&quot;candidates&quot;: [{&quot;accepted&quot;: true, &quot;score&quot;: 1.0, &quot;template_id&quot;: &quot;fixture-screen-design&quot;, &quot;version&quot;: &quot;1.0&quot;}], &quot;mode&quot;: &quot;template&quot;, &quot;unrecognized_ranges&quot;: {&quot;改訂履歴&quot;: [], &quot;画面項目&quot;: [&quot;A1:A1&quot;, &quot;A7:A8&quot;, &quot;B1:H8&quot;], &quot;表紙&quot;: [&quot;A12:A12&quot;, &quot;A11:D12&quot;]}}</dd></dl><section id="sheet-0-sheet-1"><h2>表紙</h2><section id="sheet-0-sheet-1-region-0-document-info" data-region-type="key_value"><h3>表紙</h3><dl class="metadata"><dt>画面設計書</dt><dd></dd><dt>screen_id</dt><dd>SCR-DEMO-001</dd><dt>screen_name</dt><dd>利用者検索</dd><dt>author</dt><dd>担当A</dd><dt>created_at</dt><dd>2026-01-15</dd></dl></section><section id="sheet-0-sheet-1-region-1-screen-layout" data-region-type="layout"><h3>画面レイアウト</h3><div class="table-wrap"><table class="excelspec-table"></table></div><figure><img src="fixtures/screens/layout.png" alt="脱敏検索画面" loading="lazy"><figcaption>脱敏検索画面</figcaption></figure><figure><img src="fixtures/assets/表紙-image-1.png" alt="Picture" loading="lazy"><figcaption>Picture</figcaption></figure><p class="asset"><a href="ooxml://xl/drawings/drawing1.xml#shape-1">検索ボタンで一覧を更新</a></p></section><section id="sheet-0-sheet-1-region-2-unrecognized-1" data-region-type="freeform"><h3>unrecognized-1</h3><div class="table-wrap"><table class="excelspec-table">
+  <tr>
+    <td data-source-cell="A12">画面レイアウト</td>
+  </tr>
+</table></div></section><section id="sheet-0-sheet-1-region-3-unrecognized-grid-residual" data-region-type="freeform"><h3>unrecognized-grid-residual</h3><div class="table-wrap"><table class="excelspec-table">
+  <tr>
+    <td data-source-cell="A11"></td>
+    <td data-source-cell="B11"></td>
+    <td data-source-cell="C11"></td>
+    <td data-source-cell="D11"></td>
+  </tr>
+  <tr>
+    <td></td>
+    <td data-source-cell="B12"></td>
+    <td data-source-cell="C12"></td>
+    <td data-source-cell="D12"></td>
+  </tr>
+</table></div></section></section><section id="sheet-1-sheet-2"><h2>改訂履歴</h2><section id="sheet-1-sheet-2-region-0-revision-history" data-region-type="table"><h3>改訂履歴</h3><div class="table-wrap"><table class="excelspec-table">
+  <tr>
+  </tr>
+  <tr>
+    <th data-source-cell="A2">版</th>
+    <th data-source-cell="B2">日付</th>
+    <th data-source-cell="C2">変更内容</th>
+    <th data-source-cell="D2">担当</th>
+  </tr>
+  <tr>
+    <td data-source-cell="A3">1.0</td>
+    <td data-source-cell="B3">2026-01-15</td>
+    <td data-source-cell="C3">新規作成</td>
+    <td data-source-cell="D3">担当A</td>
+  </tr>
+  <tr>
+    <td data-source-cell="A4">1.1</td>
+    <td data-source-cell="B4">2026-02-01</td>
+    <td data-source-cell="C4">検索条件を追加</td>
+    <td data-source-cell="D4">担当B</td>
+  </tr>
+</table></div></section></section><section id="sheet-2-sheet-3"><h2>画面項目</h2><section id="sheet-2-sheet-3-region-0-screen-item-table" data-region-type="table"><h3>画面項目表</h3><div class="table-wrap"><table class="excelspec-table">
+  <tr>
+  </tr>
+  <tr>
+    <th data-source-cell="C3">データ型</th>
+    <th data-source-cell="D3">桁数</th>
+  </tr>
+  <tr>
+    <td data-source-cell="A4">USR-ID</td>
+    <td data-source-cell="B4">利用者ID</td>
+    <td data-source-cell="C4">文字列</td>
+    <td data-source-cell="D4">12</td>
+    <td data-source-cell="E4">○</td>
+    <td data-source-cell="F4">利用者ID</td>
+    <td data-source-cell="G4">英数字</td>
+    <td data-source-cell="H4"></td>
+  </tr>
+  <tr>
+    <td data-source-cell="A5">USR-NAME</td>
+    <td data-source-cell="B5">利用者名</td>
+    <td data-source-cell="C5">文字列</td>
+    <td data-source-cell="D5">40</td>
+    <td data-source-cell="E5"></td>
+    <td data-source-cell="F5">利用者名</td>
+    <td data-source-cell="G5"></td>
+    <td data-source-cell="H5"></td>
+  </tr>
+  <tr>
+    <td data-source-cell="A6">SEARCH</td>
+    <td data-source-cell="B6">検索</td>
+    <td data-source-cell="C6">ボタン</td>
+    <td data-source-cell="D6"></td>
+    <td data-source-cell="E6"></td>
+    <td data-source-cell="F6">検索</td>
+    <td data-source-cell="G6"></td>
+    <td data-source-cell="H6">押下で検索</td>
+  </tr>
+</table></div></section><section id="sheet-2-sheet-3-region-1-unrecognized-1" data-region-type="freeform"><h3>unrecognized-1</h3><div class="table-wrap"><table class="excelspec-table">
+  <tr>
+  </tr>
+</table></div></section><section id="sheet-2-sheet-3-region-2-unrecognized-2" data-region-type="freeform"><h3>unrecognized-2</h3><div class="table-wrap"><table class="excelspec-table">
+  <tr>
+    <td data-source-cell="A7">備考</td>
+  </tr>
+  <tr>
+    <td data-source-cell="A8">個人名・実データを含まない合成 fixture</td>
+  </tr>
+</table></div></section><section id="sheet-2-sheet-3-region-3-unrecognized-grid-residual" data-region-type="freeform"><h3>unrecognized-grid-residual</h3><div class="table-wrap"><table class="excelspec-table">
+  <tr>
+  </tr>
+  <tr>
+    <td data-source-cell="B7"></td>
+    <td data-source-cell="C7"></td>
+    <td data-source-cell="D7"></td>
+    <td data-source-cell="E7"></td>
+    <td data-source-cell="F7"></td>
+    <td data-source-cell="G7"></td>
+    <td data-source-cell="H7"></td>
+  </tr>
+  <tr>
+    <td data-source-cell="B8"></td>
+    <td data-source-cell="C8"></td>
+    <td data-source-cell="D8"></td>
+    <td data-source-cell="E8"></td>
+    <td data-source-cell="F8"></td>
+    <td data-source-cell="G8"></td>
+    <td data-source-cell="H8"></td>
+  </tr>
+</table></div></section></section></main></div></body></html>

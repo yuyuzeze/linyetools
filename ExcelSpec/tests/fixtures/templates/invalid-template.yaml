@@ -1,0 +1,12 @@
+schema_version: "1.0"
+template_id: broken-fixture
+version: "1.0"
+name: エラーテンプレート
+sheets:
+  - sheet_id: broken
+    name_pattern: "^表紙$"
+    regions:
+      - region_id: missing-range
+        region_type: table
+        locator:
+          mode: fixed

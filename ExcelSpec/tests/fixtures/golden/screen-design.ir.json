@@ -1,0 +1,1966 @@
+{
+  "assets": [],
+  "diagnostics": [],
+  "document_id": "screen-design",
+  "metadata": {
+    "asset_directory": "fixtures/assets",
+    "creator": "Fixture Team",
+    "ingestor": "openpyxl+ooxml",
+    "last_modified_by": null,
+    "template_match": {
+      "candidates": [
+        {
+          "accepted": true,
+          "score": 1.0,
+          "template_id": "fixture-screen-design",
+          "version": "1.0"
+        }
+      ],
+      "mode": "template",
+      "unrecognized_ranges": {
+        "改訂履歴": [],
+        "画面項目": [
+          "A1:A1",
+          "A7:A8",
+          "B1:H8"
+        ],
+        "表紙": [
+          "A12:A12",
+          "A11:D12"
+        ]
+      }
+    }
+  },
+  "schema_version": "1.0",
+  "sheets": [
+    {
+      "assets": [
+        {
+          "anchor": "B13",
+          "asset_id": "sheet-1-image-1",
+          "asset_type": "image",
+          "description": "Picture",
+          "extraction_status": "extracted",
+          "media_type": "image/png",
+          "metadata": {
+            "drawing_part": "xl/drawings/drawing1.xml",
+            "ooxml_part": "xl/media/image1.png",
+            "relationship_id": "rId1"
+          },
+          "source": {
+            "sheet": "表紙",
+            "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+          },
+          "uri": "fixtures/assets/表紙-image-1.png"
+        },
+        {
+          "anchor": "B13",
+          "asset_id": "sheet-1-shape-1",
+          "asset_type": "shape",
+          "description": "検索ボタンで一覧を更新",
+          "extraction_status": "extracted",
+          "metadata": {
+            "drawing_part": "xl/drawings/drawing1.xml",
+            "shape_kind": "sp",
+            "text": "検索ボタンで一覧を更新"
+          },
+          "source": {
+            "sheet": "表紙",
+            "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+          },
+          "uri": "ooxml://xl/drawings/drawing1.xml#shape-1"
+        },
+        {
+          "anchor": "B13:H24",
+          "asset_id": "fixture-screen-shot",
+          "asset_type": "layout",
+          "description": "脱敏検索画面",
+          "extraction_status": "bound",
+          "media_type": "image/png",
+          "metadata": {
+            "manifest_path": "C:\\Users\\yuyuzeze\\Desktop\\Linye\\linyetools\\ExcelSpec\\tests\\fixtures\\screenshots.json",
+            "ocr": {
+              "status": "pending"
+            },
+            "region_id": null,
+            "source_kind": "user_manifest",
+            "vlm": {
+              "status": "not_requested"
+            }
+          },
+          "source": {
+            "sheet": "表紙",
+            "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+          },
+          "uri": "fixtures/screens/layout.png"
+        }
+      ],
+      "diagnostics": [],
+      "index": 0,
+      "metadata": {
+        "effective_bounds": [
+          1,
+          1,
+          12,
+          4
+        ],
+        "extraction_mode": "template",
+        "merged_ranges": [
+          "A1:D1"
+        ],
+        "state": "visible"
+      },
+      "name": "表紙",
+      "regions": [
+        {
+          "asset_ids": [],
+          "confidence": 1.0,
+          "metadata": {
+            "extractor_kind": "key_value",
+            "key_labels": {
+              "作成日": "created_at",
+              "作成者": "author",
+              "画面ID": "screen_id",
+              "画面名": "screen_name"
+            },
+            "shrink_to_content": false,
+            "template_region_id": "document-info",
+            "trim_empty_columns": false
+          },
+          "region_id": "document-info",
+          "region_type": "key_value",
+          "source": {
+            "range": "A1:D10",
+            "sheet": "表紙"
+          },
+          "tables": [],
+          "title": "表紙",
+          "values": {
+            "author": "担当A",
+            "created_at": "2026-01-15",
+            "screen_id": "SCR-DEMO-001",
+            "screen_name": "利用者検索",
+            "画面設計書": ""
+          }
+        },
+        {
+          "asset_ids": [
+            "fixture-screen-shot",
+            "sheet-1-image-1",
+            "sheet-1-shape-1"
+          ],
+          "confidence": 0.9,
+          "metadata": {
+            "extractor_kind": "asset",
+            "shrink_to_content": false,
+            "template_region_id": "screen-layout",
+            "trim_empty_columns": false
+          },
+          "region_id": "screen-layout",
+          "region_type": "layout",
+          "source": {
+            "range": "A13:H24",
+            "sheet": "表紙"
+          },
+          "tables": [
+            {
+              "cells": [],
+              "column_semantics": {},
+              "header_rows": 0,
+              "metadata": {},
+              "source": {
+                "range": "A13:H24",
+                "sheet": "表紙"
+              },
+              "table_id": "screen-layout"
+            }
+          ],
+          "title": "画面レイアウト",
+          "values": {}
+        },
+        {
+          "asset_ids": [],
+          "confidence": 0.25,
+          "metadata": {
+            "segmentation": "blank-and-style-boundaries"
+          },
+          "region_id": "unrecognized-1",
+          "region_type": "freeform",
+          "source": {
+            "range": "A12:A12",
+            "sheet": "表紙"
+          },
+          "tables": [
+            {
+              "cells": [
+                {
+                  "col_span": 1,
+                  "column": 1,
+                  "coordinate": "A12",
+                  "data_type": "s",
+                  "display_value": "画面レイアウト",
+                  "raw_value": "画面レイアウト",
+                  "row": 12,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "A12",
+                    "sheet": "表紙",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  },
+                  "style": {
+                    "alignment": {},
+                    "border": {},
+                    "fill": {
+                      "background": {
+                        "type": "rgb",
+                        "value": "00000000"
+                      },
+                      "foreground": {
+                        "type": "rgb",
+                        "value": "00000000"
+                      }
+                    },
+                    "font": {
+                      "bold": true
+                    },
+                    "number_format": "General"
+                  }
+                }
+              ],
+              "column_semantics": {},
+              "header_rows": 0,
+              "metadata": {},
+              "source": {
+                "range": "A12:A12",
+                "sheet": "表紙"
+              },
+              "table_id": "unrecognized-1"
+            }
+          ],
+          "values": {}
+        },
+        {
+          "asset_ids": [],
+          "confidence": 0.1,
+          "metadata": {
+            "reason": "preserve-empty-or-separated-effective-cells",
+            "segmentation": "grid-residual"
+          },
+          "region_id": "unrecognized-grid-residual",
+          "region_type": "freeform",
+          "source": {
+            "range": "A11:D12",
+            "sheet": "表紙"
+          },
+          "tables": [
+            {
+              "cells": [
+                {
+                  "col_span": 1,
+                  "column": 1,
+                  "coordinate": "A11",
+                  "data_type": "n",
+                  "row": 11,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "A11",
+                    "sheet": "表紙",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 2,
+                  "coordinate": "B11",
+                  "data_type": "n",
+                  "row": 11,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "B11",
+                    "sheet": "表紙",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 3,
+                  "coordinate": "C11",
+                  "data_type": "n",
+                  "row": 11,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "C11",
+                    "sheet": "表紙",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 4,
+                  "coordinate": "D11",
+                  "data_type": "n",
+                  "row": 11,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "D11",
+                    "sheet": "表紙",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 2,
+                  "coordinate": "B12",
+                  "data_type": "n",
+                  "row": 12,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "B12",
+                    "sheet": "表紙",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 3,
+                  "coordinate": "C12",
+                  "data_type": "n",
+                  "row": 12,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "C12",
+                    "sheet": "表紙",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 4,
+                  "coordinate": "D12",
+                  "data_type": "n",
+                  "row": 12,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "D12",
+                    "sheet": "表紙",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                }
+              ],
+              "column_semantics": {},
+              "header_rows": 0,
+              "metadata": {},
+              "source": {
+                "range": "A11:D12",
+                "sheet": "表紙"
+              },
+              "table_id": "unrecognized-grid-residual"
+            }
+          ],
+          "values": {}
+        }
+      ],
+      "sheet_id": "sheet-1"
+    },
+    {
+      "assets": [],
+      "diagnostics": [],
+      "index": 1,
+      "metadata": {
+        "effective_bounds": [
+          1,
+          1,
+          4,
+          4
+        ],
+        "extraction_mode": "template",
+        "merged_ranges": [
+          "A1:D1"
+        ],
+        "state": "visible"
+      },
+      "name": "改訂履歴",
+      "regions": [
+        {
+          "asset_ids": [],
+          "confidence": 1.0,
+          "metadata": {
+            "extractor_kind": "table",
+            "shrink_to_content": false,
+            "template_region_id": "revision-history",
+            "trim_empty_columns": true
+          },
+          "region_id": "revision-history",
+          "region_type": "table",
+          "source": {
+            "range": "A1:D4",
+            "sheet": "改訂履歴"
+          },
+          "tables": [
+            {
+              "cells": [
+                {
+                  "col_span": 4,
+                  "column": 1,
+                  "coordinate": "A1",
+                  "data_type": "s",
+                  "display_value": "改訂履歴",
+                  "merged_master": "A1",
+                  "raw_value": "改訂履歴",
+                  "row": 1,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "A1",
+                    "sheet": "改訂履歴",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  },
+                  "style": {
+                    "alignment": {
+                      "horizontal": "center"
+                    },
+                    "border": {},
+                    "fill": {
+                      "background": {
+                        "type": "rgb",
+                        "value": "00000000"
+                      },
+                      "foreground": {
+                        "type": "rgb",
+                        "value": "00D9EAF7"
+                      },
+                      "type": "solid"
+                    },
+                    "font": {
+                      "bold": true,
+                      "size": 16.0
+                    },
+                    "number_format": "General"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 2,
+                  "coordinate": "B1",
+                  "data_type": "n",
+                  "merged_master": "A1",
+                  "row": 1,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "B1",
+                    "sheet": "改訂履歴",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 3,
+                  "coordinate": "C1",
+                  "data_type": "n",
+                  "merged_master": "A1",
+                  "row": 1,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "C1",
+                    "sheet": "改訂履歴",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 4,
+                  "coordinate": "D1",
+                  "data_type": "n",
+                  "merged_master": "A1",
+                  "row": 1,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "D1",
+                    "sheet": "改訂履歴",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 1,
+                  "coordinate": "A2",
+                  "data_type": "s",
+                  "display_value": "版",
+                  "raw_value": "版",
+                  "row": 2,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "A2",
+                    "sheet": "改訂履歴",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 2,
+                  "coordinate": "B2",
+                  "data_type": "s",
+                  "display_value": "日付",
+                  "raw_value": "日付",
+                  "row": 2,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "B2",
+                    "sheet": "改訂履歴",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 3,
+                  "coordinate": "C2",
+                  "data_type": "s",
+                  "display_value": "変更内容",
+                  "raw_value": "変更内容",
+                  "row": 2,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "C2",
+                    "sheet": "改訂履歴",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 4,
+                  "coordinate": "D2",
+                  "data_type": "s",
+                  "display_value": "担当",
+                  "raw_value": "担当",
+                  "row": 2,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "D2",
+                    "sheet": "改訂履歴",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 1,
+                  "coordinate": "A3",
+                  "data_type": "s",
+                  "display_value": "1.0",
+                  "raw_value": "1.0",
+                  "row": 3,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "A3",
+                    "sheet": "改訂履歴",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 2,
+                  "coordinate": "B3",
+                  "data_type": "s",
+                  "display_value": "2026-01-15",
+                  "raw_value": "2026-01-15",
+                  "row": 3,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "B3",
+                    "sheet": "改訂履歴",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 3,
+                  "coordinate": "C3",
+                  "data_type": "s",
+                  "display_value": "新規作成",
+                  "raw_value": "新規作成",
+                  "row": 3,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "C3",
+                    "sheet": "改訂履歴",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 4,
+                  "coordinate": "D3",
+                  "data_type": "s",
+                  "display_value": "担当A",
+                  "raw_value": "担当A",
+                  "row": 3,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "D3",
+                    "sheet": "改訂履歴",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 1,
+                  "coordinate": "A4",
+                  "data_type": "s",
+                  "display_value": "1.1",
+                  "raw_value": "1.1",
+                  "row": 4,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "A4",
+                    "sheet": "改訂履歴",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 2,
+                  "coordinate": "B4",
+                  "data_type": "s",
+                  "display_value": "2026-02-01",
+                  "raw_value": "2026-02-01",
+                  "row": 4,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "B4",
+                    "sheet": "改訂履歴",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 3,
+                  "coordinate": "C4",
+                  "data_type": "s",
+                  "display_value": "検索条件を追加",
+                  "raw_value": "検索条件を追加",
+                  "row": 4,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "C4",
+                    "sheet": "改訂履歴",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 4,
+                  "coordinate": "D4",
+                  "data_type": "s",
+                  "display_value": "担当B",
+                  "raw_value": "担当B",
+                  "row": 4,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "D4",
+                    "sheet": "改訂履歴",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                }
+              ],
+              "column_semantics": {
+                "A": "revision",
+                "B": "changed_at",
+                "C": "change",
+                "D": "author"
+              },
+              "header_rows": 2,
+              "metadata": {
+                "header_labels": {
+                  "A": "改訂履歴 / 版",
+                  "B": "改訂履歴 / 日付",
+                  "C": "改訂履歴 / 変更内容",
+                  "D": "改訂履歴 / 担当"
+                }
+              },
+              "source": {
+                "range": "A1:D4",
+                "sheet": "改訂履歴"
+              },
+              "table_id": "revision-history"
+            }
+          ],
+          "title": "改訂履歴",
+          "values": {}
+        }
+      ],
+      "sheet_id": "sheet-2"
+    },
+    {
+      "assets": [],
+      "diagnostics": [],
+      "index": 2,
+      "metadata": {
+        "effective_bounds": [
+          1,
+          1,
+          8,
+          8
+        ],
+        "extraction_mode": "template",
+        "merged_ranges": [
+          "C2:D2",
+          "B2:B3",
+          "A2:A3",
+          "A1:H1",
+          "F2:F3",
+          "E2:E3",
+          "H2:H3",
+          "G2:G3"
+        ],
+        "state": "visible"
+      },
+      "name": "画面項目",
+      "regions": [
+        {
+          "asset_ids": [],
+          "confidence": 0.9,
+          "metadata": {
+            "extractor_kind": "table",
+            "shrink_to_content": false,
+            "template_region_id": "screen-item-table",
+            "trim_empty_columns": true
+          },
+          "region_id": "screen-item-table",
+          "region_type": "table",
+          "source": {
+            "range": "A2:H6",
+            "sheet": "画面項目"
+          },
+          "tables": [
+            {
+              "cells": [
+                {
+                  "col_span": 1,
+                  "column": 1,
+                  "coordinate": "A2",
+                  "data_type": "s",
+                  "display_value": "項目ID",
+                  "merged_master": "A2",
+                  "raw_value": "項目ID",
+                  "row": 2,
+                  "row_span": 2,
+                  "source": {
+                    "cell": "A2",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  },
+                  "style": {
+                    "alignment": {},
+                    "border": {},
+                    "fill": {
+                      "background": {
+                        "type": "rgb",
+                        "value": "00000000"
+                      },
+                      "foreground": {
+                        "type": "rgb",
+                        "value": "00E2F0D9"
+                      },
+                      "type": "solid"
+                    },
+                    "font": {
+                      "bold": true
+                    },
+                    "number_format": "General"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 2,
+                  "coordinate": "B2",
+                  "data_type": "s",
+                  "display_value": "項目名",
+                  "merged_master": "B2",
+                  "raw_value": "項目名",
+                  "row": 2,
+                  "row_span": 2,
+                  "source": {
+                    "cell": "B2",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  },
+                  "style": {
+                    "alignment": {},
+                    "border": {},
+                    "fill": {
+                      "background": {
+                        "type": "rgb",
+                        "value": "00000000"
+                      },
+                      "foreground": {
+                        "type": "rgb",
+                        "value": "00E2F0D9"
+                      },
+                      "type": "solid"
+                    },
+                    "font": {
+                      "bold": true
+                    },
+                    "number_format": "General"
+                  }
+                },
+                {
+                  "col_span": 2,
+                  "column": 3,
+                  "coordinate": "C2",
+                  "data_type": "s",
+                  "display_value": "属性",
+                  "merged_master": "C2",
+                  "raw_value": "属性",
+                  "row": 2,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "C2",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  },
+                  "style": {
+                    "alignment": {},
+                    "border": {},
+                    "fill": {
+                      "background": {
+                        "type": "rgb",
+                        "value": "00000000"
+                      },
+                      "foreground": {
+                        "type": "rgb",
+                        "value": "00E2F0D9"
+                      },
+                      "type": "solid"
+                    },
+                    "font": {
+                      "bold": true
+                    },
+                    "number_format": "General"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 4,
+                  "coordinate": "D2",
+                  "data_type": "n",
+                  "merged_master": "C2",
+                  "row": 2,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "D2",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 5,
+                  "coordinate": "E2",
+                  "data_type": "s",
+                  "display_value": "必須",
+                  "merged_master": "E2",
+                  "raw_value": "必須",
+                  "row": 2,
+                  "row_span": 2,
+                  "source": {
+                    "cell": "E2",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  },
+                  "style": {
+                    "alignment": {},
+                    "border": {},
+                    "fill": {
+                      "background": {
+                        "type": "rgb",
+                        "value": "00000000"
+                      },
+                      "foreground": {
+                        "type": "rgb",
+                        "value": "00E2F0D9"
+                      },
+                      "type": "solid"
+                    },
+                    "font": {
+                      "bold": true
+                    },
+                    "number_format": "General"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 6,
+                  "coordinate": "F2",
+                  "data_type": "s",
+                  "display_value": "表示名",
+                  "merged_master": "F2",
+                  "raw_value": "表示名",
+                  "row": 2,
+                  "row_span": 2,
+                  "source": {
+                    "cell": "F2",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  },
+                  "style": {
+                    "alignment": {},
+                    "border": {},
+                    "fill": {
+                      "background": {
+                        "type": "rgb",
+                        "value": "00000000"
+                      },
+                      "foreground": {
+                        "type": "rgb",
+                        "value": "00E2F0D9"
+                      },
+                      "type": "solid"
+                    },
+                    "font": {
+                      "bold": true
+                    },
+                    "number_format": "General"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 7,
+                  "coordinate": "G2",
+                  "data_type": "s",
+                  "display_value": "入力チェック",
+                  "merged_master": "G2",
+                  "raw_value": "入力チェック",
+                  "row": 2,
+                  "row_span": 2,
+                  "source": {
+                    "cell": "G2",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  },
+                  "style": {
+                    "alignment": {},
+                    "border": {},
+                    "fill": {
+                      "background": {
+                        "type": "rgb",
+                        "value": "00000000"
+                      },
+                      "foreground": {
+                        "type": "rgb",
+                        "value": "00E2F0D9"
+                      },
+                      "type": "solid"
+                    },
+                    "font": {
+                      "bold": true
+                    },
+                    "number_format": "General"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 8,
+                  "coordinate": "H2",
+                  "data_type": "s",
+                  "display_value": "備考",
+                  "merged_master": "H2",
+                  "raw_value": "備考",
+                  "row": 2,
+                  "row_span": 2,
+                  "source": {
+                    "cell": "H2",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  },
+                  "style": {
+                    "alignment": {},
+                    "border": {},
+                    "fill": {
+                      "background": {
+                        "type": "rgb",
+                        "value": "00000000"
+                      },
+                      "foreground": {
+                        "type": "rgb",
+                        "value": "00E2F0D9"
+                      },
+                      "type": "solid"
+                    },
+                    "font": {
+                      "bold": true
+                    },
+                    "number_format": "General"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 1,
+                  "coordinate": "A3",
+                  "data_type": "n",
+                  "merged_master": "A2",
+                  "row": 3,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "A3",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 2,
+                  "coordinate": "B3",
+                  "data_type": "n",
+                  "merged_master": "B2",
+                  "row": 3,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "B3",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 3,
+                  "coordinate": "C3",
+                  "data_type": "s",
+                  "display_value": "データ型",
+                  "raw_value": "データ型",
+                  "row": 3,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "C3",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  },
+                  "style": {
+                    "alignment": {},
+                    "border": {},
+                    "fill": {
+                      "background": {
+                        "type": "rgb",
+                        "value": "00000000"
+                      },
+                      "foreground": {
+                        "type": "rgb",
+                        "value": "00E2F0D9"
+                      },
+                      "type": "solid"
+                    },
+                    "font": {
+                      "bold": true
+                    },
+                    "number_format": "General"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 4,
+                  "coordinate": "D3",
+                  "data_type": "s",
+                  "display_value": "桁数",
+                  "raw_value": "桁数",
+                  "row": 3,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "D3",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  },
+                  "style": {
+                    "alignment": {},
+                    "border": {},
+                    "fill": {
+                      "background": {
+                        "type": "rgb",
+                        "value": "00000000"
+                      },
+                      "foreground": {
+                        "type": "rgb",
+                        "value": "00E2F0D9"
+                      },
+                      "type": "solid"
+                    },
+                    "font": {
+                      "bold": true
+                    },
+                    "number_format": "General"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 5,
+                  "coordinate": "E3",
+                  "data_type": "n",
+                  "merged_master": "E2",
+                  "row": 3,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "E3",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 6,
+                  "coordinate": "F3",
+                  "data_type": "n",
+                  "merged_master": "F2",
+                  "row": 3,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "F3",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 7,
+                  "coordinate": "G3",
+                  "data_type": "n",
+                  "merged_master": "G2",
+                  "row": 3,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "G3",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 8,
+                  "coordinate": "H3",
+                  "data_type": "n",
+                  "merged_master": "H2",
+                  "row": 3,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "H3",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 1,
+                  "coordinate": "A4",
+                  "data_type": "s",
+                  "display_value": "USR-ID",
+                  "raw_value": "USR-ID",
+                  "row": 4,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "A4",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 2,
+                  "coordinate": "B4",
+                  "data_type": "s",
+                  "display_value": "利用者ID",
+                  "raw_value": "利用者ID",
+                  "row": 4,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "B4",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 3,
+                  "coordinate": "C4",
+                  "data_type": "s",
+                  "display_value": "文字列",
+                  "raw_value": "文字列",
+                  "row": 4,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "C4",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 4,
+                  "coordinate": "D4",
+                  "data_type": "n",
+                  "display_value": "12",
+                  "raw_value": 12,
+                  "row": 4,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "D4",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 5,
+                  "coordinate": "E4",
+                  "data_type": "s",
+                  "display_value": "○",
+                  "raw_value": "○",
+                  "row": 4,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "E4",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 6,
+                  "coordinate": "F4",
+                  "data_type": "s",
+                  "display_value": "利用者ID",
+                  "raw_value": "利用者ID",
+                  "row": 4,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "F4",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 7,
+                  "coordinate": "G4",
+                  "data_type": "s",
+                  "display_value": "英数字",
+                  "raw_value": "英数字",
+                  "row": 4,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "G4",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 8,
+                  "coordinate": "H4",
+                  "data_type": "inlineStr",
+                  "row": 4,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "H4",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 1,
+                  "coordinate": "A5",
+                  "data_type": "s",
+                  "display_value": "USR-NAME",
+                  "raw_value": "USR-NAME",
+                  "row": 5,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "A5",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 2,
+                  "coordinate": "B5",
+                  "data_type": "s",
+                  "display_value": "利用者名",
+                  "raw_value": "利用者名",
+                  "row": 5,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "B5",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 3,
+                  "coordinate": "C5",
+                  "data_type": "s",
+                  "display_value": "文字列",
+                  "raw_value": "文字列",
+                  "row": 5,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "C5",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 4,
+                  "coordinate": "D5",
+                  "data_type": "n",
+                  "display_value": "40",
+                  "raw_value": 40,
+                  "row": 5,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "D5",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 5,
+                  "coordinate": "E5",
+                  "data_type": "inlineStr",
+                  "row": 5,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "E5",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 6,
+                  "coordinate": "F5",
+                  "data_type": "s",
+                  "display_value": "利用者名",
+                  "raw_value": "利用者名",
+                  "row": 5,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "F5",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 7,
+                  "coordinate": "G5",
+                  "data_type": "inlineStr",
+                  "row": 5,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "G5",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 8,
+                  "coordinate": "H5",
+                  "data_type": "inlineStr",
+                  "row": 5,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "H5",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 1,
+                  "coordinate": "A6",
+                  "data_type": "s",
+                  "display_value": "SEARCH",
+                  "raw_value": "SEARCH",
+                  "row": 6,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "A6",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 2,
+                  "coordinate": "B6",
+                  "data_type": "s",
+                  "display_value": "検索",
+                  "raw_value": "検索",
+                  "row": 6,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "B6",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 3,
+                  "coordinate": "C6",
+                  "data_type": "s",
+                  "display_value": "ボタン",
+                  "raw_value": "ボタン",
+                  "row": 6,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "C6",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 4,
+                  "coordinate": "D6",
+                  "data_type": "n",
+                  "row": 6,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "D6",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 5,
+                  "coordinate": "E6",
+                  "data_type": "inlineStr",
+                  "row": 6,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "E6",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 6,
+                  "coordinate": "F6",
+                  "data_type": "s",
+                  "display_value": "検索",
+                  "raw_value": "検索",
+                  "row": 6,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "F6",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 7,
+                  "coordinate": "G6",
+                  "data_type": "inlineStr",
+                  "row": 6,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "G6",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 8,
+                  "coordinate": "H6",
+                  "data_type": "s",
+                  "display_value": "押下で検索",
+                  "raw_value": "押下で検索",
+                  "row": 6,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "H6",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                }
+              ],
+              "column_semantics": {
+                "A": "item_id",
+                "B": "item_name",
+                "C": "data_type",
+                "D": "length",
+                "E": "required",
+                "F": "label",
+                "G": "validation"
+              },
+              "header_rows": 2,
+              "metadata": {
+                "header_labels": {
+                  "A": "項目ID",
+                  "B": "項目名",
+                  "C": "属性 / データ型",
+                  "D": "属性 / 桁数",
+                  "E": "必須",
+                  "F": "表示名",
+                  "G": "入力チェック",
+                  "H": "備考"
+                }
+              },
+              "source": {
+                "range": "A2:H6",
+                "sheet": "画面項目"
+              },
+              "table_id": "screen-item-table"
+            }
+          ],
+          "title": "画面項目表",
+          "values": {}
+        },
+        {
+          "asset_ids": [],
+          "confidence": 0.25,
+          "metadata": {
+            "segmentation": "blank-and-style-boundaries"
+          },
+          "region_id": "unrecognized-1",
+          "region_type": "freeform",
+          "source": {
+            "range": "A1:A1",
+            "sheet": "画面項目"
+          },
+          "tables": [
+            {
+              "cells": [
+                {
+                  "col_span": 8,
+                  "column": 1,
+                  "coordinate": "A1",
+                  "data_type": "s",
+                  "display_value": "画面項目一覧",
+                  "merged_master": "A1",
+                  "raw_value": "画面項目一覧",
+                  "row": 1,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "A1",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  },
+                  "style": {
+                    "alignment": {
+                      "horizontal": "center"
+                    },
+                    "border": {},
+                    "fill": {
+                      "background": {
+                        "type": "rgb",
+                        "value": "00000000"
+                      },
+                      "foreground": {
+                        "type": "rgb",
+                        "value": "00D9EAF7"
+                      },
+                      "type": "solid"
+                    },
+                    "font": {
+                      "bold": true,
+                      "size": 16.0
+                    },
+                    "number_format": "General"
+                  }
+                }
+              ],
+              "column_semantics": {},
+              "header_rows": 0,
+              "metadata": {},
+              "source": {
+                "range": "A1:A1",
+                "sheet": "画面項目"
+              },
+              "table_id": "unrecognized-1"
+            }
+          ],
+          "values": {}
+        },
+        {
+          "asset_ids": [],
+          "confidence": 0.25,
+          "metadata": {
+            "segmentation": "blank-and-style-boundaries"
+          },
+          "region_id": "unrecognized-2",
+          "region_type": "freeform",
+          "source": {
+            "range": "A7:A8",
+            "sheet": "画面項目"
+          },
+          "tables": [
+            {
+              "cells": [
+                {
+                  "col_span": 1,
+                  "column": 1,
+                  "coordinate": "A7",
+                  "data_type": "s",
+                  "display_value": "備考",
+                  "raw_value": "備考",
+                  "row": 7,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "A7",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 1,
+                  "coordinate": "A8",
+                  "data_type": "s",
+                  "display_value": "個人名・実データを含まない合成 fixture",
+                  "raw_value": "個人名・実データを含まない合成 fixture",
+                  "row": 8,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "A8",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                }
+              ],
+              "column_semantics": {},
+              "header_rows": 0,
+              "metadata": {},
+              "source": {
+                "range": "A7:A8",
+                "sheet": "画面項目"
+              },
+              "table_id": "unrecognized-2"
+            }
+          ],
+          "values": {}
+        },
+        {
+          "asset_ids": [],
+          "confidence": 0.1,
+          "metadata": {
+            "reason": "preserve-empty-or-separated-effective-cells",
+            "segmentation": "grid-residual"
+          },
+          "region_id": "unrecognized-grid-residual",
+          "region_type": "freeform",
+          "source": {
+            "range": "B1:H8",
+            "sheet": "画面項目"
+          },
+          "tables": [
+            {
+              "cells": [
+                {
+                  "col_span": 1,
+                  "column": 2,
+                  "coordinate": "B1",
+                  "data_type": "n",
+                  "merged_master": "A1",
+                  "row": 1,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "B1",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 3,
+                  "coordinate": "C1",
+                  "data_type": "n",
+                  "merged_master": "A1",
+                  "row": 1,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "C1",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 4,
+                  "coordinate": "D1",
+                  "data_type": "n",
+                  "merged_master": "A1",
+                  "row": 1,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "D1",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 5,
+                  "coordinate": "E1",
+                  "data_type": "n",
+                  "merged_master": "A1",
+                  "row": 1,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "E1",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 6,
+                  "coordinate": "F1",
+                  "data_type": "n",
+                  "merged_master": "A1",
+                  "row": 1,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "F1",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 7,
+                  "coordinate": "G1",
+                  "data_type": "n",
+                  "merged_master": "A1",
+                  "row": 1,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "G1",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 8,
+                  "coordinate": "H1",
+                  "data_type": "n",
+                  "merged_master": "A1",
+                  "row": 1,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "H1",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 2,
+                  "coordinate": "B7",
+                  "data_type": "n",
+                  "row": 7,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "B7",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 3,
+                  "coordinate": "C7",
+                  "data_type": "n",
+                  "row": 7,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "C7",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 4,
+                  "coordinate": "D7",
+                  "data_type": "n",
+                  "row": 7,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "D7",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 5,
+                  "coordinate": "E7",
+                  "data_type": "n",
+                  "row": 7,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "E7",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 6,
+                  "coordinate": "F7",
+                  "data_type": "n",
+                  "row": 7,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "F7",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 7,
+                  "coordinate": "G7",
+                  "data_type": "n",
+                  "row": 7,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "G7",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 8,
+                  "coordinate": "H7",
+                  "data_type": "n",
+                  "row": 7,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "H7",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 2,
+                  "coordinate": "B8",
+                  "data_type": "n",
+                  "row": 8,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "B8",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 3,
+                  "coordinate": "C8",
+                  "data_type": "n",
+                  "row": 8,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "C8",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 4,
+                  "coordinate": "D8",
+                  "data_type": "n",
+                  "row": 8,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "D8",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 5,
+                  "coordinate": "E8",
+                  "data_type": "n",
+                  "row": 8,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "E8",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 6,
+                  "coordinate": "F8",
+                  "data_type": "n",
+                  "row": 8,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "F8",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 7,
+                  "coordinate": "G8",
+                  "data_type": "n",
+                  "row": 8,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "G8",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 8,
+                  "coordinate": "H8",
+                  "data_type": "n",
+                  "row": 8,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "H8",
+                    "sheet": "画面項目",
+                    "workbook_path": "fixtures/workbooks/screen-design.xlsx"
+                  }
+                }
+              ],
+              "column_semantics": {},
+              "header_rows": 0,
+              "metadata": {},
+              "source": {
+                "range": "B1:H8",
+                "sheet": "画面項目"
+              },
+              "table_id": "unrecognized-grid-residual"
+            }
+          ],
+          "values": {}
+        }
+      ],
+      "sheet_id": "sheet-3"
+    }
+  ],
+  "source_path": "fixtures/workbooks/screen-design.xlsx",
+  "template_id": "fixture-screen-design",
+  "template_version": "1.0",
+  "title": "脱敏利用者検索画面"
+}

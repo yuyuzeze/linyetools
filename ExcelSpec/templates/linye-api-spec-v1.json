@@ -1,0 +1,132 @@
+{
+  "schema_version": "1.0",
+  "template_id": "linye-api-spec",
+  "version": "1.0",
+  "name": "API仕様書",
+  "description": "API概要、リクエスト項目、レスポンス項目を持つ日本語API仕様書。",
+  "match": {
+    "sheet_name_patterns": ["^(API概要|API仕様)$", "^(リクエスト|レスポンス)(項目)?$"],
+    "fingerprints": [
+      {
+        "sheet_name_pattern": "^(API概要|API仕様)$",
+        "required_text": ["API仕様書", "エンドポイント", "HTTPメソッド"],
+        "weight": 1.5
+      },
+      {
+        "sheet_name_pattern": "^(リクエスト|レスポンス)(項目)?$",
+        "required_text": ["パラメータ名", "データ型"],
+        "weight": 1.0
+      }
+    ],
+    "minimum_score": 0.65
+  },
+  "sheets": [
+    {
+      "sheet_id": "api-overview",
+      "name_pattern": "^(API概要|API仕様)$",
+      "order": 10,
+      "regions": [
+        {
+          "region_id": "endpoint",
+          "region_type": "key_value",
+          "title": "API基本情報",
+          "order": 10,
+          "required": true,
+          "locator": {
+            "mode": "fixed",
+            "range": "A1:D14"
+          },
+          "extractor": {
+            "kind": "key_value",
+            "key_column": 1,
+            "value_column": 2,
+            "key_semantics": {
+              "API ID": "api_id",
+              "API名": "api_name",
+              "エンドポイント": "endpoint",
+              "HTTPメソッド": "http_method",
+              "概要": "summary"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "sheet_id": "request",
+      "name_pattern": "^リクエスト(項目)?$",
+      "order": 20,
+      "regions": [
+        {
+          "region_id": "request-parameters",
+          "region_type": "table",
+          "title": "リクエスト項目",
+          "order": 10,
+          "required": true,
+          "locator": {
+            "mode": "anchor",
+            "anchor_pattern": "^リクエスト項目$",
+            "row_offset": 1,
+            "width": 8
+          },
+          "extractor": {
+            "kind": "table",
+            "header_rows": 1,
+            "column_semantics": {
+              "パラメータ名": "parameter_name",
+              "場所": "location",
+              "データ型": "data_type",
+              "必須": "required",
+              "説明": "description"
+            },
+            "options": {
+              "stop_after_blank_rows": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "sheet_id": "response",
+      "name_pattern": "^レスポンス(項目)?$",
+      "order": 30,
+      "required": false,
+      "regions": [
+        {
+          "region_id": "response-fields",
+          "region_type": "table",
+          "title": "レスポンス項目",
+          "order": 10,
+          "locator": {
+            "mode": "anchor",
+            "anchor_pattern": "^レスポンス項目$",
+            "row_offset": 1,
+            "width": 7
+          },
+          "extractor": {
+            "kind": "table",
+            "header_rows": 1,
+            "column_semantics": {
+              "項目名": "field_name",
+              "データ型": "data_type",
+              "説明": "description"
+            },
+            "options": {
+              "stop_after_blank_rows": 1
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "validation_rules": [
+    {
+      "rule_id": "require-endpoint",
+      "kind": "required",
+      "field": "api-overview.endpoint.endpoint"
+    }
+  ],
+  "metadata": {
+    "language": "ja-JP",
+    "document_kind": "api-specification"
+  }
+}

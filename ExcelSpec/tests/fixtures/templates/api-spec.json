@@ -1,0 +1,123 @@
+{
+  "schema_version": "1.0",
+  "template_id": "fixture-api-spec",
+  "version": "1.0",
+  "name": "脱敏API仕様書",
+  "match": {
+    "sheet_name_patterns": [
+      "^API概要$",
+      "^リクエスト$",
+      "^レスポンス$"
+    ],
+    "fingerprints": [
+      {
+        "sheet_name_pattern": "^API概要$",
+        "required_text": [
+          "API仕様書",
+          "エンドポイント",
+          "HTTPメソッド"
+        ]
+      }
+    ],
+    "minimum_score": 0.65
+  },
+  "sheets": [
+    {
+      "sheet_id": "overview",
+      "name_pattern": "^API概要$",
+      "regions": [
+        {
+          "region_id": "api-info",
+          "region_type": "key_value",
+          "required": true,
+          "locator": {
+            "mode": "fixed",
+            "range": "A1:D10"
+          },
+          "extractor": {
+            "kind": "key_value",
+            "key_column": 1,
+            "value_column": 2,
+            "key_semantics": {
+              "API ID": "api_id",
+              "API名": "api_name",
+              "エンドポイント": "endpoint",
+              "HTTPメソッド": "http_method"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "sheet_id": "request",
+      "name_pattern": "^リクエスト$",
+      "regions": [
+        {
+          "region_id": "request-fields",
+          "region_type": "table",
+          "required": true,
+          "locator": {
+            "mode": "anchor",
+            "anchor_text": "リクエスト項目",
+            "row_offset": 1,
+            "width": 5
+          },
+          "extractor": {
+            "kind": "table",
+            "header_rows": 1,
+            "column_semantics": {
+              "パラメータ名": "parameter_name",
+              "場所": "location",
+              "データ型": "data_type",
+              "必須": "required",
+              "説明": "description"
+            },
+            "options": {
+              "stop_after_blank_rows": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "sheet_id": "response",
+      "name_pattern": "^レスポンス$",
+      "regions": [
+        {
+          "region_id": "response-fields",
+          "region_type": "table",
+          "locator": {
+            "mode": "anchor",
+            "anchor_text": "レスポンス項目",
+            "row_offset": 1,
+            "width": 4
+          },
+          "extractor": {
+            "kind": "table",
+            "header_rows": 1,
+            "column_semantics": {
+              "項目名": "field_name",
+              "データ型": "data_type",
+              "必須": "required",
+              "説明": "description"
+            },
+            "options": {
+              "stop_after_blank_rows": 1
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "validation_rules": [
+    {
+      "rule_id": "require-endpoint",
+      "kind": "required",
+      "field": "overview.api-info.endpoint"
+    }
+  ],
+  "metadata": {
+    "fixture": true,
+    "document_kind": "api-specification"
+  }
+}

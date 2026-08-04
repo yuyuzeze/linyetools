@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+*.egg
+
+# ExcelSpec local / generated
+ExcelSpec/demo/out/
+ExcelSpec/demo/jpspec-smoke/
+ExcelSpec/demo/workbooks/*_assets/
+ExcelSpec/tests/fixtures/generated-assets/

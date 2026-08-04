@@ -1,0 +1,93 @@
+schema_version: "1.0"
+template_id: fixture-screen-design
+version: "1.0"
+name: 脱敏画面設計書
+match:
+  sheet_name_patterns: ["^表紙$", "^改訂履歴$", "^画面項目$"]
+  fingerprints:
+    - sheet_name_pattern: "^表紙$"
+      required_text: ["画面設計書", "画面ID"]
+    - sheet_name_pattern: "^画面項目$"
+      required_text: ["画面項目一覧", "データ型"]
+  minimum_score: 0.65
+sheets:
+  - sheet_id: cover
+    name_pattern: "^表紙$"
+    order: 10
+    regions:
+      - region_id: document-info
+        region_type: key_value
+        title: 表紙
+        required: true
+        locator: {mode: fixed, range: "A1:D10"}
+        extractor:
+          kind: key_value
+          key_column: 1
+          value_column: 2
+          key_semantics:
+            画面ID: screen_id
+            画面名: screen_name
+            作成者: author
+            作成日: created_at
+      - region_id: screen-layout
+        region_type: layout
+        title: 画面レイアウト
+        locator:
+          mode: anchor
+          anchor_text: 画面レイアウト
+          row_offset: 1
+          height: 12
+          width: 8
+        extractor: {kind: asset}
+        screenshot_bindings:
+          - asset_id: fixture-screen-shot
+            path: ../screens/layout.png
+            asset_type: layout
+            description: 脱敏検索画面
+  - sheet_id: revisions
+    name_pattern: "^改訂履歴$"
+    order: 20
+    regions:
+      - region_id: revision-history
+        region_type: table
+        title: 改訂履歴
+        required: true
+        locator: {mode: fixed, range: "A1:D4"}
+        extractor:
+          kind: table
+          header_rows: 2
+          column_semantics:
+            版: revision
+            日付: changed_at
+            変更内容: change
+            担当: author
+  - sheet_id: items
+    name_pattern: "^画面項目$"
+    order: 30
+    regions:
+      - region_id: screen-item-table
+        region_type: table
+        title: 画面項目表
+        required: true
+        locator:
+          mode: anchor
+          anchor_pattern: "^画面項目一覧$"
+          end_anchor_pattern: "^備考$"
+          row_offset: 1
+          width: 8
+        extractor:
+          kind: table
+          header_rows: 2
+          column_semantics:
+            項目ID: item_id
+            項目名: item_name
+            データ型: data_type
+            桁数: length
+            必須: required
+            表示名: label
+            入力チェック: validation
+validation_rules:
+  - rule_id: require-screen-id
+    kind: required
+    field: cover.document-info.screen_id
+metadata: {fixture: true, document_kind: screen-design}

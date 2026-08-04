@@ -1,0 +1,19 @@
+{
+  "version": "1",
+  "assets": [
+    {
+      "asset_id": "fixture-screen-shot",
+      "path": "screens/layout.png",
+      "sheet": "表紙",
+      "anchor": "B13:H24",
+      "asset_type": "layout",
+      "description": "脱敏検索画面",
+      "ocr": {
+        "status": "pending"
+      },
+      "vlm": {
+        "status": "not_requested"
+      }
+    }
+  ]
+}

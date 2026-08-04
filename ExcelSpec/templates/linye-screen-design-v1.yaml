@@ -1,0 +1,93 @@
+schema_version: "1.0"
+template_id: linye-screen-design
+version: "1.0"
+name: 画面設計書
+description: 表紙、画面基本情報、画面項目一覧を持つ日本語画面設計書。
+match:
+  sheet_name_patterns:
+    - "^(表紙|画面設計|画面仕様)$"
+    - "^(画面項目|項目一覧)$"
+  fingerprints:
+    - sheet_name_pattern: "^(表紙|画面設計|画面仕様)$"
+      required_text: ["画面設計書", "画面ID"]
+      weight: 1.0
+    - sheet_name_pattern: "^(画面項目|項目一覧)$"
+      required_text: ["項目名", "データ型"]
+      weight: 1.0
+  minimum_score: 0.65
+sheets:
+  - sheet_id: overview
+    name_pattern: "^(表紙|画面設計|画面仕様)$"
+    order: 10
+    regions:
+      - region_id: document-info
+        region_type: key_value
+        title: 基本情報
+        order: 10
+        required: true
+        locator:
+          mode: fixed
+          range: A1:D12
+        extractor:
+          kind: key_value
+          key_column: 1
+          value_column: 2
+          key_semantics:
+            画面ID: screen_id
+            画面名: screen_name
+            作成者: author
+            作成日: created_at
+      - region_id: screen-layout
+        region_type: layout
+        title: 画面レイアウト
+        order: 20
+        locator:
+          mode: anchor
+          anchor_text: 画面レイアウト
+          row_offset: 1
+          column_offset: 0
+          height: 20
+          width: 12
+        extractor:
+          kind: asset
+        screenshot_bindings:
+          - asset_id: screen-layout-screenshot
+            path: assets/screen-layout.png
+            asset_type: layout
+            description: 画面レイアウトの利用者提供スクリーンショット
+  - sheet_id: screen-items
+    name_pattern: "^(画面項目|項目一覧)$"
+    order: 20
+    regions:
+      - region_id: screen-item-table
+        region_type: table
+        title: 画面項目一覧
+        order: 10
+        required: true
+        locator:
+          mode: anchor
+          anchor_pattern: "^画面項目一覧$"
+          end_anchor_pattern: "^(備考|注記)$"
+          row_offset: 1
+          column_offset: 0
+          width: 10
+        extractor:
+          kind: table
+          header_rows: 2
+          column_semantics:
+            "項目(ID|ＩＤ)": item_id
+            項目名: item_name
+            表示名: label
+            データ型: data_type
+            必須: required
+            桁数: length
+            入力チェック: validation
+          options:
+            stop_after_blank_rows: 2
+validation_rules:
+  - rule_id: require-screen-id
+    kind: required
+    field: overview.document-info.screen_id
+metadata:
+  language: ja-JP
+  document_kind: screen-design

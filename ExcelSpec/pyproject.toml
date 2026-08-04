@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "excelspec"
+version = "0.1.0"
+description = "Versioned intermediate representation for Excel specification documents"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Linye" }]
+dependencies = [
+    "openpyxl>=3.1,<4",
+    "jsonschema>=4.21,<5",
+    "PyYAML>=6.0,<7",
+    "Pillow",
+    "typer>=0.12,<1",
+]
+
+[project.optional-dependencies]
+dev = []
+
+[project.scripts]
+excelspec = "excelspec.cli:main"
+jpspec = "excelspec.jpspec_cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.data-files]
+"share/excelspec/schemas" = [
+    "schemas/document-ir.schema.json",
+    "schemas/template.schema.json",
+]
+"share/excelspec/templates" = [
+    "templates/linye-api-spec-v1.json",
+    "templates/linye-screen-design-v1.yaml",
+]

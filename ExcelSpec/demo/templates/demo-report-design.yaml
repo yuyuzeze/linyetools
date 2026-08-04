@@ -1,0 +1,129 @@
+schema_version: "1.0"
+template_id: demo-report-design
+version: "1.0"
+name: 帳票設計書デモ
+match:
+  sheet_name_patterns: ["^表紙$", "^帳票概要$", "^帳票編集定義$"]
+  fingerprints:
+    - sheet_name_pattern: "^表紙$"
+      required_text: ["帳票設計書", "RPT-B0020"]
+    - sheet_name_pattern: "^帳票編集定義$"
+      required_text: ["項目名", "データ元"]
+  minimum_score: 0.55
+sheets:
+  - sheet_id: cover
+    name_pattern: "^表紙$"
+    order: 10
+    regions:
+      - region_id: document-info
+        region_type: key_value
+        title: 表紙
+        required: true
+        locator: {mode: fixed, range: "D11:I14"}
+        extractor:
+          kind: key_value
+          key_column: 1
+          value_column: 3
+          key_semantics:
+            文書番号: document_no
+            バージョン: version
+            作成者: author
+            作成日: created_at
+  - sheet_id: revisions
+    name_pattern: "^修正履歴$"
+    order: 20
+    regions:
+      - region_id: revision-table
+        region_type: table
+        title: 修正履歴
+        locator:
+          mode: anchor
+          anchor_text: "No."
+          width: 7
+        extractor:
+          kind: table
+          header_rows: 1
+          column_semantics:
+            'No.': seq_no
+            版数: revision
+            シート: sheet_name
+            修正箇所: location
+            修正内容: change
+            修正者: author
+            修正日: changed_at
+          options: {stop_after_blank_rows: 1, shrink_to_content: true, trim_empty_columns: true}
+  - sheet_id: overview
+    name_pattern: "^帳票概要$"
+    order: 30
+    regions:
+      - region_id: report-specs
+        region_type: key_value
+        title: 帳票仕様
+        locator: {mode: fixed, range: "A6:F12"}
+        extractor:
+          kind: key_value
+          key_column: 1
+          value_column: 3
+          key_semantics:
+            機能ID: function_id
+            機能名: function_name
+            "画面ID・バッチID": screen_or_batch_id
+            出力様式: output_format
+            帳票サイズ: paper_size
+            帳票方向: orientation
+            出力枚数: page_count
+      - region_id: report-summary
+        region_type: freeform
+        title: 帳票概要説明
+        locator:
+          mode: anchor
+          anchor_text: "■帳票概要"
+          row_offset: 1
+          height: 4
+          width: 6
+        extractor: {kind: freeform}
+  - sheet_id: layout
+    name_pattern: "^帳票レイアウト$"
+    order: 40
+    regions:
+      - region_id: report-layout
+        region_type: layout
+        title: 帳票レイアウト
+        locator:
+          mode: anchor
+          anchor_pattern: "^■帳票イメージ"
+          row_offset: 1
+          height: 20
+          width: 8
+        extractor: {kind: asset}
+  - sheet_id: definitions
+    name_pattern: "^帳票編集定義$"
+    order: 50
+    regions:
+      - region_id: field-table
+        region_type: table
+        title: 帳票項目定義
+        required: true
+        locator:
+          mode: anchor
+          anchor_text: "No."
+          width: 10
+        extractor:
+          kind: table
+          header_rows: 1
+          column_semantics:
+            'No.': seq_no
+            項目名: field_name
+            "全/半角": charset
+            桁数: length
+            書体: font_family
+            フォントサイズ: font_size
+            水平配置: h_align
+            垂直配置: v_align
+            データ元: data_source
+            備考: remarks
+          options: {stop_after_blank_rows: 1, shrink_to_content: true, trim_empty_columns: true}
+validation_rules: []
+metadata:
+  document_kind: report-design
+  demo: true

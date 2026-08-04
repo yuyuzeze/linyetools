@@ -1,0 +1,194 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://linye.local/excelspec/schemas/document-ir/1.0",
+  "title": "ExcelSpec DocumentIR",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["document_id", "title", "sheets", "schema_version"],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "document_id": { "type": "string", "minLength": 1 },
+    "title": { "type": "string" },
+    "source_path": { "type": "string" },
+    "template_id": { "type": "string" },
+    "template_version": { "type": "string" },
+    "sheets": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/sheet" }
+    },
+    "assets": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/asset" },
+      "default": []
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/diagnostic" },
+      "default": []
+    },
+    "metadata": { "$ref": "#/$defs/jsonObject" }
+  },
+  "$defs": {
+    "jsonValue": {
+      "oneOf": [
+        { "type": "null" },
+        { "type": "boolean" },
+        { "type": "number" },
+        { "type": "string" },
+        {
+          "type": "array",
+          "items": { "$ref": "#/$defs/jsonValue" }
+        },
+        { "$ref": "#/$defs/jsonObject" }
+      ]
+    },
+    "jsonObject": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/jsonValue" },
+      "default": {}
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sheet"],
+      "properties": {
+        "sheet": { "type": "string", "minLength": 1 },
+        "range": { "type": "string", "pattern": "^[A-Z]+[1-9][0-9]*:[A-Z]+[1-9][0-9]*$" },
+        "cell": { "type": "string", "pattern": "^[A-Z]+[1-9][0-9]*$" },
+        "workbook_path": { "type": "string" }
+      }
+    },
+    "style": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "number_format": { "type": "string" },
+        "font": { "$ref": "#/$defs/jsonObject" },
+        "fill": { "$ref": "#/$defs/jsonObject" },
+        "border": { "$ref": "#/$defs/jsonObject" },
+        "alignment": { "$ref": "#/$defs/jsonObject" }
+      }
+    },
+    "cell": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["coordinate", "row", "column"],
+      "properties": {
+        "coordinate": { "type": "string", "pattern": "^[A-Z]+[1-9][0-9]*$" },
+        "row": { "type": "integer", "minimum": 1 },
+        "column": { "type": "integer", "minimum": 1 },
+        "raw_value": { "$ref": "#/$defs/jsonValue" },
+        "display_value": { "type": "string" },
+        "data_type": { "type": "string" },
+        "formula": { "type": "string" },
+        "style": { "$ref": "#/$defs/style" },
+        "merged_master": { "type": "string", "pattern": "^[A-Z]+[1-9][0-9]*$" },
+        "row_span": { "type": "integer", "minimum": 1, "default": 1 },
+        "col_span": { "type": "integer", "minimum": 1, "default": 1 },
+        "source": { "$ref": "#/$defs/source" }
+      }
+    },
+    "table": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["table_id"],
+      "properties": {
+        "table_id": { "type": "string", "minLength": 1 },
+        "cells": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/cell" },
+          "default": []
+        },
+        "source": { "$ref": "#/$defs/source" },
+        "header_rows": { "type": "integer", "minimum": 0, "default": 0 },
+        "column_semantics": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "default": {}
+        },
+        "metadata": { "$ref": "#/$defs/jsonObject" }
+      }
+    },
+    "region": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["region_id", "region_type"],
+      "properties": {
+        "region_id": { "type": "string", "minLength": 1 },
+        "region_type": {
+          "enum": ["metadata", "key_value", "table", "freeform", "image", "chart", "layout"]
+        },
+        "title": { "type": "string" },
+        "source": { "$ref": "#/$defs/source" },
+        "tables": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/table" },
+          "default": []
+        },
+        "values": { "$ref": "#/$defs/jsonObject" },
+        "asset_ids": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "metadata": { "$ref": "#/$defs/jsonObject" }
+      }
+    },
+    "asset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["asset_id", "asset_type", "uri"],
+      "properties": {
+        "asset_id": { "type": "string", "minLength": 1 },
+        "asset_type": { "enum": ["image", "screenshot", "chart", "shape", "layout"] },
+        "uri": { "type": "string", "minLength": 1 },
+        "media_type": { "type": "string" },
+        "description": { "type": "string" },
+        "source": { "$ref": "#/$defs/source" },
+        "anchor": { "type": "string" },
+        "extraction_status": { "type": "string", "default": "pending" },
+        "metadata": { "$ref": "#/$defs/jsonObject" }
+      }
+    },
+    "diagnostic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "severity", "message"],
+      "properties": {
+        "code": { "type": "string", "minLength": 1 },
+        "severity": { "enum": ["info", "warning", "error"] },
+        "message": { "type": "string" },
+        "source": { "$ref": "#/$defs/source" },
+        "region_id": { "type": "string" },
+        "details": { "$ref": "#/$defs/jsonObject" }
+      }
+    },
+    "sheet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sheet_id", "name", "index"],
+      "properties": {
+        "sheet_id": { "type": "string", "minLength": 1 },
+        "name": { "type": "string" },
+        "index": { "type": "integer", "minimum": 0 },
+        "regions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/region" },
+          "default": []
+        },
+        "assets": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/asset" },
+          "default": []
+        },
+        "diagnostics": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/diagnostic" },
+          "default": []
+        },
+        "metadata": { "$ref": "#/$defs/jsonObject" }
+      }
+    }
+  }
+}

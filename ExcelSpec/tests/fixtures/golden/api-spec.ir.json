@@ -1,0 +1,860 @@
+{
+  "assets": [],
+  "diagnostics": [],
+  "document_id": "api-spec",
+  "metadata": {
+    "asset_directory": "fixtures/assets",
+    "creator": "Fixture Team",
+    "ingestor": "openpyxl+ooxml",
+    "last_modified_by": null,
+    "template_match": {
+      "candidates": [
+        {
+          "accepted": true,
+          "score": 1.0,
+          "template_id": "fixture-api-spec",
+          "version": "1.0"
+        }
+      ],
+      "mode": "template",
+      "unrecognized_ranges": {
+        "API概要": [],
+        "リクエスト": [
+          "A1:A1",
+          "B1:E1"
+        ],
+        "レスポンス": [
+          "A1:A1",
+          "B1:D1"
+        ]
+      }
+    }
+  },
+  "schema_version": "1.0",
+  "sheets": [
+    {
+      "assets": [],
+      "diagnostics": [],
+      "index": 0,
+      "metadata": {
+        "effective_bounds": [
+          1,
+          1,
+          5,
+          4
+        ],
+        "extraction_mode": "template",
+        "merged_ranges": [
+          "A1:D1"
+        ],
+        "state": "visible"
+      },
+      "name": "API概要",
+      "regions": [
+        {
+          "asset_ids": [],
+          "confidence": 1.0,
+          "metadata": {
+            "extractor_kind": "key_value",
+            "key_labels": {
+              "API ID": "api_id",
+              "API名": "api_name",
+              "HTTPメソッド": "http_method",
+              "エンドポイント": "endpoint"
+            },
+            "shrink_to_content": false,
+            "template_region_id": "api-info",
+            "trim_empty_columns": false
+          },
+          "region_id": "api-info",
+          "region_type": "key_value",
+          "source": {
+            "range": "A1:D10",
+            "sheet": "API概要"
+          },
+          "tables": [],
+          "values": {
+            "API仕様書": "",
+            "api_id": "API-DEMO-001",
+            "api_name": "利用者検索API",
+            "endpoint": "/v1/demo-users",
+            "http_method": "GET"
+          }
+        }
+      ],
+      "sheet_id": "sheet-1"
+    },
+    {
+      "assets": [],
+      "diagnostics": [],
+      "index": 1,
+      "metadata": {
+        "effective_bounds": [
+          1,
+          1,
+          4,
+          5
+        ],
+        "extraction_mode": "template",
+        "merged_ranges": [],
+        "state": "visible"
+      },
+      "name": "リクエスト",
+      "regions": [
+        {
+          "asset_ids": [],
+          "confidence": 0.9,
+          "metadata": {
+            "extractor_kind": "table",
+            "shrink_to_content": false,
+            "template_region_id": "request-fields",
+            "trim_empty_columns": true
+          },
+          "region_id": "request-fields",
+          "region_type": "table",
+          "source": {
+            "range": "A2:E4",
+            "sheet": "リクエスト"
+          },
+          "tables": [
+            {
+              "cells": [
+                {
+                  "col_span": 1,
+                  "column": 1,
+                  "coordinate": "A2",
+                  "data_type": "s",
+                  "display_value": "パラメータ名",
+                  "raw_value": "パラメータ名",
+                  "row": 2,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "A2",
+                    "sheet": "リクエスト",
+                    "workbook_path": "fixtures/workbooks/api-spec.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 2,
+                  "coordinate": "B2",
+                  "data_type": "s",
+                  "display_value": "場所",
+                  "raw_value": "場所",
+                  "row": 2,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "B2",
+                    "sheet": "リクエスト",
+                    "workbook_path": "fixtures/workbooks/api-spec.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 3,
+                  "coordinate": "C2",
+                  "data_type": "s",
+                  "display_value": "データ型",
+                  "raw_value": "データ型",
+                  "row": 2,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "C2",
+                    "sheet": "リクエスト",
+                    "workbook_path": "fixtures/workbooks/api-spec.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 4,
+                  "coordinate": "D2",
+                  "data_type": "s",
+                  "display_value": "必須",
+                  "raw_value": "必須",
+                  "row": 2,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "D2",
+                    "sheet": "リクエスト",
+                    "workbook_path": "fixtures/workbooks/api-spec.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 5,
+                  "coordinate": "E2",
+                  "data_type": "s",
+                  "display_value": "説明",
+                  "raw_value": "説明",
+                  "row": 2,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "E2",
+                    "sheet": "リクエスト",
+                    "workbook_path": "fixtures/workbooks/api-spec.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 1,
+                  "coordinate": "A3",
+                  "data_type": "s",
+                  "display_value": "query",
+                  "raw_value": "query",
+                  "row": 3,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "A3",
+                    "sheet": "リクエスト",
+                    "workbook_path": "fixtures/workbooks/api-spec.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 2,
+                  "coordinate": "B3",
+                  "data_type": "s",
+                  "display_value": "query",
+                  "raw_value": "query",
+                  "row": 3,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "B3",
+                    "sheet": "リクエスト",
+                    "workbook_path": "fixtures/workbooks/api-spec.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 3,
+                  "coordinate": "C3",
+                  "data_type": "s",
+                  "display_value": "string",
+                  "raw_value": "string",
+                  "row": 3,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "C3",
+                    "sheet": "リクエスト",
+                    "workbook_path": "fixtures/workbooks/api-spec.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 4,
+                  "coordinate": "D3",
+                  "data_type": "s",
+                  "display_value": "false",
+                  "raw_value": "false",
+                  "row": 3,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "D3",
+                    "sheet": "リクエスト",
+                    "workbook_path": "fixtures/workbooks/api-spec.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 5,
+                  "coordinate": "E3",
+                  "data_type": "s",
+                  "display_value": "検索語",
+                  "raw_value": "検索語",
+                  "row": 3,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "E3",
+                    "sheet": "リクエスト",
+                    "workbook_path": "fixtures/workbooks/api-spec.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 1,
+                  "coordinate": "A4",
+                  "data_type": "s",
+                  "display_value": "limit",
+                  "raw_value": "limit",
+                  "row": 4,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "A4",
+                    "sheet": "リクエスト",
+                    "workbook_path": "fixtures/workbooks/api-spec.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 2,
+                  "coordinate": "B4",
+                  "data_type": "s",
+                  "display_value": "query",
+                  "raw_value": "query",
+                  "row": 4,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "B4",
+                    "sheet": "リクエスト",
+                    "workbook_path": "fixtures/workbooks/api-spec.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 3,
+                  "coordinate": "C4",
+                  "data_type": "s",
+                  "display_value": "integer",
+                  "raw_value": "integer",
+                  "row": 4,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "C4",
+                    "sheet": "リクエスト",
+                    "workbook_path": "fixtures/workbooks/api-spec.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 4,
+                  "coordinate": "D4",
+                  "data_type": "s",
+                  "display_value": "false",
+                  "raw_value": "false",
+                  "row": 4,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "D4",
+                    "sheet": "リクエスト",
+                    "workbook_path": "fixtures/workbooks/api-spec.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 5,
+                  "coordinate": "E4",
+                  "data_type": "s",
+                  "display_value": "最大件数",
+                  "raw_value": "最大件数",
+                  "row": 4,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "E4",
+                    "sheet": "リクエスト",
+                    "workbook_path": "fixtures/workbooks/api-spec.xlsx"
+                  }
+                }
+              ],
+              "column_semantics": {
+                "A": "parameter_name",
+                "B": "location",
+                "C": "data_type",
+                "D": "required",
+                "E": "description"
+              },
+              "header_rows": 1,
+              "metadata": {
+                "header_labels": {
+                  "A": "パラメータ名",
+                  "B": "場所",
+                  "C": "データ型",
+                  "D": "必須",
+                  "E": "説明"
+                }
+              },
+              "source": {
+                "range": "A2:E4",
+                "sheet": "リクエスト"
+              },
+              "table_id": "request-fields"
+            }
+          ],
+          "values": {}
+        },
+        {
+          "asset_ids": [],
+          "confidence": 0.25,
+          "metadata": {
+            "segmentation": "blank-and-style-boundaries"
+          },
+          "region_id": "unrecognized-1",
+          "region_type": "freeform",
+          "source": {
+            "range": "A1:A1",
+            "sheet": "リクエスト"
+          },
+          "tables": [
+            {
+              "cells": [
+                {
+                  "col_span": 1,
+                  "column": 1,
+                  "coordinate": "A1",
+                  "data_type": "s",
+                  "display_value": "リクエスト項目",
+                  "raw_value": "リクエスト項目",
+                  "row": 1,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "A1",
+                    "sheet": "リクエスト",
+                    "workbook_path": "fixtures/workbooks/api-spec.xlsx"
+                  }
+                }
+              ],
+              "column_semantics": {},
+              "header_rows": 0,
+              "metadata": {},
+              "source": {
+                "range": "A1:A1",
+                "sheet": "リクエスト"
+              },
+              "table_id": "unrecognized-1"
+            }
+          ],
+          "values": {}
+        },
+        {
+          "asset_ids": [],
+          "confidence": 0.1,
+          "metadata": {
+            "reason": "preserve-empty-or-separated-effective-cells",
+            "segmentation": "grid-residual"
+          },
+          "region_id": "unrecognized-grid-residual",
+          "region_type": "freeform",
+          "source": {
+            "range": "B1:E1",
+            "sheet": "リクエスト"
+          },
+          "tables": [
+            {
+              "cells": [
+                {
+                  "col_span": 1,
+                  "column": 2,
+                  "coordinate": "B1",
+                  "data_type": "n",
+                  "row": 1,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "B1",
+                    "sheet": "リクエスト",
+                    "workbook_path": "fixtures/workbooks/api-spec.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 3,
+                  "coordinate": "C1",
+                  "data_type": "n",
+                  "row": 1,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "C1",
+                    "sheet": "リクエスト",
+                    "workbook_path": "fixtures/workbooks/api-spec.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 4,
+                  "coordinate": "D1",
+                  "data_type": "n",
+                  "row": 1,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "D1",
+                    "sheet": "リクエスト",
+                    "workbook_path": "fixtures/workbooks/api-spec.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 5,
+                  "coordinate": "E1",
+                  "data_type": "n",
+                  "row": 1,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "E1",
+                    "sheet": "リクエスト",
+                    "workbook_path": "fixtures/workbooks/api-spec.xlsx"
+                  }
+                }
+              ],
+              "column_semantics": {},
+              "header_rows": 0,
+              "metadata": {},
+              "source": {
+                "range": "B1:E1",
+                "sheet": "リクエスト"
+              },
+              "table_id": "unrecognized-grid-residual"
+            }
+          ],
+          "values": {}
+        }
+      ],
+      "sheet_id": "sheet-2"
+    },
+    {
+      "assets": [],
+      "diagnostics": [],
+      "index": 2,
+      "metadata": {
+        "effective_bounds": [
+          1,
+          1,
+          4,
+          4
+        ],
+        "extraction_mode": "template",
+        "merged_ranges": [],
+        "state": "visible"
+      },
+      "name": "レスポンス",
+      "regions": [
+        {
+          "asset_ids": [],
+          "confidence": 0.9,
+          "metadata": {
+            "extractor_kind": "table",
+            "shrink_to_content": false,
+            "template_region_id": "response-fields",
+            "trim_empty_columns": true
+          },
+          "region_id": "response-fields",
+          "region_type": "table",
+          "source": {
+            "range": "A2:D4",
+            "sheet": "レスポンス"
+          },
+          "tables": [
+            {
+              "cells": [
+                {
+                  "col_span": 1,
+                  "column": 1,
+                  "coordinate": "A2",
+                  "data_type": "s",
+                  "display_value": "項目名",
+                  "raw_value": "項目名",
+                  "row": 2,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "A2",
+                    "sheet": "レスポンス",
+                    "workbook_path": "fixtures/workbooks/api-spec.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 2,
+                  "coordinate": "B2",
+                  "data_type": "s",
+                  "display_value": "データ型",
+                  "raw_value": "データ型",
+                  "row": 2,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "B2",
+                    "sheet": "レスポンス",
+                    "workbook_path": "fixtures/workbooks/api-spec.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 3,
+                  "coordinate": "C2",
+                  "data_type": "s",
+                  "display_value": "必須",
+                  "raw_value": "必須",
+                  "row": 2,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "C2",
+                    "sheet": "レスポンス",
+                    "workbook_path": "fixtures/workbooks/api-spec.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 4,
+                  "coordinate": "D2",
+                  "data_type": "s",
+                  "display_value": "説明",
+                  "raw_value": "説明",
+                  "row": 2,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "D2",
+                    "sheet": "レスポンス",
+                    "workbook_path": "fixtures/workbooks/api-spec.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 1,
+                  "coordinate": "A3",
+                  "data_type": "s",
+                  "display_value": "userId",
+                  "raw_value": "userId",
+                  "row": 3,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "A3",
+                    "sheet": "レスポンス",
+                    "workbook_path": "fixtures/workbooks/api-spec.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 2,
+                  "coordinate": "B3",
+                  "data_type": "s",
+                  "display_value": "string",
+                  "raw_value": "string",
+                  "row": 3,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "B3",
+                    "sheet": "レスポンス",
+                    "workbook_path": "fixtures/workbooks/api-spec.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 3,
+                  "coordinate": "C3",
+                  "data_type": "s",
+                  "display_value": "true",
+                  "raw_value": "true",
+                  "row": 3,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "C3",
+                    "sheet": "レスポンス",
+                    "workbook_path": "fixtures/workbooks/api-spec.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 4,
+                  "coordinate": "D3",
+                  "data_type": "s",
+                  "display_value": "合成利用者ID",
+                  "raw_value": "合成利用者ID",
+                  "row": 3,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "D3",
+                    "sheet": "レスポンス",
+                    "workbook_path": "fixtures/workbooks/api-spec.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 1,
+                  "coordinate": "A4",
+                  "data_type": "s",
+                  "display_value": "displayName",
+                  "raw_value": "displayName",
+                  "row": 4,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "A4",
+                    "sheet": "レスポンス",
+                    "workbook_path": "fixtures/workbooks/api-spec.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 2,
+                  "coordinate": "B4",
+                  "data_type": "s",
+                  "display_value": "string",
+                  "raw_value": "string",
+                  "row": 4,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "B4",
+                    "sheet": "レスポンス",
+                    "workbook_path": "fixtures/workbooks/api-spec.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 3,
+                  "coordinate": "C4",
+                  "data_type": "s",
+                  "display_value": "true",
+                  "raw_value": "true",
+                  "row": 4,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "C4",
+                    "sheet": "レスポンス",
+                    "workbook_path": "fixtures/workbooks/api-spec.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 4,
+                  "coordinate": "D4",
+                  "data_type": "s",
+                  "display_value": "表示名",
+                  "raw_value": "表示名",
+                  "row": 4,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "D4",
+                    "sheet": "レスポンス",
+                    "workbook_path": "fixtures/workbooks/api-spec.xlsx"
+                  }
+                }
+              ],
+              "column_semantics": {
+                "A": "field_name",
+                "B": "data_type",
+                "C": "required",
+                "D": "description"
+              },
+              "header_rows": 1,
+              "metadata": {
+                "header_labels": {
+                  "A": "項目名",
+                  "B": "データ型",
+                  "C": "必須",
+                  "D": "説明"
+                }
+              },
+              "source": {
+                "range": "A2:D4",
+                "sheet": "レスポンス"
+              },
+              "table_id": "response-fields"
+            }
+          ],
+          "values": {}
+        },
+        {
+          "asset_ids": [],
+          "confidence": 0.25,
+          "metadata": {
+            "segmentation": "blank-and-style-boundaries"
+          },
+          "region_id": "unrecognized-1",
+          "region_type": "freeform",
+          "source": {
+            "range": "A1:A1",
+            "sheet": "レスポンス"
+          },
+          "tables": [
+            {
+              "cells": [
+                {
+                  "col_span": 1,
+                  "column": 1,
+                  "coordinate": "A1",
+                  "data_type": "s",
+                  "display_value": "レスポンス項目",
+                  "raw_value": "レスポンス項目",
+                  "row": 1,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "A1",
+                    "sheet": "レスポンス",
+                    "workbook_path": "fixtures/workbooks/api-spec.xlsx"
+                  }
+                }
+              ],
+              "column_semantics": {},
+              "header_rows": 0,
+              "metadata": {},
+              "source": {
+                "range": "A1:A1",
+                "sheet": "レスポンス"
+              },
+              "table_id": "unrecognized-1"
+            }
+          ],
+          "values": {}
+        },
+        {
+          "asset_ids": [],
+          "confidence": 0.1,
+          "metadata": {
+            "reason": "preserve-empty-or-separated-effective-cells",
+            "segmentation": "grid-residual"
+          },
+          "region_id": "unrecognized-grid-residual",
+          "region_type": "freeform",
+          "source": {
+            "range": "B1:D1",
+            "sheet": "レスポンス"
+          },
+          "tables": [
+            {
+              "cells": [
+                {
+                  "col_span": 1,
+                  "column": 2,
+                  "coordinate": "B1",
+                  "data_type": "n",
+                  "row": 1,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "B1",
+                    "sheet": "レスポンス",
+                    "workbook_path": "fixtures/workbooks/api-spec.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 3,
+                  "coordinate": "C1",
+                  "data_type": "n",
+                  "row": 1,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "C1",
+                    "sheet": "レスポンス",
+                    "workbook_path": "fixtures/workbooks/api-spec.xlsx"
+                  }
+                },
+                {
+                  "col_span": 1,
+                  "column": 4,
+                  "coordinate": "D1",
+                  "data_type": "n",
+                  "row": 1,
+                  "row_span": 1,
+                  "source": {
+                    "cell": "D1",
+                    "sheet": "レスポンス",
+                    "workbook_path": "fixtures/workbooks/api-spec.xlsx"
+                  }
+                }
+              ],
+              "column_semantics": {},
+              "header_rows": 0,
+              "metadata": {},
+              "source": {
+                "range": "B1:D1",
+                "sheet": "レスポンス"
+              },
+              "table_id": "unrecognized-grid-residual"
+            }
+          ],
+          "values": {}
+        }
+      ],
+      "sheet_id": "sheet-3"
+    }
+  ],
+  "source_path": "fixtures/workbooks/api-spec.xlsx",
+  "template_id": "fixture-api-spec",
+  "template_version": "1.0",
+  "title": "脱敏利用者検索API"
+}
