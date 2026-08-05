@@ -776,6 +776,14 @@ def extract_with_template(document: DocumentIR, match: MatchResult) -> Extractio
                 )
                 continue
             for index, bounds in enumerate(located, start=1):
+                extractor = region_template.extractor or ExtractionSpec(
+                    kind=region_template.region_type
+                )
+                if _option_flag(extractor.options, "ignore"):
+                    covered.update(
+                        cell.coordinate for cell in _cells_in_bounds(cells, bounds)
+                    )
+                    continue
                 region_id = (
                     region_template.region_id
                     if index == 1

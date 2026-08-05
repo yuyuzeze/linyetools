@@ -73,6 +73,13 @@ sheets:
     name_pattern: "^修正履歴$"
     order: 20
     regions:
+      - region_id: ignored-sheet-header
+        region_type: freeform
+        order: 0
+        locator: {mode: fixed, range: "A1:XFD4"}
+        extractor:
+          kind: freeform
+          options: {ignore: true}
       # The header contains several key/value pairs spread across graph-paper
       # columns. Do not guess a single key/value region: parse the reliable
       # revision table until exact header coordinates are supplied.
@@ -104,29 +111,13 @@ sheets:
     name_pattern: "^画面レイアウト$"
     order: 30
     regions:
-      - region_id: layout-meta
-        region_type: key_value
-        title: 画面基本情報
-        locator:
-          mode: anchor
-          anchor_text: 画面ID
-          height: 6
-          width: 24
+      - region_id: ignored-sheet-header
+        region_type: freeform
+        order: 0
+        locator: {mode: fixed, range: "A1:XFD4"}
         extractor:
-          kind: key_value
-          key_column: 1
-          value_column: 3
-          key_semantics:
-            プロダクト: product
-            サブシステム: subsystem
-            画面名: screen_name
-            画面ID: screen_id
-            作成日: created_at
-            更新日: updated_at
-            作成者: author
-            更新者: updater
-          options:
-            shrink_to_content: true
+          kind: freeform
+          options: {ignore: true}
       - region_id: screen-layout
         region_type: layout
         title: 画面レイアウト
@@ -142,29 +133,13 @@ sheets:
     name_pattern: "^画面入出力項目一覧$"
     order: 40
     regions:
-      - region_id: io-meta
-        region_type: key_value
-        title: 画面基本情報
-        locator:
-          mode: anchor
-          anchor_text: 画面ID
-          height: 6
-          width: 24
+      - region_id: ignored-sheet-header
+        region_type: freeform
+        order: 0
+        locator: {mode: fixed, range: "A1:XFD4"}
         extractor:
-          kind: key_value
-          key_column: 1
-          value_column: 3
-          key_semantics:
-            プロダクト: product
-            サブシステム: subsystem
-            画面名: screen_name
-            画面ID: screen_id
-            作成日: created_at
-            更新日: updated_at
-            作成者: author
-            更新者: updater
-          options:
-            shrink_to_content: true
+          kind: freeform
+          options: {ignore: true}
       - region_id: io-table
         region_type: table
         title: 画面入出力項目一覧
@@ -176,19 +151,19 @@ sheets:
           kind: table
           header_rows: 1
           column_semantics:
-            "No\\.?": seq_no
-            "画面項目名|項目名称": field_name
-            種別: control_type
-            全半角: charset
-            桁数: length
-            "I/O": io
-            表示: visible
-            活性: enabled
-            必須: required
-            データ元: data_source
-            初期値: default_value
-            イベントID: event_id
-            補足説明: remarks
+            "^No\\.?$": seq_no
+            "^(画面項目名|画面項目名称|項目名称)$": field_name
+            "^種別$": control_type
+            "^全半角$": charset
+            "^桁数$": length
+            "^I/O$": io
+            "^(表示|表示中)$": visible
+            "^活性$": enabled
+            "^必須$": required
+            "^データ元$": data_source
+            "^初期値$": default_value
+            "^イベントID$": event_id
+            "^(補足説明|補足)$": remarks
           options:
             stop_after_blank_rows: 2
             shrink_to_content: true
@@ -198,29 +173,13 @@ sheets:
     name_pattern: "^画面アクション一覧$"
     order: 50
     regions:
-      - region_id: action-meta
-        region_type: key_value
-        title: 画面基本情報
-        locator:
-          mode: anchor
-          anchor_text: 画面ID
-          height: 6
-          width: 24
+      - region_id: ignored-sheet-header
+        region_type: freeform
+        order: 0
+        locator: {mode: fixed, range: "A1:XFD4"}
         extractor:
-          kind: key_value
-          key_column: 1
-          value_column: 3
-          key_semantics:
-            プロダクト: product
-            サブシステム: subsystem
-            画面名: screen_name
-            画面ID: screen_id
-            作成日: created_at
-            更新日: updated_at
-            作成者: author
-            更新者: updater
-          options:
-            shrink_to_content: true
+          kind: freeform
+          options: {ignore: true}
       - region_id: action-table
         region_type: table
         title: 画面アクション一覧
@@ -248,29 +207,13 @@ sheets:
     name_pattern: "^入力チェック$"
     order: 60
     regions:
-      - region_id: check-meta
-        region_type: key_value
-        title: 画面基本情報
-        locator:
-          mode: anchor
-          anchor_text: 画面ID
-          height: 6
-          width: 24
+      - region_id: ignored-sheet-header
+        region_type: freeform
+        order: 0
+        locator: {mode: fixed, range: "A1:XFD4"}
         extractor:
-          kind: key_value
-          key_column: 1
-          value_column: 3
-          key_semantics:
-            プロダクト: product
-            サブシステム: subsystem
-            画面名: screen_name
-            画面ID: screen_id
-            作成日: created_at
-            更新日: updated_at
-            作成者: author
-            更新者: updater
-          options:
-            shrink_to_content: true
+          kind: freeform
+          options: {ignore: true}
       - region_id: check-table
         region_type: table
         title: 入力チェック

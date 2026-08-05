@@ -308,6 +308,90 @@ class TemplateEngineTests(unittest.TestCase):
         self.assertEqual({"A1", "C1", "A2", "C2"}, coords)
         self.assertEqual("A1:C2", region.source.range)
 
+    def test_ignore_option_excludes_sheet_header_from_document_ir(self) -> None:
+        from excelspec.models.template import (
+            ExtractionSpec,
+            LocatorMode,
+            RegionLocator,
+            RegionTemplate,
+            SheetTemplate,
+            TemplateMatch,
+            TemplateSpec,
+        )
+        from excelspec.templates import MatchResult, extract_with_template
+
+        sheet = raw_sheet(
+            "画面入出力項目一覧",
+            0,
+            [
+                cell("A1", 1, 1, "プロダクト"),
+                cell("B1", 1, 2, "林業システム"),
+                cell("A4", 4, 1, "画面ID"),
+                cell("B4", 4, 2, "SCR-A0030"),
+                cell("A5", 5, 1, "No."),
+                cell("B5", 5, 2, "画面項目名"),
+                cell("A6", 6, 1, 1),
+                cell("B6", 6, 2, "保証種類"),
+            ],
+        )
+        template = TemplateSpec(
+            template_id="ignore-header",
+            version="1.0",
+            name="ignore-header",
+            schema_version="1.0",
+            match=TemplateMatch(minimum_score=0.1),
+            sheets=[
+                SheetTemplate(
+                    sheet_id="items",
+                    name_pattern="^画面入出力項目一覧$",
+                    regions=[
+                        RegionTemplate(
+                            region_id="ignored-sheet-header",
+                            region_type="freeform",
+                            order=0,
+                            locator=RegionLocator(
+                                mode=LocatorMode.FIXED,
+                                range="A1:XFD4",
+                            ),
+                            extractor=ExtractionSpec(
+                                kind="freeform",
+                                options={"ignore": True},
+                            ),
+                        ),
+                        RegionTemplate(
+                            region_id="io-table",
+                            region_type="table",
+                            order=10,
+                            locator=RegionLocator(
+                                mode=LocatorMode.FIXED,
+                                range="A5:B6",
+                            ),
+                            extractor=ExtractionSpec(
+                                kind="table",
+                                header_rows=1,
+                            ),
+                        ),
+                    ],
+                )
+            ],
+        )
+        result = extract_with_template(
+            DocumentIR(document_id="ignore", title="ignore", sheets=[sheet]),
+            MatchResult(mode="template", template=template, candidates=[]),
+        )
+
+        regions = result.document.sheets[0].regions
+        self.assertEqual(["io-table"], [region.region_id for region in regions])
+        values = {
+            cell.display_value
+            for region in regions
+            for table in region.tables
+            for cell in table.cells
+        }
+        self.assertNotIn("プロダクト", values)
+        self.assertNotIn("SCR-A0030", values)
+        self.assertEqual([], result.unrecognized_ranges["画面入出力項目一覧"])
+
     def test_repeat_anchor_splits_multiple_tables(self) -> None:
         from excelspec.models.template import (
             ExtractionSpec,
