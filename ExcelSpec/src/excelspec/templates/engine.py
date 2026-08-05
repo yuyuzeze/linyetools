@@ -532,11 +532,19 @@ def _extract_region(
             if not key:
                 continue
             semantic = _key_semantic(extractor, key)
-            region.values[semantic] = (
-                value_cell.raw_value
-                if value_cell is not None and value_cell.raw_value is not None
-                else _display(value_cell) if value_cell else None
-            )
+            if value_cell is None:
+                region.values[semantic] = None
+            elif value_cell.formula is not None:
+                # For formula cells, use Excel's cached calculated result.
+                # Falling back to the formula text would expose implementation
+                # details instead of the document value.
+                region.values[semantic] = value_cell.display_value
+            else:
+                region.values[semantic] = (
+                    value_cell.raw_value
+                    if value_cell.raw_value is not None
+                    else _display(value_cell)
+                )
         region.metadata["key_labels"] = extractor.key_semantics
     elif extractor.kind == "table":
         labels = _header_labels(cells, bounds, extractor.header_rows)

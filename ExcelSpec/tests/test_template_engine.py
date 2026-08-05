@@ -62,7 +62,7 @@ class TemplateLoadingTests(unittest.TestCase):
         templates = load_templates(ROOT / "templates")
 
         self.assertEqual(
-            {"linye-screen-design", "linye-api-spec"},
+            {"linye-screen-design", "linye-screen-design-6sheet", "linye-api-spec"},
             {template.template_id for template in templates},
         )
         screen = load_template(ROOT / "templates" / "linye-screen-design-v1.yaml")

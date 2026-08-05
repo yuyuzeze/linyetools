@@ -1,7 +1,7 @@
 schema_version: "1.0"
-template_id: demo-screen-design
+template_id: linye-screen-design-6sheet
 version: "1.0"
-name: 画面設計書デモ
+name: 画面設計書（表紙+修正履歴+レイアウト+入出力+アクション+入力チェック）
 description: |
   OKI/林業系画面設計書（SCR-Axxxx）六シート構成向け。
   方眼レイアウトでは表の物理列が広いため、locator に width を固定せず
@@ -321,6 +321,5 @@ metadata:
   language: ja-JP
   document_kind: screen-design
   sheet_count: 6
-  demo: true
   export:
     clean: true
