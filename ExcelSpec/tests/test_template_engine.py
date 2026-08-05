@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import tempfile
 import unittest
 from pathlib import Path
 
 import jsonschema
 
+from excelspec.exporters import MarkdownExporter
 from excelspec.models.document_ir import (
     AssetIR,
     AssetType,
@@ -616,6 +618,100 @@ class TemplateEngineTests(unittest.TestCase):
         self.assertIn("near", layout.asset_ids)
         self.assertIn("far-below", layout.asset_ids)
         self.assertNotIn("far-shape", layout.asset_ids)
+
+    def test_region_screenshot_option_renders_png(self) -> None:
+        from excelspec.templates import MatchResult, extract_with_template
+        from excelspec.models.template import (
+            ExtractionSpec,
+            LocatorMode,
+            RegionLocator,
+            RegionTemplate,
+            SheetTemplate,
+            TemplateMatch,
+            TemplateSpec,
+        )
+
+        with tempfile.TemporaryDirectory() as directory:
+            asset_dir = Path(directory) / "assets"
+            sheet = raw_sheet(
+                "画面入出力項目一覧",
+                0,
+                [
+                    cell("AD6", 6, 30, "■凡例"),
+                    cell("AD7", 7, 30, "I/O"),
+                    cell("AE7", 7, 31, "入出力"),
+                    cell("AD8", 8, 30, "表示"),
+                    cell("AE8", 8, 31, "●表示有"),
+                ],
+            )
+            for item in sheet.regions[0].tables[0].cells:
+                item.style = StyleIR(
+                    fill={"type": "solid", "foreground": {"type": "rgb", "value": "FFD9D9D9"}},
+                    border={
+                        "left": {"style": "thin"},
+                        "right": {"style": "thin"},
+                        "top": {"style": "thin"},
+                        "bottom": {"style": "thin"},
+                    },
+                )
+            template = TemplateSpec(
+                template_id="legend-shot",
+                version="1.0",
+                name="legend",
+                schema_version="1.0",
+                match=TemplateMatch(minimum_score=0.1),
+                sheets=[
+                    SheetTemplate(
+                        sheet_id="io",
+                        name_pattern="^画面入出力項目一覧$",
+                        regions=[
+                            RegionTemplate(
+                                region_id="legend",
+                                region_type="image",
+                                title="凡例",
+                                locator=RegionLocator(
+                                    mode=LocatorMode.ANCHOR,
+                                    anchor_pattern="^■?凡例",
+                                    height=4,
+                                    width=5,
+                                ),
+                                extractor=ExtractionSpec(
+                                    kind="freeform",
+                                    options={"screenshot": True, "shrink_to_content": True},
+                                ),
+                            )
+                        ],
+                    )
+                ],
+            )
+            document = DocumentIR(
+                document_id="legend",
+                title="legend",
+                sheets=[sheet],
+                metadata={"asset_directory": str(asset_dir)},
+            )
+            result = extract_with_template(
+                document,
+                MatchResult(mode="template", template=template, candidates=[]),
+            )
+            region = next(
+                item
+                for item in result.document.sheets[0].regions
+                if item.region_id == "legend"
+            )
+            self.assertEqual("screenshot", region.metadata.get("readable_mode"))
+            self.assertTrue(region.asset_ids)
+            asset = next(
+                item
+                for item in result.document.sheets[0].assets
+                if item.asset_id == region.asset_ids[0]
+            )
+            self.assertEqual(AssetType.SCREENSHOT, asset.asset_type)
+            self.assertTrue(Path(asset.uri).is_file())
+            markdown = MarkdownExporter().render(result.document)
+            self.assertIn("### 凡例", markdown)
+            self.assertIn("![凡例]", markdown)
+            self.assertNotIn("- ■凡例", markdown)
 
 
 if __name__ == "__main__":

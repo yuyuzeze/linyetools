@@ -14,10 +14,12 @@ from ._shared import (
     compact_list_rows,
     compact_rows,
     header_label_row,
+    interleaved_region_blocks,
     is_group_row,
     readable_document_metadata,
     readable_region_values,
     render_html_table,
+    should_interleave_region,
     should_render_region,
 )
 
@@ -162,6 +164,31 @@ class HtmlExporter:
                             f"<dt>{html.escape(key)}</dt><dd>{html.escape(_value(value))}</dd>"
                         )
                     content.append("</dl>")
+
+                if region.metadata.get("readable_mode") == "screenshot":
+                    for asset_id in region.asset_ids:
+                        asset = assets.get(asset_id)
+                        if asset is None or asset_id in rendered_assets:
+                            continue
+                        if asset.metadata.get("source_kind") != "region_screenshot":
+                            continue
+                        content.append(_asset_html(asset, destination))
+                        rendered_assets.add(asset_id)
+                    content.append("</section>")
+                    continue
+
+                if should_interleave_region(region):
+                    for block in interleaved_region_blocks(region, assets):
+                        if block.kind == "text" and block.text:
+                            content.append(f"<p>{html.escape(block.text)}</p>")
+                        elif block.kind == "asset" and block.asset_id:
+                            asset = assets.get(block.asset_id)
+                            if asset is not None and block.asset_id not in rendered_assets:
+                                content.append(_asset_html(asset, destination))
+                                rendered_assets.add(block.asset_id)
+                    content.append("</section>")
+                    continue
+
                 for table in region.tables:
                     rendered_table = _render_table_html(table)
                     if rendered_table is None:

@@ -6,12 +6,22 @@ import html
 import json
 import os
 import re
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 from urllib.parse import urlparse
 
-from openpyxl.utils.cell import column_index_from_string, get_column_letter
+from openpyxl.utils.cell import column_index_from_string, get_column_letter, range_boundaries
 
-from ..models.document_ir import AssetIR, CellIR, DocumentIR, RegionIR, SheetIR, TableIR
+from ..models.document_ir import (
+    AssetIR,
+    CellIR,
+    DocumentIR,
+    RegionIR,
+    RegionType,
+    SheetIR,
+    TableIR,
+)
 
 
 def cell_text(cell: CellIR | None) -> str:
@@ -227,6 +237,11 @@ def compact_list_rows(table: TableIR) -> list[list[str]]:
     rendering keeps `compact_rows` -- it needs one aligned cell per
     semantic column to stay a valid grid.
     """
+    return [values for _, values in compact_list_rows_with_positions(table)]
+
+
+def compact_list_rows_with_positions(table: TableIR) -> list[tuple[int, list[str]]]:
+    """Return ``(excel_row, values)`` pairs for non-empty freeform rows."""
     bounds = table_bounds(table)
     if bounds is None:
         return []
@@ -234,7 +249,7 @@ def compact_list_rows(table: TableIR) -> list[list[str]]:
     columns = semantic_columns(table)
     cells = logical_cell_map(table)
     start = min_row + max(table.header_rows, 0)
-    rows: list[list[str]] = []
+    rows: list[tuple[int, list[str]]] = []
     for row in range(start, max_row + 1):
         values: list[str] = []
         last_identity: str | None = None
@@ -249,8 +264,86 @@ def compact_list_rows(table: TableIR) -> list[list[str]]:
             if text:
                 values.append(text)
         if values:
-            rows.append(values)
+            rows.append((row, values))
     return rows
+
+
+def asset_anchor_row(asset: AssetIR) -> int | None:
+    """Best-effort top Excel row for an asset anchor / source range."""
+    reference = asset.anchor
+    if reference is None and asset.source is not None:
+        reference = asset.source.range or asset.source.cell
+    if not reference:
+        return None
+    try:
+        if ":" in reference:
+            return range_boundaries(reference)[1]
+        return range_boundaries(f"{reference}:{reference}")[1]
+    except ValueError:
+        match = re.search(r"(\d+)", reference)
+        return int(match.group(1)) if match else None
+
+
+@dataclass(frozen=True, slots=True)
+class RegionBlock:
+    """One readable fragment inside a region, ordered by sheet row."""
+
+    kind: Literal["text", "asset"]
+    row: int
+    text: str | None = None
+    asset_id: str | None = None
+
+
+def should_interleave_region(region: RegionIR) -> bool:
+    """Layout/mockup regions keep captions and images in vertical order."""
+    if region.metadata.get("readable_mode") == "screenshot":
+        return False
+    return (
+        region.region_type == RegionType.LAYOUT
+        or region.metadata.get("extractor_kind") == "asset"
+    )
+
+
+def interleaved_region_blocks(
+    region: RegionIR, assets: dict[str, AssetIR]
+) -> list[RegionBlock]:
+    """Merge freeform text rows and region assets by Excel row order.
+
+    Text on the same row as an image is emitted first so captions above an
+    image stay above it, and notes below follow after the image row.
+    """
+    events: list[tuple[int, int, int, RegionBlock]] = []
+    sequence = 0
+    for table in region.tables:
+        if table.header_rows > 0:
+            continue
+        for row, values in compact_list_rows_with_positions(table):
+            text = " / ".join(values)
+            events.append(
+                (
+                    row,
+                    0,
+                    sequence,
+                    RegionBlock(kind="text", row=row, text=text),
+                )
+            )
+            sequence += 1
+    for index, asset_id in enumerate(region.asset_ids):
+        if asset_id not in assets:
+            continue
+        row = asset_anchor_row(assets[asset_id])
+        # Unanchored assets keep relative declaration order after known rows.
+        sort_row = row if row is not None else 10**9
+        events.append(
+            (
+                sort_row,
+                1,
+                index,
+                RegionBlock(kind="asset", row=sort_row, asset_id=asset_id),
+            )
+        )
+    events.sort(key=lambda item: (item[0], item[1], item[2]))
+    return [item[3] for item in events]
 
 
 def table_has_content(table: TableIR) -> bool:
@@ -290,9 +383,20 @@ def readable_document_metadata(document: DocumentIR) -> list[tuple[str, object]]
 
 
 def readable_region_values(region: RegionIR) -> list[tuple[str, object]]:
-    """Return only populated business values for readable exporters."""
+    """Return populated values for MD/HTML using Excel labels when known.
+
+    IR keeps machine keys from ``key_semantics`` (e.g. ``document_no``).
+    Readable exporters reverse ``metadata.key_labels`` so MD shows
+    「文書番号」 instead of ``document_no``.
+    """
+    labels = region.metadata.get("key_labels")
+    reverse: dict[str, str] = {}
+    if isinstance(labels, dict):
+        for label, semantic in labels.items():
+            if isinstance(label, str) and isinstance(semantic, str) and semantic:
+                reverse.setdefault(semantic, label)
     return [
-        (key, value)
+        (reverse.get(key, key), value)
         for key, value in region.values.items()
         if not _is_empty_value(value)
     ]

@@ -392,6 +392,69 @@ class ExporterTests(unittest.TestCase):
         self.assertNotIn("资源", html_output)
         self.assertNotIn("残留图", html_output)
 
+    def test_layout_interleaves_text_and_images_by_row(self) -> None:
+        source = SourceRef(sheet="画面レイアウト", range="A6:H29")
+        table = TableIR(
+            table_id="layout",
+            source=source,
+            header_rows=0,
+            cells=[
+                _cell("A6", 6, 1, "■画面イメージ"),
+                _cell("A7", 7, 1, "【初期表示】一覧"),
+                _cell("A28", 28, 1, "※注記"),
+                _cell("A29", 29, 1, "【検索後】更新"),
+            ],
+        )
+        top = AssetIR(
+            asset_id="img-top",
+            asset_type=AssetType.IMAGE,
+            uri="assets/top.png",
+            description="初期画面",
+            anchor="A8",
+            source=SourceRef(sheet="画面レイアウト", cell="A8"),
+        )
+        bottom = AssetIR(
+            asset_id="img-bottom",
+            asset_type=AssetType.IMAGE,
+            uri="assets/bottom.png",
+            description="検索後",
+            anchor="A30",
+            source=SourceRef(sheet="画面レイアウト", cell="A30"),
+        )
+        document = DocumentIR(
+            document_id="layout-order",
+            title="レイアウト順序",
+            sheets=[
+                SheetIR(
+                    sheet_id="layout",
+                    name="画面レイアウト",
+                    index=0,
+                    assets=[top, bottom],
+                    regions=[
+                        RegionIR(
+                            region_id="screen-layout",
+                            region_type=RegionType.LAYOUT,
+                            title="画面レイアウト",
+                            metadata={"extractor_kind": "asset"},
+                            tables=[table],
+                            asset_ids=["img-top", "img-bottom"],
+                        )
+                    ],
+                )
+            ],
+        )
+        markdown = MarkdownExporter().render(document)
+        html_output = HtmlExporter().render(document)
+
+        self.assertLess(markdown.index("■画面イメージ"), markdown.index("初期画面"))
+        self.assertLess(markdown.index("【初期表示】一覧"), markdown.index("初期画面"))
+        self.assertLess(markdown.index("初期画面"), markdown.index("※注記"))
+        self.assertLess(markdown.index("※注記"), markdown.index("【検索後】更新"))
+        self.assertLess(markdown.index("【検索後】更新"), markdown.index("検索後"))
+        self.assertLess(html_output.index("■画面イメージ"), html_output.index("初期画面"))
+        self.assertLess(html_output.index("初期画面"), html_output.index("※注記"))
+        self.assertLess(html_output.index("【検索後】更新"), html_output.index("検索後"))
+
 
 if __name__ == "__main__":
     unittest.main()

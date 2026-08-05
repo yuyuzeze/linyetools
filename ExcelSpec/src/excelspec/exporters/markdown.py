@@ -14,10 +14,12 @@ from ._shared import (
     compact_rows,
     has_complex_merges,
     header_label_row,
+    interleaved_region_blocks,
     is_group_row,
     readable_document_metadata,
     readable_region_values,
     render_html_table,
+    should_interleave_region,
     should_render_region,
     table_bounds,
     table_cell_map,
@@ -137,6 +139,29 @@ class MarkdownExporter:
                         for key, value in region_values
                     )
                     lines.append("")
+
+                if region.metadata.get("readable_mode") == "screenshot":
+                    for asset_id in region.asset_ids:
+                        asset = assets.get(asset_id)
+                        if asset is None or asset_id in rendered_assets:
+                            continue
+                        if asset.metadata.get("source_kind") != "region_screenshot":
+                            continue
+                        lines.extend([_render_asset(asset, destination), ""])
+                        rendered_assets.add(asset_id)
+                    continue
+
+                if should_interleave_region(region):
+                    for block in interleaved_region_blocks(region, assets):
+                        if block.kind == "text" and block.text:
+                            lines.extend([f"- {_escape(block.text)}", ""])
+                        elif block.kind == "asset" and block.asset_id:
+                            asset = assets.get(block.asset_id)
+                            if asset is not None and block.asset_id not in rendered_assets:
+                                lines.extend([_render_asset(asset, destination), ""])
+                                rendered_assets.add(block.asset_id)
+                    continue
+
                 for table in region.tables:
                     body = _render_table(table)
                     if not body:

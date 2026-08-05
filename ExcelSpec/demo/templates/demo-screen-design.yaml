@@ -141,21 +141,22 @@ sheets:
         extractor:
           kind: freeform
           options: {ignore: true}
-      # 凡例 is drawn with cells/borders, not an embedded picture. Ignore it so
-      # it does not become unrecognized noise. True screenshot capture needs a
-      # LibreOffice/sheet renderer (not wired in v1); use screenshot_manifest
-      # if a manually captured legend image is required.
-      - region_id: ignored-legend
-        region_type: freeform
+      # 凡例 is cell-drawn (not an embedded picture). Capture a fixed-area
+      # Pillow screenshot so MD/HTML can show it as an image.
+      - region_id: legend
+        region_type: image
+        title: 凡例
         order: 1
         locator:
           mode: anchor
-          anchor_pattern: "^■?凡例$"
+          anchor_pattern: "^■?凡例"
           height: 8
           width: 40
         extractor:
           kind: freeform
-          options: {ignore: true}
+          options:
+            screenshot: true
+            shrink_to_content: true
       - region_id: io-table
         region_type: table
         title: 画面入出力項目一覧

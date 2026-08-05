@@ -180,12 +180,14 @@ def build_screen_design(path: Path, layout_image: Path) -> None:
         _set(layout.cell(row, col), label, fill=LIGHT_GREEN, bold=True)
         _set(layout.cell(row, col + 1), value, align=LEFT)
     _merge_fill(layout, "A6:H6", "■画面イメージ", bold=True, align=LEFT)
+    _merge_fill(layout, "A7:H7", "【初期表示】保証審査一覧", align=LEFT)
     picture = XlsxImage(layout_image)
     picture.width = 480
     picture.height = 280
     picture.anchor = "A8"
     layout.add_image(picture)
     _merge_fill(layout, "A28:H28", "※画面モックは埋め込み画像として保持", align=LEFT)
+    _merge_fill(layout, "A29:H29", "【検索後】一覧が更新される", align=LEFT)
 
     # 画面入出力項目一覧
     io = wb.create_sheet("画面入出力項目一覧")
@@ -201,7 +203,15 @@ def build_screen_design(path: Path, layout_image: Path) -> None:
     ):
         _set(io.cell(2 + i, 4), label, fill=LIGHT_GREEN, bold=True)
         _set(io.cell(2 + i, 5), value, align=LEFT)
-    _merge_fill(io, "A6:M6", "凡例: ●=表示/必須  ○=任意  ▲=条件表示  x=非活性  -=対象外", align=LEFT)
+    _merge_fill(io, "AD6:AY6", "■凡例", fill=PatternFill("solid", fgColor="D9D9D9"), bold=True, align=LEFT)
+    _set(io.cell(7, 30), "I/O", fill=PatternFill("solid", fgColor="D9D9D9"), bold=True)
+    _set(io.cell(7, 31), "I/O:入出力 / I:入力 / O:表示 / -:対象外", align=LEFT)
+    _set(io.cell(8, 30), "表示", fill=PatternFill("solid", fgColor="D9D9D9"), bold=True)
+    _set(io.cell(8, 31), "●:表示有 / ▲:条件付き表示 / ×:表示無", align=LEFT)
+    _set(io.cell(9, 30), "活性", fill=PatternFill("solid", fgColor="D9D9D9"), bold=True)
+    _set(io.cell(9, 31), "○:活性 / △:条件付き / ×:非活性", align=LEFT)
+    _set(io.cell(10, 30), "必須", fill=PatternFill("solid", fgColor="D9D9D9"), bold=True)
+    _set(io.cell(10, 31), "○:必須 / △:条件付き必須 / ×:任意", align=LEFT)
     headers = [
         "No.",
         "項目名称",

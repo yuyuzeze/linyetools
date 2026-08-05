@@ -4,10 +4,10 @@
 
 ### api-info
 
-- **api_id**: API-DEMO-001
-- **api_name**: 利用者検索API
-- **endpoint**: /v1/demo-users
-- **http_method**: GET
+- **API ID**: API-DEMO-001
+- **API名**: 利用者検索API
+- **エンドポイント**: /v1/demo-users
+- **HTTPメソッド**: GET
 
 ## リクエスト
 

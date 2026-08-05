@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Iterable
 
 from openpyxl.utils.cell import (
@@ -33,6 +34,7 @@ from ..models.template import (
     SheetTemplate,
     TemplateSpec,
 )
+from ..render import render_cells_to_png
 
 
 @dataclass(slots=True)
@@ -705,6 +707,90 @@ def _is_visual_asset(asset: AssetIR) -> bool:
     }
 
 
+def _asset_directory(document: DocumentIR) -> Path | None:
+    raw = document.metadata.get("asset_directory")
+    if isinstance(raw, str) and raw.strip():
+        return Path(raw)
+    if document.source_path:
+        source = Path(document.source_path)
+        return source.parent / f"{source.stem}_assets"
+    return None
+
+
+def _attach_region_screenshot(
+    document: DocumentIR,
+    sheet: SheetIR,
+    region: RegionIR,
+    extractor: ExtractionSpec,
+    diagnostics: list[DiagnosticIR],
+) -> AssetIR | None:
+    """Render a fixed region to PNG when ``options.screenshot`` is enabled."""
+
+    if not _option_flag(extractor.options, "screenshot"):
+        return None
+    cells = [cell for table in region.tables for cell in table.cells]
+    if not cells:
+        diagnostics.append(
+            DiagnosticIR(
+                code="template.screenshot_empty",
+                severity=DiagnosticSeverity.WARNING,
+                message=f"区域截图跳过（无单元格）: {region.region_id}",
+                source=SourceRef(sheet=sheet.name),
+                region_id=region.region_id,
+            )
+        )
+        return None
+    asset_dir = _asset_directory(document)
+    if asset_dir is None:
+        diagnostics.append(
+            DiagnosticIR(
+                code="template.screenshot_no_asset_dir",
+                severity=DiagnosticSeverity.WARNING,
+                message=f"区域截图跳过（无 asset_directory）: {region.region_id}",
+                source=SourceRef(sheet=sheet.name),
+                region_id=region.region_id,
+            )
+        )
+        return None
+    destination = (
+        asset_dir / "screenshots" / f"{sheet.sheet_id}-{region.region_id}.png"
+    )
+    try:
+        render_cells_to_png(cells, destination)
+    except OSError as error:
+        diagnostics.append(
+            DiagnosticIR(
+                code="template.screenshot_failed",
+                severity=DiagnosticSeverity.WARNING,
+                message=f"区域截图失败: {region.region_id}",
+                source=SourceRef(sheet=sheet.name, range=region.source.range if region.source else None),
+                region_id=region.region_id,
+                details={"error": str(error)},
+            )
+        )
+        return None
+    asset_id = f"{sheet.sheet_id}-{region.region_id}-screenshot"
+    asset = AssetIR(
+        asset_id=asset_id,
+        asset_type=AssetType.SCREENSHOT,
+        uri=str(destination),
+        media_type="image/png",
+        description=region.title or region.region_id,
+        source=SourceRef(
+            sheet=sheet.name,
+            range=region.source.range if region.source else None,
+            workbook_path=document.source_path,
+        ),
+        anchor=region.source.range if region.source else None,
+        extraction_status="rendered",
+        metadata={"source_kind": "region_screenshot", "template_region_id": region.region_id},
+    )
+    if asset_id not in region.asset_ids:
+        region.asset_ids.append(asset_id)
+    region.metadata["readable_mode"] = "screenshot"
+    return asset
+
+
 def _copy_assets(sheet: SheetIR, regions: list[RegionIR]) -> list[AssetIR]:
     assets = list(sheet.assets)
     claimed: set[str] = set()
@@ -837,6 +923,11 @@ def extract_with_template(document: DocumentIR, match: MatchResult) -> Extractio
                         region.title = f"{region.title} ({index})"
                 for binding in region_template.screenshot_bindings:
                     region.asset_ids.append(binding.asset_id)
+                rendered = _attach_region_screenshot(
+                    document, sheet, region, extractor, diagnostics
+                )
+                if rendered is not None:
+                    sheet.assets = [*sheet.assets, rendered]
                 regions.append(region)
                 if region.source and region.source.range:
                     try:
