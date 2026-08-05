@@ -14,6 +14,7 @@ from ._shared import (
     compact_list_rows,
     compact_rows,
     header_label_row,
+    is_group_row,
     readable_document_metadata,
     readable_region_values,
     render_html_table,
@@ -82,12 +83,20 @@ def _render_compact_table_html(table: TableIR) -> str | None:
     rows = compact_rows(table)
     if not rows:
         return None
-    header = "".join(f"<th>{html.escape(value)}</th>" for value in header_label_row(table))
-    body = "".join(
-        "<tr>" + "".join(f"<td>{html.escape(value)}</td>" for value in row) + "</tr>"
-        for row in rows
-    )
-    return f"<table><tr>{header}</tr>{body}</table>"
+    headers = header_label_row(table)
+    header = "".join(f"<th>{html.escape(value)}</th>" for value in headers)
+    body_parts: list[str] = []
+    for row in rows:
+        if is_group_row(row):
+            label = html.escape(next(value for value in row if value))
+            body_parts.append(
+                f'<tr><td colspan="{len(headers)}"><strong>{label}</strong></td></tr>'
+            )
+            continue
+        body_parts.append(
+            "<tr>" + "".join(f"<td>{html.escape(value)}</td>" for value in row) + "</tr>"
+        )
+    return f"<table><tr>{header}</tr>{''.join(body_parts)}</table>"
 
 
 def _render_table_html(table: TableIR) -> str | None:
@@ -168,22 +177,7 @@ class HtmlExporter:
                 content.append("</section>")
             content.append("</section>")
 
-        remaining_assets = {
-            asset.asset_id: asset
-            for asset in [
-                *document.assets,
-                *(asset for sheet in document.sheets for asset in sheet.assets),
-            ]
-            if asset.asset_id not in rendered_assets
-        }
-        if remaining_assets:
-            content.append('<section id="resources"><h2>资源</h2>')
-            content.extend(
-                _asset_html(asset, destination)
-                for asset in remaining_assets.values()
-            )
-            content.append("</section>")
-
+        # Unbound residual assets stay in canonical JSON only.
         return (
             "<!doctype html>\n<html lang=\"zh-CN\"><head><meta charset=\"utf-8\">"
             '<meta name="viewport" content="width=device-width,initial-scale=1">'

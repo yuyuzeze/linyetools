@@ -324,6 +324,74 @@ class ExporterTests(unittest.TestCase):
                 exporter.export(document, destination)
                 self.assertTrue(destination.is_file())
 
+    def test_group_row_renders_in_compact_table_and_residual_assets_hidden(self) -> None:
+        source = SourceRef(sheet="入出力", range="A1:C4")
+        table = TableIR(
+            table_id="io",
+            source=source,
+            header_rows=1,
+            column_semantics={"A": "seq_no", "B": "field_name", "C": "control_type"},
+            metadata={
+                "header_labels": {
+                    "A": "No.",
+                    "B": "画面項目名",
+                    "C": "種別",
+                }
+            },
+            cells=[
+                _cell("A1", 1, 1, "No."),
+                _cell("B1", 1, 2, "画面項目名"),
+                _cell("C1", 1, 3, "種別"),
+                _cell("A2", 2, 1, "グループ：基本情報入力", col_span=3),
+                _cell("B2", 2, 2, merged_master="A2"),
+                _cell("C2", 2, 3, merged_master="A2"),
+                _cell("A3", 3, 1, "1"),
+                _cell("B3", 3, 2, "保証種類"),
+                _cell("C3", 3, 3, "プルダウンリスト"),
+            ],
+        )
+        orphan = AssetIR(
+            asset_id="orphan-image",
+            asset_type=AssetType.IMAGE,
+            uri="assets/orphan.png",
+            description="残留图",
+            source=SourceRef(sheet="入出力", cell="Z99"),
+        )
+        document = DocumentIR(
+            document_id="io-group",
+            title="グループ表示",
+            sheets=[
+                SheetIR(
+                    sheet_id="io",
+                    name="画面入出力項目一覧",
+                    index=0,
+                    assets=[orphan],
+                    regions=[
+                        RegionIR(
+                            region_id="io-table",
+                            region_type=RegionType.TABLE,
+                            title="画面入出力項目一覧",
+                            tables=[table],
+                        )
+                    ],
+                )
+            ],
+        )
+        markdown = MarkdownExporter().render(document)
+        html_output = HtmlExporter().render(document)
+
+        self.assertIn("グループ：基本情報入力", markdown)
+        self.assertIn("**グループ：基本情報入力**", markdown)
+        self.assertIn("保証種類", markdown)
+        self.assertNotIn("## 资源", markdown)
+        self.assertNotIn("残留图", markdown)
+        self.assertNotIn("orphan-image", markdown)
+
+        self.assertIn("グループ：基本情報入力", html_output)
+        self.assertIn('colspan="3"', html_output)
+        self.assertNotIn("资源", html_output)
+        self.assertNotIn("残留图", html_output)
+
 
 if __name__ == "__main__":
     unittest.main()

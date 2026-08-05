@@ -123,9 +123,10 @@ sheets:
         title: 画面レイアウト
         locator:
           mode: anchor
+          # Do not pin a short height: mockup images often sit far below the
+          # label, and unbound images would otherwise fall into 「资源」.
           anchor_pattern: "^(■画面イメージ|画面イメージ|画面レイアウト)$"
           row_offset: 1
-          height: 45
         extractor:
           kind: asset
 
@@ -137,6 +138,21 @@ sheets:
         region_type: freeform
         order: 0
         locator: {mode: fixed, range: "A1:XFD4"}
+        extractor:
+          kind: freeform
+          options: {ignore: true}
+      # 凡例 is drawn with cells/borders, not an embedded picture. Ignore it so
+      # it does not become unrecognized noise. True screenshot capture needs a
+      # LibreOffice/sheet renderer (not wired in v1); use screenshot_manifest
+      # if a manually captured legend image is required.
+      - region_id: ignored-legend
+        region_type: freeform
+        order: 1
+        locator:
+          mode: anchor
+          anchor_pattern: "^■?凡例$"
+          height: 8
+          width: 40
         extractor:
           kind: freeform
           options: {ignore: true}

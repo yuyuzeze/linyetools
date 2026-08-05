@@ -5,6 +5,7 @@ from __future__ import annotations
 import html
 import json
 import os
+import re
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -196,8 +197,26 @@ def compact_rows(table: TableIR) -> list[list[str]]:
         values = [cell_text(cells.get((row, column))) for column in columns]
         if not any(values):
             continue
-        rows.append(values)
+        rows.append(_normalize_group_row(values))
     return rows
+
+
+def is_group_row(values: list[str]) -> bool:
+    """Detect section banners like 「グループ：基本情報入力」."""
+    non_empty = [value.strip() for value in values if value and value.strip()]
+    if not non_empty:
+        return False
+    text = non_empty[0]
+    if not re.match(r"^(グループ|Group)\s*[:：]", text, flags=re.IGNORECASE):
+        return False
+    return len(set(non_empty)) == 1
+
+
+def _normalize_group_row(values: list[str]) -> list[str]:
+    if not is_group_row(values):
+        return values
+    text = next(value.strip() for value in values if value and value.strip())
+    return [text if index == 0 else "" for index, _ in enumerate(values)]
 
 
 def compact_list_rows(table: TableIR) -> list[list[str]]:

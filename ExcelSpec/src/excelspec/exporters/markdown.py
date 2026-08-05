@@ -14,6 +14,7 @@ from ._shared import (
     compact_rows,
     has_complex_merges,
     header_label_row,
+    is_group_row,
     readable_document_metadata,
     readable_region_values,
     render_html_table,
@@ -48,11 +49,18 @@ def _render_compact_table(table: TableIR) -> list[str]:
     if not rows:
         return []
     header = [_escape(value) for value in header_label_row(table)]
-    body = [[_escape(value) for value in row] for row in rows]
+    body_lines: list[str] = []
+    for row in rows:
+        if is_group_row(row):
+            label = _escape(next(value for value in row if value))
+            padded = [f"**{label}**"] + [""] * (len(header) - 1)
+            body_lines.append(f"| {' | '.join(padded)} |")
+            continue
+        body_lines.append(f"| {' | '.join(_escape(value) for value in row)} |")
     return [
         f"| {' | '.join(header)} |",
         f"| {' | '.join('---' for _ in header)} |",
-        *(f"| {' | '.join(row)} |" for row in body),
+        *body_lines,
     ]
 
 
@@ -142,21 +150,8 @@ class MarkdownExporter:
                         lines.extend([_render_asset(asset, destination), ""])
                         rendered_assets.add(asset_id)
 
-        remaining_assets = {
-            asset.asset_id: asset
-            for asset in [
-                *document.assets,
-                *(asset for sheet in document.sheets for asset in sheet.assets),
-            ]
-            if asset.asset_id not in rendered_assets
-        }
-        if remaining_assets:
-            lines.extend(["## 资源", ""])
-            lines.extend(
-                _render_asset(asset, destination)
-                for asset in remaining_assets.values()
-            )
-            lines.append("")
+        # Unbound residual assets stay in canonical JSON only; readable MD
+        # should not dump a trailing 「资源」 bucket.
         return "\n".join(lines).rstrip() + "\n"
 
     def export(self, document: DocumentIR, destination: Path) -> None:

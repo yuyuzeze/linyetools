@@ -537,6 +537,86 @@ class TemplateEngineTests(unittest.TestCase):
         self.assertEqual("A4:B6", regions[1].source.range)
         self.assertEqual("データ表 (2)", regions[1].title)
 
+    def test_layout_region_claims_unbound_visual_assets(self) -> None:
+        from excelspec.templates import MatchResult, extract_with_template
+        from excelspec.models.template import (
+            ExtractionSpec,
+            LocatorMode,
+            RegionLocator,
+            RegionTemplate,
+            SheetTemplate,
+            TemplateMatch,
+            TemplateSpec,
+        )
+
+        sheet = raw_sheet(
+            "画面レイアウト",
+            0,
+            [
+                cell("A1", 1, 1, "■画面イメージ"),
+                cell("A2", 2, 1, "モック"),
+            ],
+        )
+        sheet.assets = [
+            AssetIR(
+                asset_id="near",
+                asset_type=AssetType.IMAGE,
+                uri="near.png",
+                source=SourceRef(sheet="画面レイアウト", range="A3:D20"),
+            ),
+            AssetIR(
+                asset_id="far-below",
+                asset_type=AssetType.IMAGE,
+                uri="far.png",
+                source=SourceRef(sheet="画面レイアウト", range="A80:H120"),
+            ),
+            AssetIR(
+                asset_id="far-shape",
+                asset_type=AssetType.SHAPE,
+                uri="shape.xml",
+                source=SourceRef(sheet="画面レイアウト", range="A90:B91"),
+            ),
+        ]
+        template = TemplateSpec(
+            template_id="layout-claim",
+            version="1.0",
+            name="layout",
+            schema_version="1.0",
+            match=TemplateMatch(minimum_score=0.1),
+            sheets=[
+                SheetTemplate(
+                    sheet_id="layout",
+                    name_pattern="^画面レイアウト$",
+                    regions=[
+                        RegionTemplate(
+                            region_id="screen-layout",
+                            region_type="layout",
+                            title="画面レイアウト",
+                            locator=RegionLocator(
+                                mode=LocatorMode.ANCHOR,
+                                anchor_pattern="^■画面イメージ$",
+                                row_offset=1,
+                                height=10,
+                            ),
+                            extractor=ExtractionSpec(kind="asset"),
+                        )
+                    ],
+                )
+            ],
+        )
+        result = extract_with_template(
+            DocumentIR(document_id="layout", title="layout", sheets=[sheet]),
+            MatchResult(mode="template", template=template, candidates=[]),
+        )
+        layout = next(
+            region
+            for region in result.document.sheets[0].regions
+            if region.region_id == "screen-layout"
+        )
+        self.assertIn("near", layout.asset_ids)
+        self.assertIn("far-below", layout.asset_ids)
+        self.assertNotIn("far-shape", layout.asset_ids)
+
 
 if __name__ == "__main__":
     unittest.main()

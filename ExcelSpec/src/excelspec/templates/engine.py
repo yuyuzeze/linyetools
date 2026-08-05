@@ -696,8 +696,18 @@ def _freeform_regions(
     return regions, ranges
 
 
+def _is_visual_asset(asset: AssetIR) -> bool:
+    return asset.asset_type in {
+        AssetType.IMAGE,
+        AssetType.SCREENSHOT,
+        AssetType.CHART,
+        AssetType.LAYOUT,
+    }
+
+
 def _copy_assets(sheet: SheetIR, regions: list[RegionIR]) -> list[AssetIR]:
     assets = list(sheet.assets)
+    claimed: set[str] = set()
     for asset in assets:
         reference = asset.anchor
         if reference is None and asset.source is not None:
@@ -715,6 +725,8 @@ def _copy_assets(sheet: SheetIR, regions: list[RegionIR]) -> list[AssetIR]:
         for region in regions:
             if region.source is None or region.source.range is None:
                 continue
+            if region.region_id.startswith("unrecognized"):
+                continue
             region_bounds = range_boundaries(region.source.range)
             if not (
                 asset_bounds[2] < region_bounds[0]
@@ -724,7 +736,27 @@ def _copy_assets(sheet: SheetIR, regions: list[RegionIR]) -> list[AssetIR]:
             ):
                 if asset.asset_id not in region.asset_ids:
                     region.asset_ids.append(asset.asset_id)
+                claimed.add(asset.asset_id)
                 break
+    # Layout / mockup sheets often place images below a short labeled area.
+    # Claim remaining visual assets for the first layout-like region so they
+    # stay under 画面レイアウト instead of falling into a residual dump.
+    layout_region = next(
+        (
+            region
+            for region in regions
+            if region.region_type == RegionType.LAYOUT
+            or region.metadata.get("extractor_kind") == "asset"
+        ),
+        None,
+    )
+    if layout_region is not None:
+        for asset in assets:
+            if asset.asset_id in claimed or not _is_visual_asset(asset):
+                continue
+            if asset.asset_id not in layout_region.asset_ids:
+                layout_region.asset_ids.append(asset.asset_id)
+            claimed.add(asset.asset_id)
     return assets
 
 
