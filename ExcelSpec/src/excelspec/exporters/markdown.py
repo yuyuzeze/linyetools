@@ -10,8 +10,14 @@ from ._shared import (
     all_assets,
     asset_uri,
     cell_text,
+    compact_list_rows,
+    compact_rows,
     has_complex_merges,
+    header_label_row,
+    readable_document_metadata,
+    readable_region_values,
     render_html_table,
+    should_render_region,
     table_bounds,
     table_cell_map,
     table_columns,
@@ -28,10 +34,34 @@ def _metadata_value(value: object) -> str:
     return str(value)
 
 
-def _render_gfm_table(table: TableIR) -> list[str]:
+def _render_list(table: TableIR) -> list[str]:
+    """header_rows == 0 captures (e.g. a cover title block) read as plain
+    business text, not a table with a fabricated header row."""
+    rows = compact_list_rows(table)
+    return [f"- {_escape(' / '.join(row))}" for row in rows]
+
+
+def _render_compact_table(table: TableIR) -> list[str]:
+    """Business-language table: only the columns the template mapped via
+    column_semantics, using their real header text (merges resolved)."""
+    rows = compact_rows(table)
+    if not rows:
+        return []
+    header = [_escape(value) for value in header_label_row(table)]
+    body = [[_escape(value) for value in row] for row in rows]
+    return [
+        f"| {' | '.join(header)} |",
+        f"| {' | '.join('---' for _ in header)} |",
+        *(f"| {' | '.join(row)} |" for row in body),
+    ]
+
+
+def _render_grid_table(table: TableIR) -> list[str]:
+    """Legacy full physical-grid rendering, kept for tables the template
+    left unmapped (no column_semantics) and with a real header row."""
     bounds = table_bounds(table)
     if bounds is None:
-        return ["_空表_"]
+        return []
     min_row, max_row, _, _ = bounds
     columns = table_columns(table)
     cells = table_cell_map(table)
@@ -42,7 +72,7 @@ def _render_gfm_table(table: TableIR) -> list[str]:
             continue
         rows.append(values)
     if not rows:
-        return ["_空表_"]
+        return []
     header = rows[0]
     body = rows[1:]
     return [
@@ -50,6 +80,21 @@ def _render_gfm_table(table: TableIR) -> list[str]:
         f"| {' | '.join('---' for _ in header)} |",
         *(f"| {' | '.join(row)} |" for row in body),
     ]
+
+
+def _render_table(table: TableIR) -> list[str]:
+    """Readable Markdown lines for a table, or [] when it has no business
+    content -- callers should then skip the section entirely rather than
+    print an empty placeholder."""
+    if table.header_rows <= 0:
+        return _render_list(table)
+    if table.column_semantics:
+        return _render_compact_table(table)
+    if has_complex_merges(table):
+        if not compact_rows(table):
+            return []
+        return [render_html_table(table, css_class="excelspec-table")]
+    return _render_grid_table(table)
 
 
 def _render_asset(asset: AssetIR, destination: Path) -> str:
@@ -64,40 +109,33 @@ class MarkdownExporter:
     def render(self, document: DocumentIR, destination: Path | None = None) -> str:
         destination = Path(destination or "document.md")
         lines = [f"# {document.title}", ""]
-        metadata: list[tuple[str, object]] = [
-            ("文档 ID", document.document_id),
-            ("Schema 版本", document.schema_version),
-        ]
-        if document.template_id:
-            template = document.template_id
-            if document.template_version:
-                template += f" v{document.template_version}"
-            metadata.append(("模板", template))
-        if document.source_path:
-            metadata.append(("来源", document.source_path))
-        metadata.extend(document.metadata.items())
-        lines.extend(f"- **{key}**: {_metadata_value(value)}" for key, value in metadata)
-        lines.append("")
+        metadata = readable_document_metadata(document)
+        if metadata:
+            lines.extend(f"- **{key}**: {_metadata_value(value)}" for key, value in metadata)
+            lines.append("")
         rendered_assets: set[str] = set()
 
         for sheet in sorted(document.sheets, key=lambda item: item.index):
             lines.extend([f"## {sheet.name}", ""])
             assets = all_assets(document, sheet)
             for region in sheet.regions:
+                if not should_render_region(region):
+                    continue
                 lines.extend([f"### {region.title or region.region_id}", ""])
-                if region.values:
+                region_values = readable_region_values(region)
+                if region_values:
                     lines.extend(
                         f"- **{key}**: {_metadata_value(value)}"
-                        for key, value in region.values.items()
+                        for key, value in region_values
                     )
                     lines.append("")
                 for table in region.tables:
+                    body = _render_table(table)
+                    if not body:
+                        continue
                     if len(region.tables) > 1:
                         lines.extend([f"#### {table.table_id}", ""])
-                    if has_complex_merges(table):
-                        lines.extend([render_html_table(table, css_class="excelspec-table"), ""])
-                    else:
-                        lines.extend([*_render_gfm_table(table), ""])
+                    lines.extend([*body, ""])
                 for asset_id in region.asset_ids:
                     asset = assets.get(asset_id)
                     if asset is not None and asset_id not in rendered_assets:

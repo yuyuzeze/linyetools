@@ -73,29 +73,9 @@ sheets:
     name_pattern: "^修正履歴$"
     order: 20
     regions:
-      - region_id: revision-meta
-        region_type: key_value
-        title: 画面基本情報
-        locator:
-          mode: anchor
-          anchor_text: 画面ID
-          height: 6
-          width: 24
-        extractor:
-          kind: key_value
-          key_column: 1
-          value_column: 3
-          key_semantics:
-            プロダクト: product
-            サブシステム: subsystem
-            画面名: screen_name
-            画面ID: screen_id
-            作成日: created_at
-            更新日: updated_at
-            作成者: author
-            更新者: updater
-          options:
-            shrink_to_content: true
+      # The header contains several key/value pairs spread across graph-paper
+      # columns. Do not guess a single key/value region: parse the reliable
+      # revision table until exact header coordinates are supplied.
       - region_id: revision-table
         region_type: table
         title: 修正履歴

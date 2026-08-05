@@ -7,8 +7,18 @@ import json
 import re
 from pathlib import Path
 
-from ..models.document_ir import AssetIR, DocumentIR
-from ._shared import all_assets, asset_uri, render_html_table
+from ..models.document_ir import AssetIR, DocumentIR, TableIR
+from ._shared import (
+    all_assets,
+    asset_uri,
+    compact_list_rows,
+    compact_rows,
+    header_label_row,
+    readable_document_metadata,
+    readable_region_values,
+    render_html_table,
+    should_render_region,
+)
 
 
 _CSS = """
@@ -56,6 +66,42 @@ def _asset_html(asset: AssetIR, destination: Path) -> str:
     return f'<p class="asset"><a href="{uri}">{label}</a></p>'
 
 
+def _render_list_html(table: TableIR) -> str | None:
+    """header_rows == 0 captures (e.g. a cover title block) read as a plain
+    business list, not a table with a fabricated header row."""
+    rows = compact_list_rows(table)
+    if not rows:
+        return None
+    items = "".join(f"<li>{html.escape(' / '.join(row))}</li>" for row in rows)
+    return f"<ul>{items}</ul>"
+
+
+def _render_compact_table_html(table: TableIR) -> str | None:
+    """Business-language table: only the columns the template mapped via
+    column_semantics, using their real header text (merges resolved)."""
+    rows = compact_rows(table)
+    if not rows:
+        return None
+    header = "".join(f"<th>{html.escape(value)}</th>" for value in header_label_row(table))
+    body = "".join(
+        "<tr>" + "".join(f"<td>{html.escape(value)}</td>" for value in row) + "</tr>"
+        for row in rows
+    )
+    return f"<table><tr>{header}</tr>{body}</table>"
+
+
+def _render_table_html(table: TableIR) -> str | None:
+    """Readable HTML for a table, or None when it has no business content
+    -- callers should then skip the section entirely."""
+    if table.header_rows <= 0:
+        return _render_list_html(table)
+    if table.column_semantics:
+        return _render_compact_table_html(table)
+    if not compact_rows(table):
+        return None
+    return render_html_table(table, css_class="excelspec-table")
+
+
 class HtmlExporter:
     def render(self, document: DocumentIR, destination: Path | None = None) -> str:
         destination = Path(destination or "document.html")
@@ -68,6 +114,8 @@ class HtmlExporter:
         for sheet, sheet_anchor in zip(ordered_sheets, sheet_anchors, strict=True):
             nav.append(f'<li><a href="#{sheet_anchor}">{html.escape(sheet.name)}</a><ol>')
             for index, region in enumerate(sheet.regions):
+                if not should_render_region(region):
+                    continue
                 region_anchor = f"{sheet_anchor}-region-{index}-{_anchor(region.region_id, str(index))}"
                 nav.append(
                     f'<li><a href="#{region_anchor}">{html.escape(region.title or region.region_id)}</a></li>'
@@ -75,40 +123,42 @@ class HtmlExporter:
             nav.append("</ol></li>")
         nav.append("</ol></nav>")
 
-        content = [f"<h1>{html.escape(document.title)}</h1>", '<dl class="metadata">']
-        metadata: list[tuple[str, object]] = [
-            ("文档 ID", document.document_id),
-            ("Schema 版本", document.schema_version),
-        ]
-        if document.template_id:
-            metadata.append(
-                ("模板", f"{document.template_id} v{document.template_version}" if document.template_version else document.template_id)
-            )
-        metadata.extend(document.metadata.items())
-        for key, value in metadata:
-            content.append(f"<dt>{html.escape(key)}</dt><dd>{html.escape(_value(value))}</dd>")
-        content.append("</dl>")
+        content = [f"<h1>{html.escape(document.title)}</h1>"]
+        document_metadata = readable_document_metadata(document)
+        if document_metadata:
+            content.append('<dl class="metadata">')
+            for key, value in document_metadata:
+                content.append(
+                    f"<dt>{html.escape(key)}</dt><dd>{html.escape(_value(value))}</dd>"
+                )
+            content.append("</dl>")
         rendered_assets: set[str] = set()
 
         for sheet, sheet_anchor in zip(ordered_sheets, sheet_anchors, strict=True):
             content.append(f'<section id="{sheet_anchor}"><h2>{html.escape(sheet.name)}</h2>')
             assets = all_assets(document, sheet)
             for index, region in enumerate(sheet.regions):
+                if not should_render_region(region):
+                    continue
                 region_anchor = f"{sheet_anchor}-region-{index}-{_anchor(region.region_id, str(index))}"
                 content.append(
                     f'<section id="{region_anchor}" data-region-type="{html.escape(region.region_type.value)}">'
                     f"<h3>{html.escape(region.title or region.region_id)}</h3>"
                 )
-                if region.values:
+                region_values = readable_region_values(region)
+                if region_values:
                     content.append('<dl class="metadata">')
-                    for key, value in region.values.items():
+                    for key, value in region_values:
                         content.append(
                             f"<dt>{html.escape(key)}</dt><dd>{html.escape(_value(value))}</dd>"
                         )
                     content.append("</dl>")
                 for table in region.tables:
+                    rendered_table = _render_table_html(table)
+                    if rendered_table is None:
+                        continue
                     content.append('<div class="table-wrap">')
-                    content.append(render_html_table(table, css_class="excelspec-table"))
+                    content.append(rendered_table)
                     content.append("</div>")
                 for asset_id in region.asset_ids:
                     asset = assets.get(asset_id)

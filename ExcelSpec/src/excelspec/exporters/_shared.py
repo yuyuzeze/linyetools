@@ -8,7 +8,9 @@ import os
 from pathlib import Path
 from urllib.parse import urlparse
 
-from ..models.document_ir import AssetIR, CellIR, DocumentIR, SheetIR, TableIR
+from openpyxl.utils.cell import column_index_from_string, get_column_letter
+
+from ..models.document_ir import AssetIR, CellIR, DocumentIR, RegionIR, SheetIR, TableIR
 
 
 def cell_text(cell: CellIR | None) -> str:
@@ -130,3 +132,148 @@ def asset_uri(asset: AssetIR, destination: Path) -> str:
         return Path(os.path.relpath(raw_path, destination.parent)).as_posix()
     except ValueError:
         return raw_path.as_uri()
+
+
+# --- Readable (MD/HTML) rendering helpers -----------------------------------
+#
+# Templates for 方眼 (graph-paper) style Excel sheets often spread one
+# business field across several merged physical columns, and headers can be
+# split across the multiple `header_rows` of a merged group. The helpers
+# below give exporters a business-language view: only the columns a template
+# actually mapped via `column_semantics`, with merge text already resolved,
+# so a compact table (or a plain list for header_rows == 0 captures) can be
+# rendered without hard-coding any sheet's physical coordinates. They are
+# purely additive -- existing helpers above (table_columns/table_cell_map/
+# cell_text/logical_cell_map) are untouched so the canonical JSON/JSONL
+# exporters keep their current output.
+
+
+def semantic_columns(table: TableIR) -> list[int]:
+    """Physical columns to show for a readable rendering.
+
+    Tables whose template mapped `column_semantics` only surface those
+    columns, left-to-right; a 方眼 grid's extra physical/merge-member
+    columns are dropped. Tables without a mapping (freeform captures) fall
+    back to every present column so nothing is silently lost.
+    """
+    present = table_columns(table)
+    if not table.column_semantics:
+        return present
+    present_set = set(present)
+    indices = sorted(
+        {
+            column_index_from_string(letter)
+            for letter in table.column_semantics
+            if column_index_from_string(letter) in present_set
+        }
+    )
+    return indices or present
+
+
+def header_label_row(table: TableIR) -> list[str]:
+    """Business-language header text for `semantic_columns(table)`."""
+    columns = semantic_columns(table)
+    labels = table.metadata.get("header_labels")
+    if not isinstance(labels, dict):
+        return ["" for _ in columns]
+    return [str(labels.get(get_column_letter(column), "")) for column in columns]
+
+
+def compact_rows(table: TableIR) -> list[list[str]]:
+    """Row-major cell text for `semantic_columns(table)`, header rows
+    excluded and merge text resolved via `logical_cell_map`. Blank rows are
+    dropped. Also doubles as the "does this table have real content" check.
+    """
+    bounds = table_bounds(table)
+    if bounds is None:
+        return []
+    min_row, max_row, _, _ = bounds
+    columns = semantic_columns(table)
+    cells = logical_cell_map(table)
+    start = min_row + max(table.header_rows, 0)
+    rows: list[list[str]] = []
+    for row in range(start, max_row + 1):
+        values = [cell_text(cells.get((row, column))) for column in columns]
+        if not any(values):
+            continue
+        rows.append(values)
+    return rows
+
+
+def compact_list_rows(table: TableIR) -> list[list[str]]:
+    """Like `compact_rows`, but for the header_rows == 0 plain-list
+    rendering: consecutive semantic columns resolving to the very same
+    merged cell (e.g. a banner-style label spread across many physical
+    columns) collapse into a single value instead of repeating. Table
+    rendering keeps `compact_rows` -- it needs one aligned cell per
+    semantic column to stay a valid grid.
+    """
+    bounds = table_bounds(table)
+    if bounds is None:
+        return []
+    min_row, max_row, _, _ = bounds
+    columns = semantic_columns(table)
+    cells = logical_cell_map(table)
+    start = min_row + max(table.header_rows, 0)
+    rows: list[list[str]] = []
+    for row in range(start, max_row + 1):
+        values: list[str] = []
+        last_identity: str | None = None
+        for column in columns:
+            cell = cells.get((row, column))
+            identity = cell.coordinate if cell is not None else None
+            if identity is not None and identity == last_identity:
+                last_identity = identity
+                continue
+            last_identity = identity
+            text = cell_text(cell)
+            if text:
+                values.append(text)
+        if values:
+            rows.append(values)
+    return rows
+
+
+def table_has_content(table: TableIR) -> bool:
+    return bool(compact_rows(table))
+
+
+def is_unrecognized_region(region: RegionIR) -> bool:
+    return region.region_id.startswith("unrecognized")
+
+
+def _is_empty_value(value: object) -> bool:
+    return value is None or value == "" or value == [] or value == {}
+
+
+def region_has_readable_content(region: RegionIR) -> bool:
+    if any(not _is_empty_value(value) for value in region.values.values()):
+        return True
+    if region.asset_ids:
+        return True
+    return any(table_has_content(table) for table in region.tables)
+
+
+def should_render_region(region: RegionIR) -> bool:
+    """MD/HTML should skip parser noise: unrecognized-* freeform captures
+    and regions with no non-empty values, no valid table content, and no
+    assets. Canonical JSON/JSONL keep every region untouched."""
+    return not is_unrecognized_region(region) and region_has_readable_content(region)
+
+
+def readable_document_metadata(document: DocumentIR) -> list[tuple[str, object]]:
+    """MD/HTML are business-readable views, so omit all parser metadata.
+
+    The title and extracted region values remain visible. Canonical JSON/JSONL
+    retain document identity, template selection, source and diagnostics.
+    """
+    return []
+
+
+def readable_region_values(region: RegionIR) -> list[tuple[str, object]]:
+    """Return only populated business values for readable exporters."""
+    return [
+        (key, value)
+        for key, value in region.values.items()
+        if not _is_empty_value(value)
+    ]

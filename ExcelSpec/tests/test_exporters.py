@@ -54,6 +54,9 @@ def _document(asset_path: Path) -> DocumentIR:
         source=source,
         header_rows=2,
         column_semantics={"A": "item_id", "B": "item_name", "C": "required"},
+        metadata={
+            "header_labels": {"A": "项目 / ID", "B": "项目 / 名称", "C": "必填"}
+        },
         cells=[
             _cell("A1", 1, 1, "项目", col_span=2),
             _cell("B1", 1, 2, merged_master="A1"),
@@ -77,6 +80,23 @@ def _document(asset_path: Path) -> DocumentIR:
             _cell("F1", 1, 6, "值"),
             _cell("E2", 2, 5, "说明"),
             _cell("F2", 2, 6, "A|B"),
+        ],
+    )
+    # No column_semantics mapping: exercises the legacy full-grid/HTML-merge
+    # fallback that unmapped tables still get.
+    unmapped = TableIR(
+        table_id="legend",
+        header_rows=2,
+        cells=[
+            _cell("H1", 1, 8, "分类", col_span=2),
+            _cell("I1", 1, 9, merged_master="H1"),
+            _cell("J1", 1, 10, "编号", row_span=2),
+            _cell("H2", 2, 8, "A"),
+            _cell("I2", 2, 9, "B"),
+            _cell("J2", 2, 10, merged_master="J1"),
+            _cell("H3", 3, 8, "x"),
+            _cell("I3", 3, 9, "y"),
+            _cell("J3", 3, 10, "1"),
         ],
     )
     asset = AssetIR(
@@ -107,7 +127,7 @@ def _document(asset_path: Path) -> DocumentIR:
                         title="画面项目",
                         source=source,
                         values={"screen_id": "SCR-001"},
-                        tables=[merged, plain],
+                        tables=[merged, plain, unmapped],
                         asset_ids=["screen-main"],
                     )
                 ],
@@ -127,16 +147,24 @@ class ExporterTests(unittest.TestCase):
         self.assertEqual(document, replayed)
         self.assertLess(rendered.index('"document_id"'), rendered.index('"schema_version"'))
 
-    def test_markdown_uses_html_fallback_and_relative_asset(self) -> None:
+    def test_markdown_renders_compact_semantic_table_and_relative_asset(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             asset = root / "assets" / "screen.png"
             destination = root / "docs" / "screen.md"
             rendered = MarkdownExporter().render(_document(asset), destination)
 
+        # column_semantics-mapped table: compact header + resolved merges,
+        # not the full physical/merged-member grid.
+        self.assertIn("| 项目 / ID | 项目 / 名称 | 必填 |", rendered)
+        self.assertIn("| 001 | 用户名 | 是 |", rendered)
+        self.assertIn("| 共享 | 共享 | 否 |", rendered)
+        # Unmapped table without column_semantics: legacy HTML fallback for
+        # complex merges is unchanged.
         self.assertIn('<table class="excelspec-table">', rendered)
         self.assertIn('colspan="2"', rendered)
         self.assertIn('rowspan="2"', rendered)
+        # Simple, unmapped, unmerged table: still a plain GFM table.
         self.assertIn("| 键 | 值 |", rendered)
         self.assertIn("A\\|B", rendered)
         self.assertIn("![主画面](../assets/screen.png)", rendered)
@@ -147,10 +175,104 @@ class ExporterTests(unittest.TestCase):
         self.assertIn('<nav aria-label="目录">', rendered)
         self.assertIn('<section id="sheet-0-screen">', rendered)
         self.assertIn('data-region-type="table"', rendered)
+        # Unmapped table without column_semantics: legacy HTML fallback still
+        # preserves physical merges.
         self.assertIn('rowspan="2"', rendered)
         self.assertIn('colspan="2"', rendered)
         self.assertIn("@media (max-width:50rem)", rendered)
         self.assertIn('<img src="screen.png"', rendered)
+
+    def test_html_renders_compact_semantic_table(self) -> None:
+        rendered = HtmlExporter().render(_document(Path("screen.png")))
+
+        # column_semantics-mapped table: compact header + resolved merges,
+        # not the full physical/merged-member grid.
+        self.assertIn(
+            "<table><tr><th>项目 / ID</th><th>项目 / 名称</th><th>必填</th></tr>"
+            "<tr><td>001</td><td>用户名</td><td>是</td></tr>"
+            "<tr><td>共享</td><td>共享</td><td>否</td></tr></table>",
+            rendered,
+        )
+
+    def test_readable_exports_hide_parser_noise_and_render_cover_text(self) -> None:
+        document = _document(Path("screen.png"))
+        document.metadata.update(
+            {
+                "ingestor": "openpyxl+ooxml",
+                "template_match": {"unrecognized_ranges": {"表紙": ["A1:Z99"]}},
+            }
+        )
+        sheet = document.sheets[0]
+        sheet.regions.extend(
+            [
+                RegionIR(
+                    region_id="cover-title",
+                    region_type=RegionType.TABLE,
+                    title="表紙タイトル",
+                    tables=[
+                        TableIR(
+                            table_id="cover-title",
+                            header_rows=0,
+                            column_semantics={"E": "cover_text"},
+                            cells=[
+                                _cell("E4", 4, 5, "債務保証_平時"),
+                                _cell("E5", 5, 5),
+                                _cell("E6", 6, 5, "基本設計"),
+                                _cell("E7", 7, 5, "SCR-A0030"),
+                                _cell("E8", 8, 5, "保証審査_基本情報"),
+                                _cell("E9", 9, 5, "画面設計書"),
+                            ],
+                        )
+                    ],
+                ),
+                RegionIR(
+                    region_id="partial-meta",
+                    region_type=RegionType.KEY_VALUE,
+                    title="文書情報",
+                    values={"empty_field": None, "version": "0.91"},
+                ),
+                RegionIR(
+                    region_id="empty-meta",
+                    region_type=RegionType.KEY_VALUE,
+                    title="空の基本情報",
+                    values={"screen_id": None},
+                ),
+                RegionIR(
+                    region_id="unrecognized-1",
+                    region_type=RegionType.FREEFORM,
+                    title="unrecognized-1",
+                    tables=[
+                        TableIR(
+                            table_id="noise",
+                            header_rows=0,
+                            cells=[_cell("Z99", 99, 26, "方眼ノイズ")],
+                        )
+                    ],
+                ),
+            ]
+        )
+
+        markdown = MarkdownExporter().render(document)
+        html_output = HtmlExporter().render(document)
+        canonical = JsonExporter().render(document)
+
+        for rendered in (markdown, html_output):
+            self.assertNotIn("screen-001", rendered)
+            self.assertNotIn("openpyxl+ooxml", rendered)
+            self.assertNotIn("template_match", rendered)
+            self.assertNotIn("unrecognized-1", rendered)
+            self.assertNotIn("方眼ノイズ", rendered)
+            self.assertNotIn("空の基本情報", rendered)
+            self.assertNotIn("empty_field", rendered)
+            self.assertIn("version", rendered)
+            self.assertIn("0.91", rendered)
+            self.assertIn("債務保証_平時", rendered)
+            self.assertIn("基本設計", rendered)
+            self.assertIn("画面設計書", rendered)
+        self.assertIn("- 債務保証_平時", markdown)
+        self.assertIn("<ul><li>債務保証_平時</li>", html_output)
+        self.assertIn("unrecognized-1", canonical)
+        self.assertIn("template_match", canonical)
 
     def test_jsonl_chunks_rows_with_logical_merges_and_provenance(self) -> None:
         document = _document(Path("screen.png"))
