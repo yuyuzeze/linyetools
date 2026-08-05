@@ -456,6 +456,7 @@ def _column_semantics(
     min_col: int,
 ) -> dict[str, str]:
     result: dict[str, str] = {}
+    assigned_semantics: set[str] = set()
     for column, label in labels.items():
         relative = column - min_col + 1
         semantic = (
@@ -468,8 +469,13 @@ def _column_semantics(
                 if _regex_matches(pattern, label):
                     semantic = candidate
                     break
-        if semantic is not None:
+        # A graph-paper header is often merged across several physical
+        # columns. _header_labels resolves every merge member to the same
+        # label, so keep only the first physical column for each business
+        # semantic instead of exporting duplicate columns.
+        if semantic is not None and semantic not in assigned_semantics:
             result[get_column_letter(column)] = semantic
+            assigned_semantics.add(semantic)
     return result
 
 

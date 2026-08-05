@@ -191,13 +191,13 @@ sheets:
           kind: table
           header_rows: 1
           column_semantics:
-            "No\\.?": seq_no
-            イベントID: event_id
-            イベント名: event_name
-            画面項目名: field_name
-            種別: control_type
-            トリガー: trigger
-            イベント概要: overview
+            "^No\\.?$": seq_no
+            "^イベントID$": event_id
+            "^イベント名$": event_name
+            "^(画面項目名|画面項目名称|項目名称)$": field_name
+            "^種別$": control_type
+            "^トリガー$": trigger
+            "^イベント概要$": overview
           options:
             stop_after_blank_rows: 2
             shrink_to_content: true
@@ -225,15 +225,15 @@ sheets:
           kind: table
           header_rows: 1
           column_semantics:
-            "No\\.?": seq_no
-            イベントID: event_id
-            イベント名: event_name
-            "画面項目名|項目名称": field_name
-            チェック方法: check_method
-            チェック内容: check_content
-            メッセージID: message_id
-            パラメータ: parameters
-            "規定説明|エラーメッセージ": message_text
+            "^No\\.?$": seq_no
+            "^イベントID$": event_id
+            "^イベント名$": event_name
+            "^(画面項目名|画面項目名称|項目名称)$": field_name
+            "^チェック方法$": check_method
+            "^チェック内容.*$": check_content
+            "^メッセージID$": message_id
+            "^パラメータ$": parameters
+            "^(規定説明|判定説明|エラーメッセージ)$": message_text
           options:
             stop_after_blank_rows: 2
             shrink_to_content: true

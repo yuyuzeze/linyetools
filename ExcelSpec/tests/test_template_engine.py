@@ -392,6 +392,77 @@ class TemplateEngineTests(unittest.TestCase):
         self.assertNotIn("SCR-A0030", values)
         self.assertEqual([], result.unrecognized_ranges["画面入出力項目一覧"])
 
+    def test_merged_header_maps_each_semantic_only_once(self) -> None:
+        from excelspec.models.template import (
+            ExtractionSpec,
+            LocatorMode,
+            RegionLocator,
+            RegionTemplate,
+            SheetTemplate,
+            TemplateMatch,
+            TemplateSpec,
+        )
+        from excelspec.templates import MatchResult, extract_with_template
+
+        header_no = cell("A1", 1, 1, "No.")
+        header_no.col_span = 2
+        header_no_member = cell("B1", 1, 2, None)
+        header_no_member.merged_master = "A1"
+        header_event = cell("C1", 1, 3, "イベントID")
+        header_event.col_span = 2
+        header_event_member = cell("D1", 1, 4, None)
+        header_event_member.merged_master = "C1"
+        sheet = raw_sheet(
+            "画面アクション一覧",
+            0,
+            [
+                header_no,
+                header_no_member,
+                header_event,
+                header_event_member,
+                cell("A2", 2, 1, 1),
+                cell("C2", 2, 3, "EV01"),
+            ],
+        )
+        template = TemplateSpec(
+            template_id="merged-header",
+            version="1.0",
+            name="merged-header",
+            schema_version="1.0",
+            match=TemplateMatch(minimum_score=0.1),
+            sheets=[
+                SheetTemplate(
+                    sheet_id="actions",
+                    name_pattern="^画面アクション一覧$",
+                    regions=[
+                        RegionTemplate(
+                            region_id="action-table",
+                            region_type="table",
+                            locator=RegionLocator(
+                                mode=LocatorMode.FIXED,
+                                range="A1:D2",
+                            ),
+                            extractor=ExtractionSpec(
+                                kind="table",
+                                header_rows=1,
+                                column_semantics={
+                                    "^No\\.?$": "seq_no",
+                                    "^イベントID$": "event_id",
+                                },
+                            ),
+                        )
+                    ],
+                )
+            ],
+        )
+        result = extract_with_template(
+            DocumentIR(document_id="merged", title="merged", sheets=[sheet]),
+            MatchResult(mode="template", template=template, candidates=[]),
+        )
+        table = result.document.sheets[0].regions[0].tables[0]
+
+        self.assertEqual({"A": "seq_no", "C": "event_id"}, table.column_semantics)
+
     def test_repeat_anchor_splits_multiple_tables(self) -> None:
         from excelspec.models.template import (
             ExtractionSpec,
