@@ -553,7 +553,12 @@ def _extract_region(
                     if value_cell.raw_value is not None
                     else _display(value_cell)
                 )
-        region.metadata["key_labels"] = extractor.key_semantics
+        region.metadata["key_labels"] = dict(extractor.key_semantics)
+        region.metadata["value_labels"] = {
+            semantic: label
+            for label, semantic in extractor.key_semantics.items()
+            if isinstance(label, str) and isinstance(semantic, str)
+        }
     elif extractor.kind == "table":
         labels = _header_labels(cells, bounds, extractor.header_rows)
         semantics = _column_semantics(extractor, labels, min_col)
@@ -757,7 +762,7 @@ def _attach_region_screenshot(
     )
     try:
         render_cells_to_png(cells, destination)
-    except OSError as error:
+    except Exception as error:  # noqa: BLE001 - screenshot is best-effort
         diagnostics.append(
             DiagnosticIR(
                 code="template.screenshot_failed",

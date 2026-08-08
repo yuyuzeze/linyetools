@@ -64,7 +64,13 @@
             },
             "shrink_to_content": false,
             "template_region_id": "api-info",
-            "trim_empty_columns": false
+            "trim_empty_columns": false,
+            "value_labels": {
+              "api_id": "API ID",
+              "api_name": "API名",
+              "endpoint": "エンドポイント",
+              "http_method": "HTTPメソッド"
+            }
           },
           "region_id": "api-info",
           "region_type": "key_value",

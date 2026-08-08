@@ -44,7 +44,7 @@ def _add_input_options(parser: argparse.ArgumentParser, *, include_output: bool 
             "-f",
             "--format",
             default="json",
-            choices=("json", "md", "markdown", "html", "jsonl", "kb-jsonl"),
+            help="导出格式，逗号分隔：json,md,html,jsonl",
         )
 
 
@@ -206,13 +206,22 @@ def _process(args: argparse.Namespace, *, include_json: bool) -> tuple[list[dict
         return [_failure(",".join(args.inputs), error)], []
     if not sources:
         return [_failure(",".join(args.inputs), ValueError("目录中没有支持的输入文件"))], []
+    output = Path(args.output) if getattr(args, "output", None) else None
     for source in sources:
         try:
+            asset_dir = args.asset_dir
+            if asset_dir is None and output is not None and args.command == "convert":
+                if output.suffix.lower() in {".json", ".md", ".html", ".jsonl"}:
+                    asset_root = output.parent
+                else:
+                    asset_root = output
+                    asset_root.mkdir(parents=True, exist_ok=True)
+                asset_dir = str(asset_root / f"asset.{source.stem}")
             result = run_pipeline(
                 source,
                 template=args.template,
                 template_directory=args.template_dir,
-                asset_dir=args.asset_dir,
+                asset_dir=asset_dir,
                 screenshot_manifest=args.screenshot_manifest,
                 minimum_score=args.minimum_score,
             )
@@ -224,8 +233,20 @@ def _process(args: argparse.Namespace, *, include_json: bool) -> tuple[list[dict
     return items, results
 
 
+def _parse_formats(raw: str) -> list[str]:
+    formats = []
+    for part in raw.split(","):
+        name = part.strip().lower()
+        if not name:
+            continue
+        if name not in {"json", "md", "markdown", "html", "jsonl", "kb-jsonl"}:
+            raise ValueError(f"不支持的输出格式: {name}")
+        formats.append(name)
+    return formats or ["json"]
+
+
 def _output_destination(
-    output: Path, source: Path, format_name: str, *, multiple: bool
+    output: Path, source: Path, format_name: str, *, multiple_sources: bool, multiple_formats: bool
 ) -> Path:
     extensions = {
         "json": ".json",
@@ -235,7 +256,12 @@ def _output_destination(
         "jsonl": ".jsonl",
         "kb-jsonl": ".jsonl",
     }
-    if not multiple and output.suffix:
+    # Explicit single file: convert one.xlsx -o out.md -f md
+    if (
+        not multiple_sources
+        and not multiple_formats
+        and output.suffix.lower() in {".json", ".md", ".html", ".jsonl"}
+    ):
         return output
     output.mkdir(parents=True, exist_ok=True)
     return output / f"{source.stem}{extensions[format_name]}"
@@ -326,19 +352,32 @@ def main(argv: Sequence[str] | None = None) -> int:
         items, results = _process(args, include_json=args.command in {"validate", "convert"})
         if args.command == "convert":
             output = Path(args.output)
-            multiple = len(items) > 1
+            multiple_sources = len(items) > 1
+            try:
+                formats = _parse_formats(args.format)
+            except ValueError as error:
+                print(str(error), file=sys.stderr)
+                return 1
+            multiple_formats = len(formats) > 1
             by_source = {str(result.source): result for result in results}
             for item in items:
                 result = by_source.get(item["source"])
                 counts = item["validation"]["counts"]
                 if result is None or counts["error"] or (args.strict and counts["warning"]):
                     continue
+                outputs: list[str] = []
                 try:
-                    destination = _output_destination(
-                        output, result.source, args.format, multiple=multiple
-                    )
-                    export_document(result.document, destination, args.format)
-                    item["output"] = str(destination)
+                    for format_name in formats:
+                        destination = _output_destination(
+                            output,
+                            result.source,
+                            format_name,
+                            multiple_sources=multiple_sources,
+                            multiple_formats=multiple_formats,
+                        )
+                        export_document(result.document, destination, format_name)
+                        outputs.append(str(destination))
+                    item["output"] = outputs[0] if len(outputs) == 1 else outputs
                 except Exception as error:
                     failed = _failure(result.source, error)
                     item["validation"] = failed["validation"]

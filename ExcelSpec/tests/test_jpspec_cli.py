@@ -102,9 +102,52 @@ class JpspecCliTests(unittest.TestCase):
                     ]
                 ),
             )
-            canonical = output / "canonical.json"
+            canonical = output / "sample.json"
+            markdown = output / "sample.md"
+            assets = output / "asset.sample"
             self.assertTrue(canonical.is_file())
+            self.assertTrue(markdown.is_file())
+            self.assertTrue(assets.is_dir())
             self.assertEqual(0, jpspec_main(["validate", str(canonical), "--template", str(pack)]))
+
+    def test_parse_batch_directory_uses_source_stems(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            inputs = root / "inputs"
+            output = root / "output"
+            pack = root / "pack"
+            inputs.mkdir()
+            first = inputs / "abc.xlsx"
+            second = inputs / "def.xlsx"
+            _mini_xlsx(first)
+            _mini_xlsx(second)
+            self.assertEqual(
+                0,
+                jpspec_main(
+                    ["template", "init", str(first), "-o", str(pack), "--type", "screen-design"]
+                ),
+            )
+            self.assertEqual(
+                0,
+                jpspec_main(
+                    [
+                        "parse",
+                        str(inputs),
+                        "--template",
+                        str(pack),
+                        "-o",
+                        str(output),
+                        "-f",
+                        "json,md",
+                    ]
+                ),
+            )
+            self.assertTrue((output / "abc.json").is_file())
+            self.assertTrue((output / "abc.md").is_file())
+            self.assertTrue((output / "asset.abc").is_dir())
+            self.assertTrue((output / "def.json").is_file())
+            self.assertTrue((output / "def.md").is_file())
+            self.assertTrue((output / "asset.def").is_dir())
 
 
 if __name__ == "__main__":

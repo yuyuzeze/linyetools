@@ -455,6 +455,75 @@ class ExporterTests(unittest.TestCase):
         self.assertLess(html_output.index("初期画面"), html_output.index("※注記"))
         self.assertLess(html_output.index("【検索後】更新"), html_output.index("検索後"))
 
+    def test_layout_slots_unanchored_images_after_text_clusters(self) -> None:
+        table = TableIR(
+            table_id="layout",
+            header_rows=0,
+            cells=[
+                _cell("A7", 7, 1, "キャプション1"),
+                _cell("A8", 8, 1, "条件1"),
+                _cell("A40", 40, 1, "キャプション2"),
+                _cell("A41", 41, 1, "条件2"),
+            ],
+        )
+        first = AssetIR(
+            asset_id="img-1",
+            asset_type=AssetType.IMAGE,
+            uri="a.png",
+            description="图1",
+        )
+        second = AssetIR(
+            asset_id="img-2",
+            asset_type=AssetType.IMAGE,
+            uri="b.png",
+            description="图2",
+        )
+        document = DocumentIR(
+            document_id="gaps",
+            title="gaps",
+            sheets=[
+                SheetIR(
+                    sheet_id="layout",
+                    name="画面レイアウト",
+                    index=0,
+                    assets=[first, second],
+                    regions=[
+                        RegionIR(
+                            region_id="screen-layout",
+                            region_type=RegionType.LAYOUT,
+                            title="画面レイアウト",
+                            metadata={"extractor_kind": "asset"},
+                            tables=[table],
+                            asset_ids=["img-1", "img-2"],
+                        )
+                    ],
+                )
+            ],
+        )
+        markdown = MarkdownExporter().render(document)
+        self.assertLess(markdown.index("キャプション1"), markdown.index("图1"))
+        self.assertLess(markdown.index("图1"), markdown.index("キャプション2"))
+        self.assertLess(markdown.index("キャプション2"), markdown.index("图2"))
+
+    def test_readable_values_prefer_japanese_value_labels(self) -> None:
+        region = RegionIR(
+            region_id="document-info",
+            region_type=RegionType.KEY_VALUE,
+            values={"document_no": "OKI-Q-102", "version": "0.91"},
+            metadata={
+                "value_labels": {
+                    "document_no": "文書番号",
+                    "version": "バージョン",
+                }
+            },
+        )
+        from excelspec.exporters._shared import readable_region_values
+
+        self.assertEqual(
+            [("文書番号", "OKI-Q-102"), ("バージョン", "0.91")],
+            readable_region_values(region),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

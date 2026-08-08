@@ -149,14 +149,14 @@ sheets:
         order: 1
         locator:
           mode: anchor
+          # Match 「■凡例」 or bare 「凡例」 in the gray legend box.
           anchor_pattern: "^■?凡例"
-          height: 8
-          width: 40
+          height: 10
+          width: 50
         extractor:
           kind: freeform
           options:
             screenshot: true
-            shrink_to_content: true
       - region_id: io-table
         region_type: table
         title: 画面入出力項目一覧

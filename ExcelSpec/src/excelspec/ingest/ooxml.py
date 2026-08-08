@@ -102,6 +102,13 @@ def _anchor_position(anchor: ET.Element) -> str | None:
     return start if start == end else f"{start}:{end}"
 
 
+def _anchor_row(anchor_ref: str | None) -> int | None:
+    if not anchor_ref:
+        return None
+    match = re.search(r"(\d+)", anchor_ref)
+    return int(match.group(1)) if match else None
+
+
 def _drawing_ids(zf: zipfile.ZipFile, sheet_part: str) -> list[str]:
     root = ET.fromstring(zf.read(sheet_part))
     rid_name = f"{{{DOC_REL_NS}}}id"
@@ -254,6 +261,8 @@ def extract_sheet_drawings(
                                 "ooxml_part": media_part,
                                 "drawing_part": drawing_part,
                                 "relationship_id": embed_id or "",
+                                "drawing_order": image_number,
+                                "anchor_row": _anchor_row(anchor_ref),
                             },
                         )
                     )

@@ -311,39 +311,74 @@ def interleaved_region_blocks(
 
     Text on the same row as an image is emitted first so captions above an
     image stay above it, and notes below follow after the image row.
+
+    Images without a usable anchor are slotted after text clusters (row gaps),
+    preserving top-to-bottom mockup order instead of dumping all images last.
     """
-    events: list[tuple[int, int, int, RegionBlock]] = []
-    sequence = 0
+    text_rows: list[tuple[int, str]] = []
     for table in region.tables:
         if table.header_rows > 0:
             continue
         for row, values in compact_list_rows_with_positions(table):
-            text = " / ".join(values)
-            events.append(
-                (
-                    row,
-                    0,
-                    sequence,
-                    RegionBlock(kind="text", row=row, text=text),
-                )
-            )
-            sequence += 1
+            text_rows.append((row, " / ".join(values)))
+
+    positioned: list[tuple[int, int, int, str]] = []
+    unpositioned: list[tuple[int, str]] = []
     for index, asset_id in enumerate(region.asset_ids):
-        if asset_id not in assets:
+        asset = assets.get(asset_id)
+        if asset is None:
             continue
-        row = asset_anchor_row(assets[asset_id])
-        # Unanchored assets keep relative declaration order after known rows.
-        sort_row = row if row is not None else 10**9
+        row = asset_anchor_row(asset)
+        if row is None and isinstance(asset.metadata.get("anchor_row"), int):
+            row = int(asset.metadata["anchor_row"])
+        if row is None:
+            unpositioned.append((index, asset_id))
+        else:
+            # (sort_row, kind, index, asset_id) — kind 1 = asset after text
+            positioned.append((row, 1, index, asset_id))
+
+    if unpositioned:
+        clusters = _cluster_rows([row for row, _ in text_rows], gap=2)
+        if not clusters:
+            for offset, (index, asset_id) in enumerate(unpositioned):
+                positioned.append((10**9 + offset, 1, index, asset_id))
+        else:
+            for offset, (index, asset_id) in enumerate(unpositioned):
+                cluster = clusters[min(offset, len(clusters) - 1)]
+                # Same row as cluster end, but after text (kind=1); unique index
+                # keeps stable order when several images share a cluster.
+                positioned.append((cluster[-1], 1, index, asset_id))
+
+    events: list[tuple[int, int, int, RegionBlock]] = []
+    for sequence, (row, text) in enumerate(text_rows):
+        events.append(
+            (row, 0, sequence, RegionBlock(kind="text", row=row, text=text))
+        )
+    for sort_row, kind, index, asset_id in positioned:
         events.append(
             (
                 sort_row,
-                1,
+                kind,
                 index,
                 RegionBlock(kind="asset", row=sort_row, asset_id=asset_id),
             )
         )
     events.sort(key=lambda item: (item[0], item[1], item[2]))
     return [item[3] for item in events]
+
+
+def _cluster_rows(rows: list[int], *, gap: int = 2) -> list[list[int]]:
+    """Group ascending row numbers into clusters separated by ``gap`` empty rows."""
+    if not rows:
+        return []
+    ordered = sorted(rows)
+    clusters: list[list[int]] = [[ordered[0]]]
+    for row in ordered[1:]:
+        if row - clusters[-1][-1] > gap:
+            clusters.append([row])
+        else:
+            clusters[-1].append(row)
+    return clusters
 
 
 def table_has_content(table: TableIR) -> bool:
@@ -386,11 +421,16 @@ def readable_region_values(region: RegionIR) -> list[tuple[str, object]]:
     """Return populated values for MD/HTML using Excel labels when known.
 
     IR keeps machine keys from ``key_semantics`` (e.g. ``document_no``).
-    Readable exporters reverse ``metadata.key_labels`` so MD shows
-    「文書番号」 instead of ``document_no``.
+    Readable exporters prefer ``metadata.value_labels`` (semantic → 文書番号)
+    and fall back to reversing ``metadata.key_labels``.
     """
-    labels = region.metadata.get("key_labels")
     reverse: dict[str, str] = {}
+    value_labels = region.metadata.get("value_labels")
+    if isinstance(value_labels, dict):
+        for semantic, label in value_labels.items():
+            if isinstance(semantic, str) and isinstance(label, str) and label:
+                reverse[semantic] = label
+    labels = region.metadata.get("key_labels")
     if isinstance(labels, dict):
         for label, semantic in labels.items():
             if isinstance(label, str) and isinstance(semantic, str) and semantic:

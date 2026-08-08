@@ -13,6 +13,7 @@ from . import __version__
 from .inspection import write_inspection
 from .pipeline import (
     PipelineValidationError,
+    discover_inputs,
     export_document,
     run_pipeline,
 )
@@ -34,6 +35,15 @@ app = typer.Typer(
 template_app = typer.Typer(no_args_is_help=True, help="模板包工具")
 app.add_typer(template_app, name="template")
 
+_FORMAT_SUFFIX = {
+    "json": ".json",
+    "md": ".md",
+    "markdown": ".md",
+    "html": ".html",
+    "jsonl": ".jsonl",
+    "kb-jsonl": ".jsonl",
+}
+
 
 def _print_json(payload: object) -> None:
     typer.echo(to_json(payload))
@@ -42,6 +52,80 @@ def _print_json(payload: object) -> None:
 def _fail(message: str, code: int = 1) -> None:
     typer.secho(message, fg=typer.colors.RED, err=True)
     raise typer.Exit(code)
+
+
+def _asset_dir_for(output: Path, source: Path, asset_dir: Path | None) -> Path:
+    if asset_dir is not None:
+        return asset_dir
+    return output / f"asset.{source.stem}"
+
+
+def _parse_one(
+    workbook: Path,
+    *,
+    template: Path | None,
+    template_dir: Path | None,
+    output: Path,
+    formats: str,
+    asset_dir: Path | None,
+    strict: bool,
+    minimum_score: float | None,
+) -> None:
+    output.mkdir(parents=True, exist_ok=True)
+    assets = _asset_dir_for(output, workbook, asset_dir)
+    assets.mkdir(parents=True, exist_ok=True)
+    try:
+        result = run_pipeline(
+            workbook,
+            template=template,
+            template_directory=template_dir,
+            asset_dir=assets,
+            minimum_score=minimum_score,
+        )
+    except (PipelineValidationError, TemplateValidationError, Exception) as error:  # noqa: BLE001
+        _fail(f"parse 失败 ({workbook.name}): {error}")
+
+    diagnostics = result.all_diagnostics()
+    errors = [item for item in diagnostics if item.severity.value == "error"]
+    warnings = [item for item in diagnostics if item.severity.value == "warning"]
+    if errors or (strict and warnings):
+        for item in diagnostics:
+            typer.secho(
+                f"[{item.severity.value}] {item.code}: {item.message}",
+                fg=typer.colors.RED if item.severity.value == "error" else typer.colors.YELLOW,
+                err=True,
+            )
+        _fail(f"校验未通过，未写出输出: {workbook.name}")
+
+    stem = workbook.stem
+    canonical = output / f"{stem}.json"
+    export_document(result.document, canonical, "json")
+    typer.echo(str(canonical.resolve()))
+
+    requested = {
+        part.strip().lower()
+        for part in formats.split(",")
+        if part.strip() and part.strip().lower() not in {"json", "canonical"}
+    }
+    for fmt in sorted(requested):
+        suffix = _FORMAT_SUFFIX.get(fmt)
+        if suffix is None:
+            _fail(f"不支持的导出格式: {fmt}")
+        destination = output / f"{stem}{suffix}"
+        try:
+            export_document(result.document, destination, fmt)
+        except Exception as error:  # noqa: BLE001
+            _fail(f"导出 {fmt} 失败 ({workbook.name}): {error}")
+        typer.echo(str(destination.resolve()))
+
+    (output / f"{stem}.diagnostics.json").write_text(
+        to_json([item.to_dict() for item in diagnostics]) + "\n",
+        encoding="utf-8",
+    )
+    if result.match and result.match.template:
+        typer.echo(
+            f"template: {result.match.template.template_id} v{result.match.template.version}"
+        )
 
 
 @app.callback()
@@ -82,7 +166,12 @@ def inspect_cmd(
 
 @app.command("parse")
 def parse_cmd(
-    workbook: Path = typer.Argument(..., exists=True, readable=True, help="实际 XLSX"),
+    workbook: Path = typer.Argument(
+        ...,
+        exists=True,
+        readable=True,
+        help="实际 XLSX 文件，或包含多个 XLSX 的目录（批量）",
+    ),
     template: Optional[Path] = typer.Option(
         None,
         "--template",
@@ -94,66 +183,38 @@ def parse_cmd(
     ),
     output: Path = typer.Option(Path("output"), "--output", "-o", help="输出目录"),
     formats: str = typer.Option(
-        "json",
+        "json,md",
         "--format",
         "-f",
-        help="额外导出格式，逗号分隔：json,md,html,jsonl（json 总会写 canonical.json）",
+        help="导出格式，逗号分隔：json,md,html,jsonl（json 总会写 {stem}.json）",
     ),
-    asset_dir: Optional[Path] = typer.Option(None, "--asset-dir"),
+    asset_dir: Optional[Path] = typer.Option(
+        None,
+        "--asset-dir",
+        help="嵌入图目录；默认每个源文件写到 output/asset.{stem}/",
+    ),
     strict: bool = typer.Option(False, "--strict", help="warning 也视为失败"),
     minimum_score: Optional[float] = typer.Option(None, "--minimum-score"),
 ) -> None:
-    """使用模板解析工作簿，写出 canonical.json（及可选 md/html/jsonl）。"""
+    """使用模板解析工作簿，写出 {stem}.json / {stem}.md 等（支持批量目录）。"""
 
-    output.mkdir(parents=True, exist_ok=True)
-    assets = asset_dir or (output / "assets")
     try:
-        result = run_pipeline(
-            workbook,
-            template=template,
-            template_directory=template_dir,
-            asset_dir=assets,
-            minimum_score=minimum_score,
-        )
-    except (PipelineValidationError, TemplateValidationError, Exception) as error:  # noqa: BLE001
+        sources = discover_inputs([workbook], include_json=False)
+    except Exception as error:  # noqa: BLE001
         _fail(f"parse 失败: {error}")
+    if not sources:
+        _fail("没有找到可解析的 XLSX 文件")
 
-    diagnostics = result.all_diagnostics()
-    errors = [item for item in diagnostics if item.severity.value == "error"]
-    warnings = [item for item in diagnostics if item.severity.value == "warning"]
-    if errors or (strict and warnings):
-        for item in diagnostics:
-            typer.secho(
-                f"[{item.severity.value}] {item.code}: {item.message}",
-                fg=typer.colors.RED if item.severity.value == "error" else typer.colors.YELLOW,
-                err=True,
-            )
-        _fail("校验未通过，未写出 canonical.json")
-
-    canonical = output / "canonical.json"
-    export_document(result.document, canonical, "json")
-    typer.echo(str(canonical.resolve()))
-
-    requested = {
-        part.strip().lower()
-        for part in formats.split(",")
-        if part.strip() and part.strip().lower() != "json"
-    }
-    for fmt in sorted(requested):
-        destination = output / f"document.{ 'md' if fmt == 'markdown' else fmt }"
-        try:
-            export_document(result.document, destination, fmt)
-        except Exception as error:  # noqa: BLE001
-            _fail(f"导出 {fmt} 失败: {error}")
-        typer.echo(str(destination.resolve()))
-
-    (output / "diagnostics.json").write_text(
-        to_json([item.to_dict() for item in diagnostics]) + "\n",
-        encoding="utf-8",
-    )
-    if result.match and result.match.template:
-        typer.echo(
-            f"template: {result.match.template.template_id} v{result.match.template.version}"
+    for source in sources:
+        _parse_one(
+            source,
+            template=template,
+            template_dir=template_dir,
+            output=output,
+            formats=formats,
+            asset_dir=asset_dir,
+            strict=strict,
+            minimum_score=minimum_score,
         )
 
 

@@ -43,6 +43,8 @@
           "extraction_status": "extracted",
           "media_type": "image/png",
           "metadata": {
+            "anchor_row": 13,
+            "drawing_order": 1,
             "drawing_part": "xl/drawings/drawing1.xml",
             "ooxml_part": "xl/media/image1.png",
             "relationship_id": "rId1"
@@ -125,7 +127,13 @@
             },
             "shrink_to_content": false,
             "template_region_id": "document-info",
-            "trim_empty_columns": false
+            "trim_empty_columns": false,
+            "value_labels": {
+              "author": "作成者",
+              "created_at": "作成日",
+              "screen_id": "画面ID",
+              "screen_name": "画面名"
+            }
           },
           "region_id": "document-info",
           "region_type": "key_value",
