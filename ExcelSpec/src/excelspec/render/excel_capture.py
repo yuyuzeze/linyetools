@@ -1,23 +1,23 @@
 """Capture an Excel A1 range to PNG via Excel COM (Windows + Excel required).
 
-This module is intentionally minimal: every auxiliary trick (``Activate`` /
-``ScrollRow`` / clipboard polling) was removed in favour of the single most
-reliable Excel COM recipe we have on a Japanese/Chinese localized Windows +
-pywin32 stack:
+Two strategies, tried in order:
 
-    Workbook.Open(ReadOnly=True)
-    Worksheet.Range(a1)
-    Range.CopyPicture(xlScreen, xlBitmap)
-    Worksheet.ChartObjects().Add(...) -> Chart.Paste -> Chart.Export(png)
+1. Clipboard grab via :func:`PIL.ImageGrab.grabclipboard`. ``Range.CopyPicture``
+   pushes the rendered bitmap to the Windows clipboard; ``ImageGrab`` reads
+   it back. This is the documented high-fidelity approach — no Pillow
+   redrawing of cells is involved, only the bitmap Excel itself produced.
+2. ``Chart.Export`` fallback. A temporary chart object is sized to the
+   target range and ``Chart.Paste`` / ``Chart.Export`` are used to write
+   a PNG. This is the fallback for hosts where the clipboard grab returns
+   ``None`` (for example, headless / service accounts).
 
-If any COM step raises, the exception is re-raised unchanged so the engine
-can attach the original ``pywintypes.com_error`` message (HRESULT, message,
-source) to ``diagnostics.json``. That is the only way we can debug a
-failing production host without re-running things locally.
+Both paths rely on Excel's own rendering pipeline; we never redraw cells
+with Pillow.
 """
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 
@@ -36,7 +36,8 @@ def capture_excel_range(
     - ``pywin32`` (``pip install pywin32``)
 
     Raises the underlying ``pywintypes.com_error`` unchanged so the caller
-    can surface ``hr``, ``msg``, ``source`` and ``exception`` verbatim.
+    can surface ``hr``, ``msg``, ``source`` and ``exception`` verbatim in
+    ``diagnostics.json``.
     """
 
     destination = Path(destination)
@@ -51,12 +52,18 @@ def capture_excel_range(
         raise RuntimeError(
             "Excel COM 截图需要安装 pywin32：pip install pywin32"
         ) from error
+    try:
+        from PIL import ImageGrab
+    except ImportError as error:
+        raise RuntimeError("Excel COM 截图需要 Pillow：pip install Pillow") from error
 
-    # ``DispatchEx`` spawns a fresh Excel instance (so we never touch a
-    # user-visible window). It is the documented way to drive Excel from
-    # Python and the only one that works reliably on Japanese/Chinese
-    # Windows. ``Visible=False`` plus ``Quit()`` in the finally block
-    # guarantees we never leave a zombie EXCEL.EXE behind.
+    # Clear any stale clipboard bitmap so a previous run cannot leak into
+    # this capture.
+    try:
+        ImageGrab.grabclipboard()
+    except Exception:
+        pass
+
     excel = win32com.client.DispatchEx("Excel.Application")
     excel.Visible = False
     excel.DisplayAlerts = False
@@ -66,15 +73,33 @@ def capture_excel_range(
         worksheet = workbook.Worksheets(sheet_name)
         target = worksheet.Range(a1_range)
 
-        # Copy the rendered bitmap to the clipboard. ``xlScreen`` (1) keeps
-        # colours/gridlines as displayed; ``xlBitmap`` (2) ensures the
-        # clipboard payload is a bitmap, which ``Chart.Paste`` accepts.
+        # ``xlScreen`` (1) keeps displayed colours/gridlines, ``xlBitmap``
+        # (2) ensures the clipboard payload is a bitmap so
+        # ``ImageGrab.grabclipboard`` returns a ``PIL.Image``.
         target.CopyPicture(Appearance=1, Format=2)
 
-        # Paste into a temporary chart sized to the target range, then
-        # export. The chart object's width/height are in points and must
-        # be at least the target's, otherwise ``Export`` writes a
-        # truncated bitmap.
+        # Excel's clipboard publish is asynchronous. Poll briefly so we
+        # don't grab a stale (or empty) bitmap.
+        image = None
+        for _ in range(20):
+            try:
+                grabbed = ImageGrab.grabclipboard()
+            except Exception:
+                grabbed = None
+            if grabbed is not None:
+                image = grabbed
+                break
+            time.sleep(0.1)
+
+        if image is not None:
+            if image.mode not in {"RGB", "RGBA"}:
+                image = image.convert("RGB")
+            image.save(destination, format="PNG")
+            return destination
+
+        # Fallback: paste into a temporary chart and export. Only reached
+        # when the clipboard grab returned ``None``, which is rare on a
+        # normal interactive Windows session.
         width = max(float(target.Width), 40.0)
         height = max(float(target.Height), 20.0)
         chart_object = worksheet.ChartObjects().Add(0, 0, width, height)
@@ -83,7 +108,6 @@ def capture_excel_range(
             chart_object.Chart.Export(str(destination.resolve()))
         finally:
             chart_object.Delete()
-
         if not destination.is_file():
             raise RuntimeError("Excel Chart.Export 未生成图片文件")
         return destination
