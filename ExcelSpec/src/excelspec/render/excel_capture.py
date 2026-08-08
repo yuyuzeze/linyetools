@@ -1,4 +1,20 @@
-"""Capture an Excel A1 range to PNG via Excel COM (Windows + Excel required)."""
+"""Capture an Excel A1 range to PNG via Excel COM (Windows + Excel required).
+
+This module is intentionally minimal: every auxiliary trick (``Activate`` /
+``ScrollRow`` / clipboard polling) was removed in favour of the single most
+reliable Excel COM recipe we have on a Japanese/Chinese localized Windows +
+pywin32 stack:
+
+    Workbook.Open(ReadOnly=True)
+    Worksheet.Range(a1)
+    Range.CopyPicture(xlScreen, xlBitmap)
+    Worksheet.ChartObjects().Add(...) -> Chart.Paste -> Chart.Export(png)
+
+If any COM step raises, the exception is re-raised unchanged so the engine
+can attach the original ``pywintypes.com_error`` message (HRESULT, message,
+source) to ``diagnostics.json``. That is the only way we can debug a
+failing production host without re-running things locally.
+"""
 
 from __future__ import annotations
 
@@ -15,8 +31,12 @@ def capture_excel_range(
 
     Requires:
     - Windows
-    - Microsoft Excel installed
+    - Microsoft Excel installed (the host running this script, not the
+      dev's machine)
     - ``pywin32`` (``pip install pywin32``)
+
+    Raises the underlying ``pywintypes.com_error`` unchanged so the caller
+    can surface ``hr``, ``msg``, ``source`` and ``exception`` verbatim.
     """
 
     destination = Path(destination)
@@ -32,6 +52,11 @@ def capture_excel_range(
             "Excel COM 截图需要安装 pywin32：pip install pywin32"
         ) from error
 
+    # ``DispatchEx`` spawns a fresh Excel instance (so we never touch a
+    # user-visible window). It is the documented way to drive Excel from
+    # Python and the only one that works reliably on Japanese/Chinese
+    # Windows. ``Visible=False`` plus ``Quit()`` in the finally block
+    # guarantees we never leave a zombie EXCEL.EXE behind.
     excel = win32com.client.DispatchEx("Excel.Application")
     excel.Visible = False
     excel.DisplayAlerts = False
@@ -40,8 +65,16 @@ def capture_excel_range(
         workbook = excel.Workbooks.Open(str(workbook_path), ReadOnly=True)
         worksheet = workbook.Worksheets(sheet_name)
         target = worksheet.Range(a1_range)
-        # Appearance=1 (xlScreen), Format=2 (xlBitmap)
+
+        # Copy the rendered bitmap to the clipboard. ``xlScreen`` (1) keeps
+        # colours/gridlines as displayed; ``xlBitmap`` (2) ensures the
+        # clipboard payload is a bitmap, which ``Chart.Paste`` accepts.
         target.CopyPicture(Appearance=1, Format=2)
+
+        # Paste into a temporary chart sized to the target range, then
+        # export. The chart object's width/height are in points and must
+        # be at least the target's, otherwise ``Export`` writes a
+        # truncated bitmap.
         width = max(float(target.Width), 40.0)
         height = max(float(target.Height), 20.0)
         chart_object = worksheet.ChartObjects().Add(0, 0, width, height)
@@ -50,6 +83,7 @@ def capture_excel_range(
             chart_object.Chart.Export(str(destination.resolve()))
         finally:
             chart_object.Delete()
+
         if not destination.is_file():
             raise RuntimeError("Excel Chart.Export 未生成图片文件")
         return destination

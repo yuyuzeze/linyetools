@@ -768,14 +768,24 @@ def _attach_region_screenshot(
             a1_range=range_ref,
         )
     except Exception as error:  # noqa: BLE001 - screenshot is best-effort
+        # Surface full COM detail so a production host can pinpoint which
+        # step failed: ``Workbooks.Open`` / ``Range`` / ``CopyPicture`` /
+        # ``Chart.Paste`` / ``Chart.Export`` / ``Quit``. ``pywintypes.com_error``
+        # carries ``args`` = (hr, msg, source, exception).
+        com_args = getattr(error, "args", None)
+        details: dict[str, object] = {"error": str(error), "error_type": type(error).__name__}
+        if com_args:
+            details["com_hr"] = com_args[0] if len(com_args) > 0 else None
+            details["com_msg"] = com_args[1] if len(com_args) > 1 else None
+            details["com_source"] = com_args[2] if len(com_args) > 2 else None
         diagnostics.append(
             DiagnosticIR(
                 code="template.screenshot_failed",
                 severity=DiagnosticSeverity.WARNING,
-                message=f"区域截图失败（需要本机 Excel + pywin32）: {region.region_id}",
+                message=f"区域截图失败: {region.region_id} ({error})",
                 source=SourceRef(sheet=sheet.name, range=range_ref),
                 region_id=region.region_id,
-                details={"error": str(error)},
+                details=details,
             )
         )
         return None
