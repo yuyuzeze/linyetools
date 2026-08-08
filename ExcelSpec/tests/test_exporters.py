@@ -524,6 +524,49 @@ class ExporterTests(unittest.TestCase):
             readable_region_values(region),
         )
 
+    def test_empty_region_title_skips_subheading(self) -> None:
+        document = DocumentIR(
+            document_id="cover",
+            title="画面設計書",
+            sheets=[
+                SheetIR(
+                    sheet_id="cover",
+                    name="表紙",
+                    index=0,
+                    regions=[
+                        RegionIR(
+                            region_id="cover-title",
+                            region_type=RegionType.TABLE,
+                            title="",
+                            tables=[
+                                TableIR(
+                                    table_id="cover-title",
+                                    header_rows=0,
+                                    column_semantics={"E": "cover_text"},
+                                    cells=[_cell("E4", 4, 5, "債務保証_平時")],
+                                )
+                            ],
+                        ),
+                        RegionIR(
+                            region_id="document-info",
+                            region_type=RegionType.KEY_VALUE,
+                            title="",
+                            values={"document_no": "OKI-Q-102"},
+                            metadata={"value_labels": {"document_no": "文書番号"}},
+                        ),
+                    ],
+                )
+            ],
+        )
+        markdown = MarkdownExporter().render(document)
+        html_output = HtmlExporter().render(document)
+        self.assertIn("## 表紙", markdown)
+        self.assertIn("- 債務保証_平時", markdown)
+        self.assertIn("**文書番号**: OKI-Q-102", markdown)
+        self.assertNotIn("### ", markdown)
+        self.assertNotIn("表紙タイトル", markdown)
+        self.assertNotIn("<h3>", html_output)
+
 
 if __name__ == "__main__":
     unittest.main()

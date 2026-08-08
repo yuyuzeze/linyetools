@@ -131,7 +131,9 @@ class MarkdownExporter:
             for region in sheet.regions:
                 if not should_render_region(region):
                     continue
-                lines.extend([f"### {region.title or region.region_id}", ""])
+                heading = region.title if region.title is not None else region.region_id
+                if heading:
+                    lines.extend([f"### {heading}", ""])
                 region_values = readable_region_values(region)
                 if region_values:
                     lines.extend(

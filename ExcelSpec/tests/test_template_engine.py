@@ -619,7 +619,9 @@ class TemplateEngineTests(unittest.TestCase):
         self.assertIn("far-below", layout.asset_ids)
         self.assertNotIn("far-shape", layout.asset_ids)
 
-    def test_region_screenshot_option_renders_png(self) -> None:
+    def test_region_screenshot_option_uses_excel_com(self) -> None:
+        from unittest.mock import patch
+
         from excelspec.templates import MatchResult, extract_with_template
         from excelspec.models.template import (
             ExtractionSpec,
@@ -632,7 +634,21 @@ class TemplateEngineTests(unittest.TestCase):
         )
 
         with tempfile.TemporaryDirectory() as directory:
-            asset_dir = Path(directory) / "assets"
+            root = Path(directory)
+            asset_dir = root / "assets"
+            workbook = root / "sample.xlsx"
+            workbook.write_bytes(b"unused")
+            png = asset_dir / "screenshots" / "sheet-placeholder.png"
+
+            def fake_capture(*, destination, workbook_path, sheet_name, a1_range):
+                path = Path(destination)
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b"\x89PNG\r\n\x1a\nfake")
+                self.assertTrue(Path(workbook_path).exists())
+                self.assertEqual("画面入出力項目一覧", sheet_name)
+                self.assertTrue(a1_range)
+                return path, "excel_com"
+
             sheet = raw_sheet(
                 "画面入出力項目一覧",
                 0,
@@ -640,20 +656,8 @@ class TemplateEngineTests(unittest.TestCase):
                     cell("AD6", 6, 30, "■凡例"),
                     cell("AD7", 7, 30, "I/O"),
                     cell("AE7", 7, 31, "入出力"),
-                    cell("AD8", 8, 30, "表示"),
-                    cell("AE8", 8, 31, "●表示有"),
                 ],
             )
-            for item in sheet.regions[0].tables[0].cells:
-                item.style = StyleIR(
-                    fill={"type": "solid", "foreground": {"type": "rgb", "value": "FFD9D9D9"}},
-                    border={
-                        "left": {"style": "thin"},
-                        "right": {"style": "thin"},
-                        "top": {"style": "thin"},
-                        "bottom": {"style": "thin"},
-                    },
-                )
             template = TemplateSpec(
                 template_id="legend-shot",
                 version="1.0",
@@ -671,13 +675,13 @@ class TemplateEngineTests(unittest.TestCase):
                                 title="凡例",
                                 locator=RegionLocator(
                                     mode=LocatorMode.ANCHOR,
-                                    anchor_pattern="^■?凡例",
+                                    anchor_pattern="^\\s*■?\\s*凡例",
                                     height=4,
                                     width=5,
                                 ),
                                 extractor=ExtractionSpec(
                                     kind="freeform",
-                                    options={"screenshot": True, "shrink_to_content": True},
+                                    options={"screenshot": True},
                                 ),
                             )
                         ],
@@ -687,13 +691,18 @@ class TemplateEngineTests(unittest.TestCase):
             document = DocumentIR(
                 document_id="legend",
                 title="legend",
+                source_path=str(workbook),
                 sheets=[sheet],
                 metadata={"asset_directory": str(asset_dir)},
             )
-            result = extract_with_template(
-                document,
-                MatchResult(mode="template", template=template, candidates=[]),
-            )
+            with patch(
+                "excelspec.templates.engine.render_region_screenshot",
+                side_effect=fake_capture,
+            ):
+                result = extract_with_template(
+                    document,
+                    MatchResult(mode="template", template=template, candidates=[]),
+                )
             region = next(
                 item
                 for item in result.document.sheets[0].regions
@@ -707,6 +716,7 @@ class TemplateEngineTests(unittest.TestCase):
                 if item.asset_id == region.asset_ids[0]
             )
             self.assertEqual(AssetType.SCREENSHOT, asset.asset_type)
+            self.assertEqual("excel_com", asset.metadata.get("capture_method"))
             self.assertTrue(Path(asset.uri).is_file())
             markdown = MarkdownExporter().render(result.document)
             self.assertIn("### 凡例", markdown)

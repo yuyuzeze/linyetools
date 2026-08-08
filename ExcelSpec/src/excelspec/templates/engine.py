@@ -34,7 +34,7 @@ from ..models.template import (
     SheetTemplate,
     TemplateSpec,
 )
-from ..render import render_cells_to_png
+from ..render import render_region_screenshot
 
 
 @dataclass(slots=True)
@@ -729,22 +729,11 @@ def _attach_region_screenshot(
     extractor: ExtractionSpec,
     diagnostics: list[DiagnosticIR],
 ) -> AssetIR | None:
-    """Render a fixed region to PNG when ``options.screenshot`` is enabled."""
+    """Capture a fixed region to PNG via Excel COM when ``options.screenshot``."""
 
     if not _option_flag(extractor.options, "screenshot"):
         return None
-    cells = [cell for table in region.tables for cell in table.cells]
-    if not cells:
-        diagnostics.append(
-            DiagnosticIR(
-                code="template.screenshot_empty",
-                severity=DiagnosticSeverity.WARNING,
-                message=f"区域截图跳过（无单元格）: {region.region_id}",
-                source=SourceRef(sheet=sheet.name),
-                region_id=region.region_id,
-            )
-        )
-        return None
+    range_ref = region.source.range if region.source else None
     asset_dir = _asset_directory(document)
     if asset_dir is None:
         diagnostics.append(
@@ -757,18 +746,34 @@ def _attach_region_screenshot(
             )
         )
         return None
+    if not document.source_path or not range_ref:
+        diagnostics.append(
+            DiagnosticIR(
+                code="template.screenshot_empty",
+                severity=DiagnosticSeverity.WARNING,
+                message=f"区域截图跳过（缺少工作簿路径或区域范围）: {region.region_id}",
+                source=SourceRef(sheet=sheet.name, range=range_ref),
+                region_id=region.region_id,
+            )
+        )
+        return None
     destination = (
         asset_dir / "screenshots" / f"{sheet.sheet_id}-{region.region_id}.png"
     )
     try:
-        render_cells_to_png(cells, destination)
+        path, method = render_region_screenshot(
+            destination=destination,
+            workbook_path=document.source_path,
+            sheet_name=sheet.name,
+            a1_range=range_ref,
+        )
     except Exception as error:  # noqa: BLE001 - screenshot is best-effort
         diagnostics.append(
             DiagnosticIR(
                 code="template.screenshot_failed",
                 severity=DiagnosticSeverity.WARNING,
-                message=f"区域截图失败: {region.region_id}",
-                source=SourceRef(sheet=sheet.name, range=region.source.range if region.source else None),
+                message=f"区域截图失败（需要本机 Excel + pywin32）: {region.region_id}",
+                source=SourceRef(sheet=sheet.name, range=range_ref),
                 region_id=region.region_id,
                 details={"error": str(error)},
             )
@@ -778,17 +783,21 @@ def _attach_region_screenshot(
     asset = AssetIR(
         asset_id=asset_id,
         asset_type=AssetType.SCREENSHOT,
-        uri=str(destination),
+        uri=str(path),
         media_type="image/png",
         description=region.title or region.region_id,
         source=SourceRef(
             sheet=sheet.name,
-            range=region.source.range if region.source else None,
+            range=range_ref,
             workbook_path=document.source_path,
         ),
-        anchor=region.source.range if region.source else None,
+        anchor=range_ref,
         extraction_status="rendered",
-        metadata={"source_kind": "region_screenshot", "template_region_id": region.region_id},
+        metadata={
+            "source_kind": "region_screenshot",
+            "template_region_id": region.region_id,
+            "capture_method": method,
+        },
     )
     if asset_id not in region.asset_ids:
         region.asset_ids.append(asset_id)

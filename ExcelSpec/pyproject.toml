@@ -19,6 +19,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+excel = ["pywin32>=306; platform_system=='Windows'"]
 dev = []
 
 [project.scripts]

@@ -1,5 +1,8 @@
-"""Cell-range rendering helpers (Pillow screenshots without LibreOffice)."""
+"""Excel COM screenshot helpers."""
 
-from .range_screenshot import render_cells_to_png
+from .excel_capture import capture_excel_range, render_region_screenshot
 
-__all__ = ["render_cells_to_png"]
+__all__ = [
+    "capture_excel_range",
+    "render_region_screenshot",
+]

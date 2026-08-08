@@ -127,9 +127,12 @@ class HtmlExporter:
             for index, region in enumerate(sheet.regions):
                 if not should_render_region(region):
                     continue
+                heading = region.title if region.title is not None else region.region_id
+                if not heading:
+                    continue
                 region_anchor = f"{sheet_anchor}-region-{index}-{_anchor(region.region_id, str(index))}"
                 nav.append(
-                    f'<li><a href="#{region_anchor}">{html.escape(region.title or region.region_id)}</a></li>'
+                    f'<li><a href="#{region_anchor}">{html.escape(heading)}</a></li>'
                 )
             nav.append("</ol></li>")
         nav.append("</ol></nav>")
@@ -152,9 +155,11 @@ class HtmlExporter:
                 if not should_render_region(region):
                     continue
                 region_anchor = f"{sheet_anchor}-region-{index}-{_anchor(region.region_id, str(index))}"
+                heading = region.title if region.title is not None else region.region_id
+                heading_html = f"<h3>{html.escape(heading)}</h3>" if heading else ""
                 content.append(
                     f'<section id="{region_anchor}" data-region-type="{html.escape(region.region_type.value)}">'
-                    f"<h3>{html.escape(region.title or region.region_id)}</h3>"
+                    f"{heading_html}"
                 )
                 region_values = readable_region_values(region)
                 if region_values:

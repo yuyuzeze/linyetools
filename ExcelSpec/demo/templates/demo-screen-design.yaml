@@ -35,7 +35,8 @@ sheets:
     regions:
       - region_id: cover-title
         region_type: table
-        title: 表紙タイトル
+        # No region heading: content sits directly under ## 表紙.
+        title: ""
         locator:
           mode: fixed
           range: "E4:E9"
@@ -49,7 +50,7 @@ sheets:
             shrink_to_content: true
       - region_id: document-info
         region_type: key_value
-        title: 表紙
+        title: ""
         required: true
         locator:
           mode: fixed
@@ -149,14 +150,15 @@ sheets:
         order: 1
         locator:
           mode: anchor
-          # Match 「■凡例」 or bare 「凡例」 in the gray legend box.
-          anchor_pattern: "^■?凡例"
+          # Allow leading spaces / fullwidth spaces around ■凡例.
+          anchor_pattern: "^\\s*■?\\s*凡例"
           height: 10
           width: 50
         extractor:
           kind: freeform
           options:
             screenshot: true
+            screenshot_engine: excel_com
       - region_id: io-table
         region_type: table
         title: 画面入出力項目一覧
