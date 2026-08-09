@@ -1,0 +1,4 @@
+# Runtime dependencies for the KikuCaption Whisper worker (top-level, pinned).
+# Exact transitive versions are captured in requirements-lock.txt.
+faster-whisper==1.2.1
+ctranslate2==4.8.1

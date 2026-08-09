@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Core has no dependency on WPF, NAudio, FFmpeg, SQLite or HTTP implementations
+    (PROJECT.md 7). It only holds domain models, enums and interfaces.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>KikuCaption.Core</RootNamespace>
+  </PropertyGroup>
+
+</Project>

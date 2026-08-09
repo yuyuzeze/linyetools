@@ -1,0 +1,2 @@
+# Place a portable FFmpeg build here (ffmpeg.exe) for later milestones, or install FFmpeg on PATH.
+# This directory is intentionally kept empty in version control (PROJECT.md 7, 14.1).

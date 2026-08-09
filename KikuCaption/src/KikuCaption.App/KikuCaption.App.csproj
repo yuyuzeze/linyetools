@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- WPF desktop entry point. Composes Core + Infrastructure via the Generic Host. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>KikuCaption.App</RootNamespace>
+    <AssemblyName>KikuCaption</AssemblyName>
+    <ApplicationIcon></ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\KikuCaption.Core\KikuCaption.Core.csproj" />
+    <ProjectReference Include="..\KikuCaption.Infrastructure\KikuCaption.Infrastructure.csproj" />
+    <ProjectReference Include="..\KikuCaption.Audio\KikuCaption.Audio.csproj" />
+    <ProjectReference Include="..\KikuCaption.Speech\KikuCaption.Speech.csproj" />
+    <ProjectReference Include="..\KikuCaption.Storage\KikuCaption.Storage.csproj" />
+    <ProjectReference Include="..\KikuCaption.Recording\KikuCaption.Recording.csproj" />
+    <ProjectReference Include="..\KikuCaption.Translation\KikuCaption.Translation.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" />
+    <PackageReference Include="Serilog.Extensions.Hosting" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

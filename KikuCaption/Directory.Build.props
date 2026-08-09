@@ -1,0 +1,18 @@
+<Project>
+
+  <!-- Shared MSBuild settings for every KikuCaption project. -->
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Deterministic>true</Deterministic>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <Company>KikuCaption</Company>
+    <Product>KikuCaption</Product>
+    <Authors>KikuCaption</Authors>
+    <Version>0.1.0</Version>
+    <NeutralLanguage>zh-Hans</NeutralLanguage>
+  </PropertyGroup>
+
+</Project>

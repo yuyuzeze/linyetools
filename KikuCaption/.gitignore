@@ -1,0 +1,43 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+*.user
+*.suo
+.vs/
+
+# Release / publish artefacts (produced by scripts/publish.ps1; not source)
+publish/
+*.zip
+*.zip.sha256
+
+# Test results
+[Tt]est[Rr]esults/
+*.trx
+coverage*.xml
+coverage*.json
+
+# Runtime artefacts (user data / logs must never be committed)
+logs/
+Meetings/
+tools/ffmpeg/*
+!tools/ffmpeg/.gitkeep
+
+# Local secrets / user-specific config (PROJECT.md 5.6, 13)
+appsettings.*.local.json
+secrets.json
+*.secret
+
+# Python worker environment + downloaded models (user/runtime data, not source)
+python/whisper_worker/.venv/
+models/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# FFmpeg binaries (downloaded to tools/ffmpeg; not committed — keep .gitkeep only)
+tools/ffmpeg/*.exe
+tools/ffmpeg/*.dll
