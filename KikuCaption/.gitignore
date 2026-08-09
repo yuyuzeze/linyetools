@@ -10,7 +10,8 @@ x86/
 .vs/
 
 # Release / publish artefacts (produced by scripts/publish.ps1; not source)
-publish/
+# Anchored to the repo root so they never match nested source folders (Windows core.ignorecase).
+/publish/
 *.zip
 *.zip.sha256
 
@@ -20,9 +21,11 @@ publish/
 coverage*.xml
 coverage*.json
 
-# Runtime artefacts (user data / logs must never be committed)
-logs/
-Meetings/
+# Runtime artefacts (user data / logs must never be committed).
+# Anchored to the repo root (leading /) so they do NOT match nested source folders such as
+# src/KikuCaption.Core/Models on case-insensitive Windows filesystems.
+/logs/
+/Meetings/
 tools/ffmpeg/*
 !tools/ffmpeg/.gitkeep
 
@@ -31,9 +34,11 @@ appsettings.*.local.json
 secrets.json
 *.secret
 
-# Python worker environment + downloaded models (user/runtime data, not source)
+# Python worker environment + downloaded models (user/runtime data, not source).
+# NOTE: /models/ is anchored to the repo root — an unanchored "models/" would wrongly match
+# source folders like src/KikuCaption.Core/Models on case-insensitive Windows.
 python/whisper_worker/.venv/
-models/
+/models/
 __pycache__/
 *.py[cod]
 .pytest_cache/
