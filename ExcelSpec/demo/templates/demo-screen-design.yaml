@@ -150,10 +150,14 @@ sheets:
         order: 1
         locator:
           mode: anchor
-          # Allow leading spaces / fullwidth spaces around ■凡例.
-          anchor_pattern: "^\\s*■?\\s*凡例"
-          height: 10
-          width: 50
+          # Anchor on the legend title cell, then hard-cap the captured
+          # area so the screenshot never bleeds across the whole sheet.
+          # The OKI-Q-102 sample places 凡例 at R6:V11 (5 cols × 6 rows).
+          anchor_pattern: "^\\s*■\\s*凡例\\s*$"
+          column_offset: 0
+          row_offset: 0
+          width: 5
+          height: 6
         extractor:
           kind: freeform
           options:

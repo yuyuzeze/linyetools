@@ -150,15 +150,21 @@ sheets:
         order: 1
         locator:
           mode: anchor
-          # Allow leading spaces / fullwidth spaces around ■凡例.
-          anchor_pattern: "^\\s*■?\\s*凡例"
-          height: 10
-          width: 50
+          # Locate the legend block by its title cell. The legend itself
+          # spans 5 columns × 6 rows in the OKI-Q-102 sample (R6:V11);
+          # we hard-cap width/height so the screenshot does not bleed
+          # across the whole sheet when the workbook's column layout
+          # differs.
+          anchor_pattern: "^\\s*■\\s*凡例\\s*$"
+          column_offset: 0
+          row_offset: 0
+          width: 5
+          height: 6
         extractor:
           kind: freeform
           options:
             screenshot: true
-            # Prefer Excel COM range capture when available.
+            # Excel COM range capture (CopyPicture xlPrinter).
             screenshot_engine: excel_com
       - region_id: io-table
         region_type: table
