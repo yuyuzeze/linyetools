@@ -2,14 +2,16 @@
 
 Two strategies, tried in order:
 
-1. Clipboard grab via :func:`PIL.ImageGrab.grabclipboard`. ``Range.CopyPicture``
-   pushes the rendered bitmap to the Windows clipboard; ``ImageGrab`` reads
-   it back. This is the documented high-fidelity approach — no Pillow
-   redrawing of cells is involved, only the bitmap Excel itself produced.
+1. ``CopyPicture(Appearance=xlPrinter)`` -> :func:`PIL.ImageGrab.grabclipboard`.
+   ``xlPrinter`` (2) renders the range through Excel's print engine, which
+   works whether or not Excel has a visible window. ``xlScreen`` (1) only
+   captures the rendered window pixels and, with ``Visible=False``, the
+   clipboard ends up holding a blank 757-byte bitmap. We deliberately do
+   not use ``xlScreen`` here.
 2. ``Chart.Export`` fallback. A temporary chart object is sized to the
    target range and ``Chart.Paste`` / ``Chart.Export`` are used to write
-   a PNG. This is the fallback for hosts where the clipboard grab returns
-   ``None`` (for example, headless / service accounts).
+   a PNG. Only reached when the clipboard grab returns ``None`` (rare
+   headless / service scenarios).
 
 Both paths rely on Excel's own rendering pipeline; we never redraw cells
 with Pillow.
@@ -73,10 +75,15 @@ def capture_excel_range(
         worksheet = workbook.Worksheets(sheet_name)
         target = worksheet.Range(a1_range)
 
-        # ``xlScreen`` (1) keeps displayed colours/gridlines, ``xlBitmap``
-        # (2) ensures the clipboard payload is a bitmap so
-        # ``ImageGrab.grabclipboard`` returns a ``PIL.Image``.
-        target.CopyPicture(Appearance=1, Format=2)
+        # ``xlPrinter`` (2) renders via Excel's print pipeline, which works
+        # even when ``Visible=False`` and even from a non-interactive
+        # session. ``xlScreen`` (1) only captures the window's rendered
+        # pixels; with no window, Excel pushes a 757-byte blank bitmap to
+        # the clipboard and every downstream consumer (Chart.Paste, PowerPoint,
+        # etc.) ends up with a blank PNG and no exception. ``xlBitmap`` (2)
+        # ensures the payload is a raster image suitable for
+        # ``ImageGrab.grabclipboard``.
+        target.CopyPicture(Appearance=2, Format=2)
 
         # Excel's clipboard publish is asynchronous. Poll briefly so we
         # don't grab a stale (or empty) bitmap.
