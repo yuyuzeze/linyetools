@@ -3,14 +3,24 @@ using CommunityToolkit.Mvvm.ComponentModel;
 namespace KikuCaption.App.ViewModels.Pages;
 
 /// <summary>
-/// Settings page view model (UI-R2 interim). It currently hosts only the existing translation
-/// configuration, relocated verbatim off the slimmed home page so translation stays configurable
-/// without a functional regression. The full settings information architecture (常用 / 字幕 / 翻译,
-/// with the UI-R4 multi-language redesign) is built in later phases; nothing new is added here.
+/// Settings page view model (UI-R3). Hosts the three settings sections shown as tabs: General,
+/// Subtitle (with live preview) and Translation. Each section owns its own state and persistence;
+/// this type only composes them.
 /// </summary>
 public sealed partial class SettingsPageViewModel : ObservableObject
 {
-    public SettingsPageViewModel(TranslationViewModel translation) => Translation = translation;
+    public SettingsPageViewModel(
+        GeneralSettingsViewModel general,
+        SubtitleSettingsViewModel subtitle,
+        TranslationViewModel translation)
+    {
+        General = general;
+        Subtitle = subtitle;
+        Translation = translation;
+    }
+
+    public GeneralSettingsViewModel General { get; }
+    public SubtitleSettingsViewModel Subtitle { get; }
 
     /// <summary>Existing translation settings panel (unchanged behaviour).</summary>
     public TranslationViewModel Translation { get; }

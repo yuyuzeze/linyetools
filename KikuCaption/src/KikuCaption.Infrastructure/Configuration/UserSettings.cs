@@ -32,4 +32,21 @@ public sealed record UserSettings
     public double TimelineWidth { get; init; } = 430;
     public bool ClickThrough { get; init; }
     public bool AutoScroll { get; init; } = true;
+
+    // UI-R3 general preferences.
+    /// <summary>UI culture: "zh-CN" or "en-US". Internal language codes (ja/zh/en) are unaffected.</summary>
+    public string UiLanguage { get; init; } = "zh-CN";
+    public bool LoadRecentOnStartup { get; init; }
+    public int LogRetentionDays { get; init; } = 14;
+
+    // UI-R3 subtitle appearance (applied live to the overlay; persisted on explicit save).
+    public bool DefaultShowOverlay { get; init; }
+    public string SubtitleFontFamily { get; init; } = "Segoe UI, Microsoft YaHei UI";
+    public int SubtitleMaxLines { get; init; } = 4;
+    public bool SubtitleTopmost { get; init; } = true;
+    public bool SubtitleShowOriginal { get; init; } = true;
+    public bool SubtitleShowTranslation { get; init; } = true;
+    public string SubtitleOriginalColor { get; init; } = "#F5F5F5";
+    public string SubtitleTranslationColor { get; init; } = "#6FC3FF";
+    public double SubtitlePartialOpacity { get; init; } = 0.6;
 }

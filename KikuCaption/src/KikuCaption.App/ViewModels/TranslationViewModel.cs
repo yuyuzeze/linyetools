@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using KikuCaption.App.Localization;
 using KikuCaption.Core.Interfaces;
 using KikuCaption.Infrastructure.Configuration;
 using KikuCaption.Translation;
@@ -23,6 +24,7 @@ public sealed partial class TranslationViewModel : ObservableObject
     private readonly IAiTranslationService _translator;
     private readonly TranslationQueue _queue;
     private readonly UserSettingsStore _settingsStore;
+    private readonly LocalizationService _loc;
     private readonly ILogger<TranslationViewModel> _logger;
     private readonly HashSet<Guid> _active = new();
 
@@ -51,6 +53,7 @@ public sealed partial class TranslationViewModel : ObservableObject
         IAiTranslationService translator,
         TranslationQueue queue,
         UserSettingsStore settingsStore,
+        LocalizationService localization,
         ILogger<TranslationViewModel> logger)
     {
         _options = options;
@@ -58,7 +61,9 @@ public sealed partial class TranslationViewModel : ObservableObject
         _translator = translator;
         _queue = queue;
         _settingsStore = settingsStore;
+        _loc = localization;
         _logger = logger;
+        _loc.LanguageChanged += (_, _) => Dispatch(() => OnPropertyChanged(nameof(DirectionText)));
 
         // Seed from the current options (already overlaid with persisted settings at startup).
         _enabled = options.Enabled;
@@ -83,7 +88,7 @@ public sealed partial class TranslationViewModel : ObservableObject
     /// Derived from the configured source/target languages; the dynamic "source follows recognition
     /// language" behaviour and target selection are UI-R4, not implemented here.
     /// </summary>
-    public string DirectionText => $"{LanguageName(_options.SourceLanguage)} → {LanguageName(_options.TargetLanguage)}";
+    public string DirectionText => $"{_loc["Lang." + (_options.SourceLanguage ?? string.Empty).ToLowerInvariant()]} → {_loc["Lang." + (_options.TargetLanguage ?? string.Empty).ToLowerInvariant()]}";
 
     /// <summary>True when a usable translation configuration exists (endpoint + model, and a key unless auth is None).</summary>
     public bool IsConfigured =>
@@ -91,13 +96,6 @@ public sealed partial class TranslationViewModel : ObservableObject
         && !string.IsNullOrWhiteSpace(_options.Model)
         && (_options.AuthenticationMode == TranslationAuthMode.None || IsKeyConfigured);
 
-    private static string LanguageName(string? code) => (code ?? string.Empty).ToLowerInvariant() switch
-    {
-        "ja" => "日本語",
-        "zh" => "中文",
-        "en" => "English",
-        _ => code ?? string.Empty
-    };
 
     // Keep the live options in sync as the user edits the panel.
     partial void OnEnabledChanged(bool value) => _options.Enabled = value;

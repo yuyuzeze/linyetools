@@ -26,6 +26,18 @@ public partial class SubtitleOverlayViewModel : ObservableObject
     [ObservableProperty]
     private bool _isVisible;
 
+    // UI-R3 subtitle appearance (applied live from the subtitle settings).
+    [ObservableProperty] private string _fontFamily = "Segoe UI, Microsoft YaHei UI";
+    [ObservableProperty] private bool _topmost = true;
+    [ObservableProperty] private bool _showOriginal = true;
+    [ObservableProperty] private bool _showTranslation = true;
+    [ObservableProperty] private string _originalColor = "#F5F5F5";
+    [ObservableProperty] private string _translationColor = "#6FC3FF";
+    [ObservableProperty] private double _partialOpacity = 0.6;
+
+    /// <summary>Whether a new meeting should show the overlay automatically (UI-R3 DefaultShowOverlay).</summary>
+    [ObservableProperty] private bool _defaultVisible;
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasPartial))]
     private string _partialText = string.Empty;
@@ -36,6 +48,23 @@ public partial class SubtitleOverlayViewModel : ObservableObject
         BackgroundOpacity = settings.Opacity;
         MaxLines = Math.Clamp(settings.MaxLines, 2, 5);
         ClickThrough = settings.ClickThrough;
+    }
+
+    /// <summary>Overlays persisted subtitle appearance onto the live overlay (UI-R3 startup seed).</summary>
+    public void ApplyAppearance(UserSettings s)
+    {
+        FontSize = s.SubtitleFontSize;
+        BackgroundOpacity = s.SubtitleOpacity;
+        MaxLines = Math.Clamp(s.SubtitleMaxLines, 2, 5);
+        ClickThrough = s.ClickThrough;
+        FontFamily = string.IsNullOrWhiteSpace(s.SubtitleFontFamily) ? FontFamily : s.SubtitleFontFamily;
+        Topmost = s.SubtitleTopmost;
+        ShowOriginal = s.SubtitleShowOriginal;
+        ShowTranslation = s.SubtitleShowTranslation;
+        OriginalColor = s.SubtitleOriginalColor;
+        TranslationColor = s.SubtitleTranslationColor;
+        PartialOpacity = s.SubtitlePartialOpacity;
+        DefaultVisible = s.DefaultShowOverlay;
     }
 
     public ObservableCollection<CaptionLineViewModel> Lines { get; } = new();
@@ -73,6 +102,17 @@ public partial class SubtitleOverlayViewModel : ObservableObject
     }
 
     public void SetPartial(string text) => PartialText = text ?? string.Empty;
+
+    /// <summary>
+    /// Prepares the overlay for a new meeting (UI-R3): clears prior lines and applies the
+    /// <see cref="DefaultVisible"/> preference. A user's manual show/hide afterwards is never
+    /// overridden — nothing else resets <see cref="IsVisible"/> during the session.
+    /// </summary>
+    public void PrepareForNewSession()
+    {
+        Clear();
+        IsVisible = DefaultVisible;
+    }
 
     public void Clear()
     {

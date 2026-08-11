@@ -60,16 +60,36 @@ public static class DiagnosticsFormatter
 
     /// <summary>UI health chip: OK / WARN / high based on total CPU and free disk.</summary>
     public static string HealthLabel(DiagnosticsSnapshot s, double minDiskGb)
+        => HealthOf(s, minDiskGb) switch
+        {
+            HealthState.LowDisk => "磁盘不足",
+            HealthState.HighCpu => "CPU 偏高",
+            _ => "运行正常"
+        };
+
+    /// <summary>
+    /// Language-neutral health classification (UI-R3): the UI localizes the returned state, while
+    /// the log line keeps the fixed <see cref="HealthLabel"/> text.
+    /// </summary>
+    public static HealthState HealthOf(DiagnosticsSnapshot s, double minDiskGb)
     {
         if (s.FreeDiskGb < minDiskGb)
         {
-            return "磁盘不足";
+            return HealthState.LowDisk;
         }
 
         var cpu = s.TotalCpuPercent ?? 0;
-        return cpu >= 90 ? "CPU 偏高" : "运行正常";
+        return cpu >= 90 ? HealthState.HighCpu : HealthState.Normal;
     }
 
     private static string Pct(double? v) => v is null ? "n/a" : v.Value.ToString("0", CultureInfo.InvariantCulture) + "%";
     private static string Mb(long? bytes) => bytes is null ? "n/a" : (bytes.Value / 1024 / 1024).ToString(CultureInfo.InvariantCulture) + "MB";
+}
+
+/// <summary>Language-neutral health classification for the UI (UI-R3).</summary>
+public enum HealthState
+{
+    Normal,
+    HighCpu,
+    LowDisk
 }

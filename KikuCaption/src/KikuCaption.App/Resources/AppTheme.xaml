@@ -20,8 +20,10 @@
     <SolidColorBrush x:Key="FocusRingBrush" Color="#005FB8" />
     <SolidColorBrush x:Key="TextBrush" Color="#1A1A1A" />
 
-    <!-- ==================== Typography ==================== -->
-    <FontFamily x:Key="AppFont">Segoe UI, Microsoft YaHei UI, sans-serif</FontFamily>
+    <!-- ==================== Typography ====================
+         Fallback chain covers Latin, Japanese (Yu Gothic UI / Meiryo) and Chinese (YaHei) so the
+         UI renders without tofu boxes in any of the three interface languages (UI-R3 ja-JP). -->
+    <FontFamily x:Key="AppFont">Segoe UI, Yu Gothic UI, Meiryo, Microsoft YaHei UI, sans-serif</FontFamily>
 
     <Style TargetType="TextBlock">
         <Setter Property="FontFamily" Value="{StaticResource AppFont}" />

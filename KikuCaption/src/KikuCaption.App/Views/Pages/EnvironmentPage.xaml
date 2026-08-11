@@ -1,6 +1,7 @@
 <UserControl x:Class="KikuCaption.App.Views.Pages.EnvironmentPage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:KikuCaption.App.Localization">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -12,7 +13,7 @@
         <Border Grid.Row="0" Background="{StaticResource CardBrush}" CornerRadius="8" Padding="16" Margin="0,0,0,12">
             <StackPanel>
                 <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="运行环境" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <TextBlock Text="{loc:Loc Env.Title}" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center" />
                     <Border Background="{Binding HealthColor}" CornerRadius="9" Width="14" Height="14"
                             VerticalAlignment="Center" Margin="14,0,6,0" />
                     <TextBlock Text="{Binding HealthText}" VerticalAlignment="Center" FontWeight="SemiBold" />
@@ -64,12 +65,12 @@
 
         <!-- Actions: re-check / open settings / copy sanitized diagnostics. -->
         <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,12,0,0">
-            <Button Content="重新检查" Padding="16,6" MinWidth="110"
+            <Button Content="{loc:Loc Env.Recheck}" Padding="16,6" MinWidth="110"
                     Command="{Binding CheckCommand}"
                     IsEnabled="{Binding IsChecking, Converter={StaticResource InverseBool}}" />
-            <Button Content="打开设置" Padding="16,6" Margin="8,0,0,0"
+            <Button Content="{loc:Loc Env.OpenSettings}" Padding="16,6" Margin="8,0,0,0"
                     Command="{Binding DataContext.GoSettingsCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
-            <Button Content="复制诊断信息" Padding="16,6" Margin="8,0,0,0"
+            <Button Content="{loc:Loc Env.CopyDiagnostics}" Padding="16,6" Margin="8,0,0,0"
                     Command="{Binding CopyDiagnosticsCommand}"
                     IsEnabled="{Binding HasChecked}" />
         </StackPanel>

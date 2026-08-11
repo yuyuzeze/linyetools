@@ -1,70 +1,255 @@
 <UserControl x:Class="KikuCaption.App.Views.Pages.SettingsPage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel MaxWidth="720" HorizontalAlignment="Left">
-            <TextBlock Text="设置" FontSize="18" FontWeight="SemiBold" />
-            <TextBlock Text="常用设置与字幕设置将在后续阶段加入。以下为翻译配置。"
-                       Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,4,0,14" />
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:KikuCaption.App.Localization">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
 
-            <!-- Translation configuration (relocated from the home page; behaviour unchanged) -->
-            <GroupBox Header="翻译" Padding="10" DataContext="{Binding Translation}">
-                <StackPanel>
-                    <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,8"
-                               Text="仅将 final 字幕文本发送到公司内部 OpenAI 兼容 API 翻译。不发送音频、partial 或视频。API Key 以 Windows DPAPI 加密保存在本机，不写入配置或日志。" />
-                    <CheckBox Content="启用翻译" IsChecked="{Binding Enabled}" Margin="0,0,0,8" />
+        <TextBlock Grid.Row="0" Text="{loc:Loc Settings.Title}" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,12" />
 
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
-                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Endpoint" VerticalAlignment="Center" Margin="0,2,8,2" />
-                        <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding Endpoint, UpdateSourceTrigger=PropertyChanged}" Margin="0,2" />
-                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Model/Deployment" VerticalAlignment="Center" Margin="0,2,8,2" />
-                        <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Model, UpdateSourceTrigger=PropertyChanged}" Margin="0,2" />
-                        <TextBlock Grid.Row="2" Grid.Column="0" Text="API Version" VerticalAlignment="Center" Margin="0,2,8,2" />
-                        <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding ApiVersion, UpdateSourceTrigger=PropertyChanged}" Margin="0,2" />
-                        <TextBlock Grid.Row="3" Grid.Column="0" Text="认证模式" VerticalAlignment="Center" Margin="0,2,8,2" />
-                        <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal" Margin="0,2">
-                            <ComboBox Width="140" ItemsSource="{Binding AuthModes}" SelectedItem="{Binding AuthenticationMode}" />
-                            <TextBlock Text="Header 名" VerticalAlignment="Center" Margin="12,0,6,0" />
-                            <TextBox Width="140" Text="{Binding HeaderName, UpdateSourceTrigger=PropertyChanged}" />
+        <TabControl Grid.Row="1" BorderThickness="0" Background="Transparent">
+            <!-- ==================== General ==================== -->
+            <TabItem Header="{loc:Loc Settings.Tab.General}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" DataContext="{Binding General}">
+                    <StackPanel MaxWidth="560" HorizontalAlignment="Left" Margin="4,14,4,4">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="180" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="{loc:Loc General.UiLanguage}" VerticalAlignment="Center" Margin="0,6" />
+                            <ComboBox Grid.Row="0" Grid.Column="1" Margin="0,6" Width="200" HorizontalAlignment="Left"
+                                      ItemsSource="{Binding UiLanguages}" DisplayMemberPath="Display"
+                                      SelectedValuePath="Code" SelectedValue="{Binding UiLanguage}" />
+
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="{loc:Loc General.DefaultRecognitionLanguage}" VerticalAlignment="Center" Margin="0,6" />
+                            <ComboBox Grid.Row="1" Grid.Column="1" Margin="0,6" Width="200" HorizontalAlignment="Left"
+                                      ItemsSource="{Binding RecognitionLanguages}" SelectedItem="{Binding DefaultRecognitionLanguage}">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{loc:LangName}" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="{loc:Loc General.OutputDirectory}" VerticalAlignment="Center" Margin="0,6" />
+                            <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Margin="0,6">
+                                <TextBox Width="240" Text="{Binding OutputDirectory, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center" />
+                                <Button Content="{loc:Loc General.Browse}" Click="BrowseOutput_Click" Margin="8,0,0,0" />
+                                <TextBlock Text="{loc:Loc Common.AfterRestart}" VerticalAlignment="Center" Margin="8,0,0,0"
+                                           Foreground="{StaticResource MutedBrush}" FontSize="11" />
+                            </StackPanel>
+
+                            <CheckBox Grid.Row="3" Grid.Column="1" Margin="0,6" Content="{loc:Loc General.LoadRecentOnStartup}" IsChecked="{Binding LoadRecentOnStartup}" />
+                            <CheckBox Grid.Row="4" Grid.Column="1" Margin="0,6" Content="{loc:Loc General.DefaultTranslationEnabled}" IsChecked="{Binding DefaultTranslationEnabled}" />
+
+                            <TextBlock Grid.Row="5" Grid.Column="0" Text="{loc:Loc General.DefaultRecordingTarget}" VerticalAlignment="Center" Margin="0,6" />
+                            <ComboBox Grid.Row="5" Grid.Column="1" Margin="0,6" Width="200" HorizontalAlignment="Left"
+                                      ItemsSource="{Binding RecordingTargets}" SelectedItem="{Binding DefaultRecordingTarget}" />
+
+                            <TextBlock Grid.Row="6" Grid.Column="0" Text="{loc:Loc General.LogRetentionDays}" VerticalAlignment="Center" Margin="0,6" />
+                            <StackPanel Grid.Row="6" Grid.Column="1" Orientation="Horizontal" Margin="0,6">
+                                <Slider Width="200" Minimum="1" Maximum="90" TickFrequency="1" IsSnapToTickEnabled="True"
+                                        Value="{Binding LogRetentionDays}" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding LogRetentionDays}" VerticalAlignment="Center" Margin="10,0,0,0" MinWidth="28" />
+                            </StackPanel>
+                        </Grid>
+
+                        <TextBlock Text="{loc:Loc Settings.NextMeetingHint}" TextWrapping="Wrap" Margin="0,12,0,0"
+                                   Foreground="{StaticResource MutedBrush}" FontSize="12" />
+
+                        <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                            <Button Content="{loc:Loc Settings.Save}" Style="{StaticResource PrimaryButton}" Command="{Binding SaveCommand}" />
+                            <Button Content="{loc:Loc Settings.RestoreDefaults}" Command="{Binding RestoreDefaultsCommand}" Margin="8,0,0,0" />
+                            <TextBlock Text="{Binding StatusText}" VerticalAlignment="Center" Margin="12,0,0,0" Foreground="{StaticResource AccentBrush}" />
                         </StackPanel>
-                        <TextBlock Grid.Row="4" Grid.Column="0" Text="API Key" VerticalAlignment="Center" Margin="0,2,8,2" />
-                        <StackPanel Grid.Row="4" Grid.Column="1" Orientation="Horizontal" Margin="0,2">
-                            <PasswordBox x:Name="ApiKeyBox" Width="220" />
-                            <Button Content="保存密钥" Click="SaveApiKey_Click" Margin="8,0,0,0" />
-                            <Button Content="清除密钥" Command="{Binding ClearApiKeyCommand}" Margin="6,0,0,0" />
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ==================== Subtitle ==================== -->
+            <TabItem Header="{loc:Loc Settings.Tab.Subtitle}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" DataContext="{Binding Subtitle}">
+                    <Grid Margin="4,14,4,4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="320" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Controls -->
+                        <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                            <CheckBox Content="{loc:Loc Subtitle.DefaultShowOverlay}" IsChecked="{Binding Overlay.DefaultVisible}" Margin="0,4" />
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="140" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="{loc:Loc Subtitle.FontSize}" VerticalAlignment="Center" Margin="0,6" />
+                                <Slider Grid.Row="0" Grid.Column="1" Minimum="14" Maximum="48" Margin="0,6" VerticalAlignment="Center"
+                                        Value="{Binding Overlay.FontSize}" />
+
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="{loc:Loc Subtitle.FontFamily}" VerticalAlignment="Center" Margin="0,6" />
+                                <ComboBox Grid.Row="1" Grid.Column="1" Margin="0,6" ItemsSource="{Binding FontFamilies}" SelectedItem="{Binding Overlay.FontFamily}" />
+
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="{loc:Loc Subtitle.BackgroundOpacity}" VerticalAlignment="Center" Margin="0,6" />
+                                <Slider Grid.Row="2" Grid.Column="1" Minimum="0.3" Maximum="1.0" Margin="0,6" VerticalAlignment="Center"
+                                        Value="{Binding Overlay.BackgroundOpacity}" />
+
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="{loc:Loc Subtitle.MaxLines}" VerticalAlignment="Center" Margin="0,6" />
+                                <Slider Grid.Row="3" Grid.Column="1" Minimum="2" Maximum="5" TickFrequency="1" IsSnapToTickEnabled="True" Margin="0,6" VerticalAlignment="Center"
+                                        Value="{Binding Overlay.MaxLines}" />
+
+                                <TextBlock Grid.Row="4" Grid.Column="0" Text="{loc:Loc Subtitle.PartialOpacity}" VerticalAlignment="Center" Margin="0,6" />
+                                <Slider Grid.Row="4" Grid.Column="1" Minimum="0.2" Maximum="1.0" Margin="0,6" VerticalAlignment="Center"
+                                        Value="{Binding Overlay.PartialOpacity}" />
+                            </Grid>
+
+                            <WrapPanel Margin="0,4,0,0">
+                                <CheckBox Content="{loc:Loc Subtitle.Topmost}" IsChecked="{Binding Overlay.Topmost}" Margin="0,4,16,4" />
+                                <CheckBox Content="{loc:Loc Subtitle.ClickThrough}" IsChecked="{Binding Overlay.ClickThrough}" Margin="0,4,16,4" />
+                                <CheckBox Content="{loc:Loc Subtitle.ShowOriginal}" IsChecked="{Binding Overlay.ShowOriginal}" Margin="0,4,16,4" />
+                                <CheckBox Content="{loc:Loc Subtitle.ShowTranslation}" IsChecked="{Binding Overlay.ShowTranslation}" Margin="0,4,16,4" />
+                            </WrapPanel>
+
+                            <Grid Margin="0,6,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="140" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="{loc:Loc Subtitle.OriginalColor}" VerticalAlignment="Center" Margin="0,4" />
+                                <TextBox Grid.Row="0" Grid.Column="1" Width="110" Margin="0,4" Text="{Binding Overlay.OriginalColor, UpdateSourceTrigger=PropertyChanged}" />
+                                <Border Grid.Row="0" Grid.Column="2" Width="24" Height="24" Margin="8,4,0,4" CornerRadius="4"
+                                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Background="{Binding Overlay.OriginalColor}" />
+
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="{loc:Loc Subtitle.TranslationColor}" VerticalAlignment="Center" Margin="0,4" />
+                                <TextBox Grid.Row="1" Grid.Column="1" Width="110" Margin="0,4" Text="{Binding Overlay.TranslationColor, UpdateSourceTrigger=PropertyChanged}" />
+                                <Border Grid.Row="1" Grid.Column="2" Width="24" Height="24" Margin="8,4,0,4" CornerRadius="4"
+                                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Background="{Binding Overlay.TranslationColor}" />
+                            </Grid>
+
+                            <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                                <Button Content="{loc:Loc Settings.Save}" Style="{StaticResource PrimaryButton}" Command="{Binding SaveCommand}" />
+                                <Button Content="{loc:Loc Subtitle.RestoreDefaults}" Command="{Binding RestoreDefaultsCommand}" Margin="8,0,0,0" />
+                                <TextBlock Text="{Binding StatusText}" VerticalAlignment="Center" Margin="12,0,0,0" Foreground="{StaticResource AccentBrush}" />
+                            </StackPanel>
+                        </StackPanel>
+
+                        <!-- Live preview -->
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Text="{loc:Loc Subtitle.Preview}" FontWeight="SemiBold" Margin="0,0,0,6" />
+                            <Border CornerRadius="8" Padding="16,12" Background="#2B2B2B">
+                                <Border CornerRadius="6" Padding="12,10">
+                                    <Border.Background>
+                                        <SolidColorBrush Color="Black" Opacity="{Binding Overlay.BackgroundOpacity}" />
+                                    </Border.Background>
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding SampleOriginal}" TextWrapping="Wrap"
+                                                   Foreground="{Binding Overlay.OriginalColor}"
+                                                   FontFamily="{Binding Overlay.FontFamily}"
+                                                   FontSize="{Binding Overlay.FontSize}"
+                                                   Visibility="{Binding Overlay.ShowOriginal, Converter={StaticResource BoolToVisibility}}" />
+                                        <TextBlock Text="{Binding SampleTranslation}" TextWrapping="Wrap" Margin="0,2,0,0"
+                                                   Foreground="{Binding Overlay.TranslationColor}"
+                                                   FontFamily="{Binding Overlay.FontFamily}"
+                                                   FontSize="{Binding Overlay.FontSize}"
+                                                   Visibility="{Binding Overlay.ShowTranslation, Converter={StaticResource BoolToVisibility}}" />
+                                        <TextBlock Text="{Binding SamplePartial}" TextWrapping="Wrap" Margin="0,4,0,0"
+                                                   Foreground="{Binding Overlay.OriginalColor}" Opacity="{Binding Overlay.PartialOpacity}"
+                                                   FontFamily="{Binding Overlay.FontFamily}"
+                                                   FontSize="{Binding Overlay.FontSize}" />
+                                    </StackPanel>
+                                </Border>
+                            </Border>
                         </StackPanel>
                     </Grid>
+                </ScrollViewer>
+            </TabItem>
 
-                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-                        <TextBlock Text="代理（可选）" VerticalAlignment="Center" Margin="0,0,8,0" />
-                        <TextBox Width="300" Text="{Binding Proxy, UpdateSourceTrigger=PropertyChanged}"
-                                 ToolTip="公司代理，如 http://proxy.intra.example.com:8080；留空则用系统代理" />
+            <!-- ==================== Translation ==================== -->
+            <TabItem Header="{loc:Loc Settings.Tab.Translation}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" DataContext="{Binding Translation}">
+                    <StackPanel MaxWidth="720" HorizontalAlignment="Left" Margin="4,14,4,4">
+                        <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,8" Text="{loc:Loc Tr.Intro}" />
+                        <CheckBox Content="{loc:Loc Tr.Enable}" IsChecked="{Binding Enabled}" Margin="0,0,0,8" />
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Endpoint" VerticalAlignment="Center" Margin="0,2,8,2" />
+                            <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding Endpoint, UpdateSourceTrigger=PropertyChanged}" Margin="0,2" />
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Model/Deployment" VerticalAlignment="Center" Margin="0,2,8,2" />
+                            <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Model, UpdateSourceTrigger=PropertyChanged}" Margin="0,2" />
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="API Version" VerticalAlignment="Center" Margin="0,2,8,2" />
+                            <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding ApiVersion, UpdateSourceTrigger=PropertyChanged}" Margin="0,2" />
+                            <TextBlock Grid.Row="3" Grid.Column="0" Text="{loc:Loc Tr.AuthMode}" VerticalAlignment="Center" Margin="0,2,8,2" />
+                            <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal" Margin="0,2">
+                                <ComboBox Width="140" ItemsSource="{Binding AuthModes}" SelectedItem="{Binding AuthenticationMode}" />
+                                <TextBlock Text="{loc:Loc Tr.HeaderName}" VerticalAlignment="Center" Margin="12,0,6,0" />
+                                <TextBox Width="140" Text="{Binding HeaderName, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+                            <TextBlock Grid.Row="4" Grid.Column="0" Text="{loc:Loc Tr.ApiKey}" VerticalAlignment="Center" Margin="0,2,8,2" />
+                            <StackPanel Grid.Row="4" Grid.Column="1" Orientation="Horizontal" Margin="0,2">
+                                <PasswordBox x:Name="ApiKeyBox" Width="220" />
+                                <Button Content="{loc:Loc Tr.SaveKey}" Click="SaveApiKey_Click" Margin="8,0,0,0" />
+                                <Button Content="{loc:Loc Tr.ClearKey}" Command="{Binding ClearApiKeyCommand}" Margin="6,0,0,0" />
+                            </StackPanel>
+                        </Grid>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                            <TextBlock Text="{loc:Loc Tr.Proxy}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <TextBox Width="300" Text="{Binding Proxy, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                            <Button Content="{loc:Loc Tr.TestConnection}" Command="{Binding TestConnectionCommand}"
+                                    IsEnabled="{Binding TestInProgress, Converter={StaticResource InverseBool}}" />
+                            <Button Content="{loc:Loc Tr.SaveSettings}" Style="{StaticResource PrimaryButton}" Margin="8,0,0,0"
+                                    Command="{Binding SaveSettingsCommand}" />
+                            <TextBlock Text="{Binding KeyStatusText}" VerticalAlignment="Center" Margin="12,0,0,0" Foreground="{StaticResource MutedBrush}" />
+                        </StackPanel>
+
+                        <TextBlock Text="{Binding TestStatus}" TextWrapping="Wrap" Margin="0,8,0,0" Foreground="{StaticResource AccentBrush}" />
+                        <TextBlock Text="{Binding QueueStatus}" Margin="0,2,0,0" Foreground="{StaticResource MutedBrush}" />
+                        <TextBlock Text="{Binding LastErrorText}" TextWrapping="Wrap" Margin="0,2,0,0" Foreground="#B26A00" />
                     </StackPanel>
-
-                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-                        <Button Content="测试连接" Command="{Binding TestConnectionCommand}"
-                                IsEnabled="{Binding TestInProgress, Converter={StaticResource InverseBool}}" />
-                        <Button Content="保存设置" Style="{StaticResource PrimaryButton}" Margin="8,0,0,0"
-                                Command="{Binding SaveSettingsCommand}" />
-                        <TextBlock Text="{Binding KeyStatusText}" VerticalAlignment="Center" Margin="12,0,0,0" Foreground="{StaticResource MutedBrush}" />
-                    </StackPanel>
-
-                    <TextBlock Text="{Binding TestStatus}" TextWrapping="Wrap" Margin="0,8,0,0" Foreground="{StaticResource AccentBrush}" />
-                    <TextBlock Text="{Binding QueueStatus}" Margin="0,2,0,0" Foreground="{StaticResource MutedBrush}" />
-                    <TextBlock Text="{Binding LastErrorText}" TextWrapping="Wrap" Margin="0,2,0,0" Foreground="#B26A00" />
-                </StackPanel>
-            </GroupBox>
-        </StackPanel>
-    </ScrollViewer>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
+    </Grid>
 </UserControl>

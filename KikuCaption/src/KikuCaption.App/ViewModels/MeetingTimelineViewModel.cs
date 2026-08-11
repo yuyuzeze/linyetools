@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using KikuCaption.App.Localization;
 using KikuCaption.Storage.Sqlite;
 using KikuCaption.Core.Enums;
 
@@ -50,6 +51,9 @@ public partial class MeetingTimelineViewModel : ObservableObject
     public MeetingTimelineViewModel(ITranscriptStore store)
     {
         _store = store;
+        // Re-localize the "new captions" chip live when the UI language changes (UI-R3). Uses the
+        // shared instance so the constructor stays test-friendly (no extra dependency).
+        LocalizationService.Instance.LanguageChanged += (_, _) => OnPropertyChanged(nameof(NewMessagesText));
     }
 
     /// <summary>Every confirmed final, in order. Append-only within a session; never trimmed.</summary>
@@ -61,7 +65,9 @@ public partial class MeetingTimelineViewModel : ObservableObject
 
     public bool HasNewMessages => NewCount > 0;
 
-    public string NewMessagesText => NewCount > 0 ? $"有 {NewCount} 条新字幕 ↓" : string.Empty;
+    public string NewMessagesText => NewCount > 0
+        ? string.Format(LocalizationService.Instance["Timeline.NewMessages"], NewCount)
+        : string.Empty;
 
     /// <summary>Starts a fresh session timeline (clears the previous one). Called on Start.</summary>
     public void BeginSession()

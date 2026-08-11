@@ -37,9 +37,10 @@ public partial class MainWindow : Window
         }
 
         e.Cancel = true; // hold the close until the session stops safely
+        var loc = KikuCaption.App.Localization.LocalizationService.Instance;
         var choice = MessageBox.Show(
-            "会议正在录制中。关闭前将安全停止并保存 MP4 与字幕（不会强制结束进程）。是否继续关闭？",
-            "KikuCaption", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            loc["Confirm.CloseWhileRecording"],
+            loc["Common.AppName"], MessageBoxButton.YesNo, MessageBoxImage.Warning);
         if (choice != MessageBoxResult.Yes)
         {
             return;

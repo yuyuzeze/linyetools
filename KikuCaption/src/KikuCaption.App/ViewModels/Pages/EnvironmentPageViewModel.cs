@@ -3,6 +3,7 @@ using System.Text;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using KikuCaption.App.Localization;
 using KikuCaption.Core.Enums;
 using KikuCaption.Core.Interfaces;
 using KikuCaption.Core.Models;
@@ -34,12 +35,51 @@ public partial class EnvironmentPageViewModel : ObservableObject
     };
 
     private readonly IEnvironmentChecker _environmentChecker;
+    private readonly LocalizationService _localization;
     private readonly ILogger<EnvironmentPageViewModel> _logger;
 
-    public EnvironmentPageViewModel(IEnvironmentChecker environmentChecker, ILogger<EnvironmentPageViewModel> logger)
+    public EnvironmentPageViewModel(IEnvironmentChecker environmentChecker, LocalizationService localization, ILogger<EnvironmentPageViewModel> logger)
     {
         _environmentChecker = environmentChecker;
+        _localization = localization;
         _logger = logger;
+
+        _overallMessage = _localization["Env.Msg.NotChecked"];
+        _overallKey = "Env.Msg.NotChecked";
+
+        // Refresh the localized labels/messages when the UI language changes.
+        _localization.LanguageChanged += (_, _) =>
+        {
+            OnPropertyChanged(nameof(HealthText));
+            if (_overallKey is not null)
+            {
+                OverallMessage = _localization[_overallKey];
+            }
+            RebuildItems(); // re-localize the per-dependency names + status badges
+        };
+    }
+
+    private string? _overallKey;
+    private IReadOnlyList<DependencyCheckResult> _lastResults = System.Array.Empty<DependencyCheckResult>();
+
+    private void RebuildItems()
+    {
+        if (_lastResults.Count == 0)
+        {
+            return;
+        }
+
+        Items.Clear();
+        foreach (var result in Ordered(_lastResults))
+        {
+            Items.Add(new EnvironmentItemViewModel(result));
+        }
+    }
+
+    private void SetOverall(string key)
+    {
+        _overallKey = key;
+        OverallMessage = _localization[key];
     }
 
     public ObservableCollection<EnvironmentItemViewModel> Items { get; } = new();
@@ -56,20 +96,20 @@ public partial class EnvironmentPageViewModel : ObservableObject
     private EnvironmentHealth _health = EnvironmentHealth.Unknown;
 
     [ObservableProperty]
-    private string _overallMessage = "尚未检查运行环境。";
+    private string _overallMessage = string.Empty;
 
     [ObservableProperty]
     private string _lastCheckedText = string.Empty;
 
     /// <summary>Short status text for the top-bar indicator; always shown alongside the colour.</summary>
     public string HealthText => IsChecking
-        ? "正在检查…"
+        ? _localization["Env.Health.Checking"]
         : Health switch
         {
-            EnvironmentHealth.Healthy => "环境正常",
-            EnvironmentHealth.Degraded => "部分功能受限",
-            EnvironmentHealth.Blocked => "关键环境缺失",
-            _ => "尚未检查"
+            EnvironmentHealth.Healthy => _localization["Env.Health.Healthy"],
+            EnvironmentHealth.Degraded => _localization["Env.Health.Degraded"],
+            EnvironmentHealth.Blocked => _localization["Env.Health.Blocked"],
+            _ => _localization["Env.Health.Unknown"]
         };
 
     /// <summary>Hex colour for the top-bar dot (paired with <see cref="HealthText"/>, never alone).</summary>
@@ -94,37 +134,34 @@ public partial class EnvironmentPageViewModel : ObservableObject
         IsChecking = true;
         OnPropertyChanged(nameof(HealthText));
         OnPropertyChanged(nameof(HealthColor));
-        OverallMessage = "正在检查运行环境……";
+        SetOverall("Env.Msg.Checking");
 
         try
         {
             var report = await _environmentChecker.CheckAsync(cancellationToken).ConfigureAwait(true);
 
-            Items.Clear();
-            foreach (var result in Ordered(report.Results))
-            {
-                Items.Add(new EnvironmentItemViewModel(result));
-            }
+            _lastResults = report.Results;
+            RebuildItems();
 
             Health = report.OverallHealth;
-            OverallMessage = report.OverallHealth switch
+            SetOverall(report.OverallHealth switch
             {
-                EnvironmentHealth.Healthy => "运行环境检查完成，未发现问题。",
-                EnvironmentHealth.Degraded => "字幕可正常使用；部分非关键能力（录屏或翻译）当前不可用（详见下方）。",
-                EnvironmentHealth.Blocked => "缺少关键依赖，核心字幕功能暂时无法开始（详见下方）。程序不会崩溃。",
-                _ => "运行环境检查完成。"
-            };
+                EnvironmentHealth.Healthy => "Env.Msg.Healthy",
+                EnvironmentHealth.Degraded => "Env.Msg.Degraded",
+                EnvironmentHealth.Blocked => "Env.Msg.Blocked",
+                _ => "Env.Msg.Healthy"
+            });
             HasChecked = true;
-            LastCheckedText = "最近检查：" + DateTime.Now.ToString("HH:mm:ss");
+            LastCheckedText = string.Format(_localization["Env.LastChecked"], DateTime.Now.ToString("HH:mm:ss"));
         }
         catch (OperationCanceledException)
         {
-            OverallMessage = "环境检查已取消。";
+            SetOverall("Env.Msg.Cancelled");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Environment check failed unexpectedly.");
-            OverallMessage = "环境检查过程出错，详见日志。";
+            SetOverall("Env.Msg.Error");
         }
         finally
         {
@@ -141,12 +178,12 @@ public partial class EnvironmentPageViewModel : ObservableObject
         try
         {
             Clipboard.SetText(text);
-            OverallMessage = "已复制诊断信息（不含任何密钥或字幕内容）。";
+            SetOverall("Env.Copied");
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Copying diagnostics to clipboard failed.");
-            OverallMessage = "复制诊断信息失败，请重试。";
+            SetOverall("Env.CopyFailed");
         }
     }
 

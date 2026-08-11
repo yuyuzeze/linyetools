@@ -30,9 +30,14 @@ public partial class HomePage : UserControl
         var dialog = new StartMeetingDialog(draft) { Owner = Window.GetWindow(this) };
 
         var result = dialog.ShowDialog();
-        if (MeetingStartCoordinator.ResolveStart(result, draft, realtime) && realtime.StartCommand.CanExecute(null))
+        if (MeetingStartCoordinator.ResolveStart(result, draft, realtime))
         {
-            await realtime.StartCommand.ExecuteAsync(null);
+            // Remember the confirmed target across restarts (UI-R3), then start.
+            ViewModel.PersistCaptureTarget(realtime.CaptureTarget);
+            if (realtime.StartCommand.CanExecute(null))
+            {
+                await realtime.StartCommand.ExecuteAsync(null);
+            }
         }
     }
 

@@ -154,10 +154,15 @@ public partial class App : Application
                     services.AddSingleton<TranslationViewModel>();
                     services.AddSingleton<RealtimeCaptionViewModel>();
 
-                    // Shell + in-window navigation + pages (UI-R1 shell; UI-R2 audio/settings pages).
+                    // Localization (UI-R3): the same instance the Loc markup extension uses.
+                    services.AddSingleton(KikuCaption.App.Localization.LocalizationService.Instance);
+
+                    // Shell + in-window navigation + pages (UI-R1 shell; UI-R2/R3 pages).
                     services.AddSingleton<HomePageViewModel>();
                     services.AddSingleton<EnvironmentPageViewModel>();
                     services.AddSingleton<AudioPageViewModel>();
+                    services.AddSingleton<GeneralSettingsViewModel>();
+                    services.AddSingleton<SubtitleSettingsViewModel>();
                     services.AddSingleton<SettingsPageViewModel>();
                     services.AddSingleton<ShellViewModel>();
                     services.AddSingleton<INavigationService>(sp =>
@@ -180,9 +185,16 @@ public partial class App : Application
 
             await _host.StartAsync();
 
+            // UI-R3: apply persisted UI preferences (language, subtitle appearance, capture target)
+            // before the window is shown.
+            SeedUiPreferences(_host.Services);
+
             // Milestone 7: clean over-retention rolling logs at startup (never touches meeting data).
             var logDir = Path.Combine(AppContext.BaseDirectory, "logs");
-            var retentionDays = _host.Services.GetRequiredService<IConfiguration>().GetValue<int?>("Storage:LogRetentionDays") ?? 14;
+            var (userSettings, _) = _host.Services.GetRequiredService<UserSettingsStore>().Load();
+            var retentionDays = userSettings.LogRetentionDays > 0
+                ? userSettings.LogRetentionDays
+                : _host.Services.GetRequiredService<IConfiguration>().GetValue<int?>("Storage:LogRetentionDays") ?? 14;
             LogRetention.CleanupOldLogs(logDir, retentionDays);
 
             // Force configuration validation to run at startup.
@@ -264,6 +276,34 @@ public partial class App : Application
         {
             Log.Warning(ex, "Could not read the saved translation endpoint (DPAPI); keeping default.");
         }
+    }
+
+    // UI-R3: applies persisted, non-sensitive UI preferences before the window shows — the UI
+    // language, subtitle appearance (onto the live overlay), the default recognition language and
+    // the remembered capture target (onto the meeting view model). Never reads the API key.
+    private static void SeedUiPreferences(IServiceProvider sp)
+    {
+        var store = sp.GetRequiredService<UserSettingsStore>();
+        if (!File.Exists(store.FilePath))
+        {
+            return;
+        }
+
+        var (us, _) = store.Load();
+
+        var localization = sp.GetRequiredService<KikuCaption.App.Localization.LocalizationService>();
+        localization.SetLanguage(us.UiLanguage);
+
+        sp.GetRequiredService<SubtitleOverlayViewModel>().ApplyAppearance(us);
+
+        var realtime = sp.GetRequiredService<RealtimeCaptionViewModel>();
+        if (!string.IsNullOrWhiteSpace(us.RecognitionLanguage))
+        {
+            realtime.SelectedLanguage = us.RecognitionLanguage;
+        }
+        realtime.ApplyCaptureTarget(new KikuCaption.App.ViewModels.MeetingCaptureTarget(
+            string.IsNullOrWhiteSpace(us.CaptureType) ? "screen" : us.CaptureType,
+            us.CaptureTarget));
     }
 
     private static TranslationOptions BuildTranslationOptions(TranslationSettings s)

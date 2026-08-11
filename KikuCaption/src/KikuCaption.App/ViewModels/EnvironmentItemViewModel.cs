@@ -1,11 +1,14 @@
+using KikuCaption.App.Localization;
 using KikuCaption.Core.Enums;
 using KikuCaption.Core.Models;
 
 namespace KikuCaption.App.ViewModels;
 
 /// <summary>
-/// Presentation wrapper around a single <see cref="DependencyCheckResult"/>. Status is always shown
-/// as text (never colour alone) for colour-vision accessibility (UI-R1 §4).
+/// Presentation wrapper around a single <see cref="DependencyCheckResult"/>. The dependency name and
+/// status badge are localized (UI-R3); the badge is always text (never colour alone) for
+/// colour-vision accessibility (UI-R1 §4). The probe-produced Detail/Remediation sentences are shown
+/// as-is (their localization is a probe-layer task).
 /// </summary>
 public sealed class EnvironmentItemViewModel
 {
@@ -15,16 +18,18 @@ public sealed class EnvironmentItemViewModel
 
     public DependencyKind Kind => _result.Kind;
 
-    public string Name => _result.Name;
-
-    public string StatusText => _result.Status switch
+    /// <summary>Localized dependency name (falls back to the probe's name if no key exists).</summary>
+    public string Name
     {
-        EnvironmentCheckStatus.Ok => "正常",
-        EnvironmentCheckStatus.Warning => "注意",
-        EnvironmentCheckStatus.Missing => "缺失",
-        EnvironmentCheckStatus.Error => "错误",
-        _ => "未知"
-    };
+        get
+        {
+            var key = "Env.Dep." + _result.Kind;
+            var localized = LocalizationService.Instance[key];
+            return localized == key ? _result.Name : localized;
+        }
+    }
+
+    public string StatusText => LocalizationService.Instance["Env.Status." + _result.Status];
 
     /// <summary>Hex colour bound directly to a WPF Brush target (string→Brush conversion).</summary>
     public string StatusColor => _result.Status switch

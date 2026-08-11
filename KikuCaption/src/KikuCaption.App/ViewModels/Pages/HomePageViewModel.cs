@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
+using KikuCaption.Infrastructure.Configuration;
 using KikuCaption.Storage;
 using KikuCaption.Storage.Recovery;
 using Microsoft.Extensions.Logging;
@@ -18,6 +19,7 @@ public partial class HomePageViewModel : ObservableObject
 {
     private readonly SessionRecoveryService _recoveryService;
     private readonly StorageOptions _storage;
+    private readonly UserSettingsStore _settingsStore;
     private readonly ILogger<HomePageViewModel> _logger;
     private readonly DispatcherTimer _elapsedTimer;
     private DateTime _sessionStartedUtc;
@@ -27,12 +29,14 @@ public partial class HomePageViewModel : ObservableObject
         TranslationViewModel translation,
         SessionRecoveryService recoveryService,
         StorageOptions storage,
+        UserSettingsStore settingsStore,
         ILogger<HomePageViewModel> logger)
     {
         Realtime = realtime;
         Translation = translation;
         _recoveryService = recoveryService;
         _storage = storage;
+        _settingsStore = settingsStore;
         _logger = logger;
 
         _elapsedTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
@@ -63,6 +67,22 @@ public partial class HomePageViewModel : ObservableObject
 
     /// <summary>Guide the user to configure translation when they enable it without a valid config.</summary>
     public bool TranslationNotConfiguredHint => Translation.Enabled && !Translation.IsConfigured;
+
+    /// <summary>
+    /// Persists the confirmed capture target so the choice is remembered across restarts (UI-R3).
+    /// Called after a valid start-meeting confirm; failures are logged, never surfaced as a crash.
+    /// </summary>
+    public void PersistCaptureTarget(MeetingCaptureTarget target)
+    {
+        try
+        {
+            SettingsPersistence.PersistCaptureTarget(_settingsStore, target);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Persisting capture target failed.");
+        }
+    }
 
     /// <summary>Runs crash recovery on startup: rebuilds files for any never-completed session.</summary>
     public async Task RunRecoveryAsync()

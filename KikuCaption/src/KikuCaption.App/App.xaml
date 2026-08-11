@@ -11,6 +11,7 @@
             <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
             <converters:InverseBooleanConverter x:Key="InverseBool" />
             <converters:NonEmptyToVisibilityConverter x:Key="NonEmptyToVisibility" />
+            <converters:LanguageDisplayConverter x:Key="LanguageDisplay" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>
