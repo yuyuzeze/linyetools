@@ -25,6 +25,13 @@ public sealed record DependencyCheckResult
     public string? Remediation { get; init; }
 
     /// <summary>
+    /// Fully-resolved absolute path the check settled on (e.g. the located ffmpeg.exe, the whisper
+    /// worker script, the output directory). Shown on the environment page so the user can see
+    /// exactly what was used. Never contains secrets. Null when a path is not meaningful.
+    /// </summary>
+    public string? ResolvedPath { get; init; }
+
+    /// <summary>
     /// True when the app cannot deliver its full feature set without this dependency.
     /// Required dependencies that are missing produce a blocking (but non-crashing) warning.
     /// </summary>

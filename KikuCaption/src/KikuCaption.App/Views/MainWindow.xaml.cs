@@ -1,31 +1,37 @@
-using System.IO;
 using System.Windows;
 using KikuCaption.App.ViewModels;
+using KikuCaption.App.Views.Pages;
 
 namespace KikuCaption.App.Views;
 
+/// <summary>
+/// Main-window shell. Code-behind is limited to unavoidable window/view behaviours: the
+/// close-while-recording safe-stop guard, closing the overlay, wiring the startup initialization,
+/// and closing the environment dropdown after a menu click. All feature logic lives in view models.
+/// </summary>
 public partial class MainWindow : Window
 {
-    private readonly MainViewModel _viewModel;
+    private readonly ShellViewModel _shell;
     private readonly SubtitleOverlayWindow _overlay;
     private bool _safeStopInProgress;
 
-    public MainWindow(MainViewModel viewModel, SubtitleOverlayWindow overlay)
+    public MainWindow(ShellViewModel shell, SubtitleOverlayWindow overlay)
     {
         InitializeComponent();
-        _viewModel = viewModel;
+        _shell = shell;
         _overlay = overlay;
-        DataContext = viewModel;
+        DataContext = shell;
 
         Loaded += OnLoaded;
         Closing += OnClosing;
         Closed += OnClosed;
     }
 
-    // Milestone 7 §4: closing while recording → confirm, then a safe stop (never a hard kill).
+    // Closing while recording → confirm, then a safe stop (never a hard kill).
     private async void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
-        if (_safeStopInProgress || !_viewModel.Realtime.IsRunning)
+        var realtime = _shell.Home.Realtime;
+        if (_safeStopInProgress || !realtime.IsRunning)
         {
             return;
         }
@@ -42,9 +48,9 @@ public partial class MainWindow : Window
         _safeStopInProgress = true;
         try
         {
-            if (_viewModel.Realtime.StopCommand.CanExecute(null))
+            if (realtime.StopCommand.CanExecute(null))
             {
-                await _viewModel.Realtime.StopCommand.ExecuteAsync(null);
+                await realtime.StopCommand.ExecuteAsync(null);
             }
         }
         catch { /* stop is best-effort; data is already persisted */ }
@@ -61,64 +67,10 @@ public partial class MainWindow : Window
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
         Loaded -= OnLoaded;
-        if (_viewModel.CheckEnvironmentCommand.CanExecute(null))
-        {
-            await _viewModel.CheckEnvironmentCommand.ExecuteAsync(null);
-        }
-
-        // Crash recovery for any session left incomplete by a previous run (Milestone 4).
-        await _viewModel.RunRecoveryAsync();
+        // Show Home, then run the environment check + crash recovery off the UI thread.
+        await _shell.InitializeAsync();
     }
 
-    // The view only picks the output file (a WPF dialog, not audio logic) and delegates
-    // the actual capture to the view model / recorder.
-    private async void StartCapture_Click(object sender, RoutedEventArgs e)
-    {
-        var audio = _viewModel.Audio;
-        var suggested = audio.SuggestDefaultOutputPath();
-        var initialDirectory = Path.GetDirectoryName(suggested);
-        if (!string.IsNullOrEmpty(initialDirectory))
-        {
-            Directory.CreateDirectory(initialDirectory);
-        }
-
-        var dialog = new Microsoft.Win32.SaveFileDialog
-        {
-            Title = "保存系统音频 WAV",
-            Filter = "WAV 音频 (*.wav)|*.wav",
-            FileName = Path.GetFileName(suggested),
-            InitialDirectory = initialDirectory,
-            AddExtension = true,
-            DefaultExt = ".wav",
-            OverwritePrompt = true
-        };
-
-        if (dialog.ShowDialog(this) == true)
-        {
-            await audio.StartAsync(dialog.FileName);
-        }
-    }
-
-    // The API key is read from the PasswordBox and handed straight to the DPAPI secret store; it is
-    // never bound, echoed, or logged (PROJECT.md 5.6, M6 §8).
-    private void SaveApiKey_Click(object sender, RoutedEventArgs e)
-    {
-        _viewModel.Translation.SaveApiKey(ApiKeyBox.Password);
-        ApiKeyBox.Clear();
-    }
-
-    private async void RecognizeWav_Click(object sender, RoutedEventArgs e)
-    {
-        var dialog = new Microsoft.Win32.OpenFileDialog
-        {
-            Title = "选择要识别的 WAV 文件",
-            Filter = "WAV 音频 (*.wav)|*.wav",
-            CheckFileExists = true
-        };
-
-        if (dialog.ShowDialog(this) == true)
-        {
-            await _viewModel.Speech.RecognizeWavAsync(dialog.FileName);
-        }
-    }
+    // Close the environment dropdown once one of its items is chosen (the command still runs).
+    private void EnvMenuItem_Click(object sender, RoutedEventArgs e) => EnvMenuToggle.IsChecked = false;
 }

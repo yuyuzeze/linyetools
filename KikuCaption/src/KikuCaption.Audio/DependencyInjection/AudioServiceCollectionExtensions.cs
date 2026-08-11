@@ -1,4 +1,5 @@
 using KikuCaption.Audio.Capture;
+using KikuCaption.Audio.Diagnostics;
 using KikuCaption.Core.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -19,6 +20,7 @@ public static class AudioServiceCollectionExtensions
         services.AddSingleton<Func<IAudioCaptureService>>(sp =>
             () => sp.GetRequiredService<IAudioCaptureService>());
         services.AddSingleton<ISystemAudioWavRecorder, SystemAudioWavRecorder>();
+        services.AddSingleton<IAudioDeviceInfoProvider, AudioDeviceInfoProvider>();
         return services;
     }
 }

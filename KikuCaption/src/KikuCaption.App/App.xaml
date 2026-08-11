@@ -3,7 +3,14 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:converters="clr-namespace:KikuCaption.App.Converters">
     <Application.Resources>
-        <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
-        <converters:InverseBooleanConverter x:Key="InverseBool" />
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Resources/AppTheme.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+            <converters:InverseBooleanConverter x:Key="InverseBool" />
+            <converters:NonEmptyToVisibilityConverter x:Key="NonEmptyToVisibility" />
+        </ResourceDictionary>
     </Application.Resources>
 </Application>

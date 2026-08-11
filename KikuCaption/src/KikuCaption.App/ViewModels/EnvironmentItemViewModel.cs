@@ -4,13 +4,16 @@ using KikuCaption.Core.Models;
 namespace KikuCaption.App.ViewModels;
 
 /// <summary>
-/// Presentation wrapper around a single <see cref="DependencyCheckResult"/>.
+/// Presentation wrapper around a single <see cref="DependencyCheckResult"/>. Status is always shown
+/// as text (never colour alone) for colour-vision accessibility (UI-R1 §4).
 /// </summary>
 public sealed class EnvironmentItemViewModel
 {
     private readonly DependencyCheckResult _result;
 
     public EnvironmentItemViewModel(DependencyCheckResult result) => _result = result;
+
+    public DependencyKind Kind => _result.Kind;
 
     public string Name => _result.Name;
 
@@ -34,7 +37,13 @@ public sealed class EnvironmentItemViewModel
     };
 
     public string? DetectedVersion => _result.DetectedVersion;
+    public bool HasDetectedVersion => !string.IsNullOrWhiteSpace(_result.DetectedVersion);
+
     public string? Detail => _result.Detail;
+
+    public string? ResolvedPath => _result.ResolvedPath;
+    public bool HasResolvedPath => !string.IsNullOrWhiteSpace(_result.ResolvedPath);
+
     public string? Remediation => _result.Remediation;
     public bool HasRemediation => !string.IsNullOrWhiteSpace(_result.Remediation);
 }

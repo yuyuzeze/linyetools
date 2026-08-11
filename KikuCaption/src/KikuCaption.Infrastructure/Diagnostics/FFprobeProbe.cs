@@ -9,50 +9,52 @@ using Microsoft.Extensions.Options;
 namespace KikuCaption.Infrastructure.Diagnostics;
 
 /// <summary>
-/// Detects the FFmpeg executable used for screen recording / muxing. It resolves the path through
-/// the shared <see cref="FFmpegResolver"/> — the same resolver the recording module and preflight
-/// use — so the environment check can never disagree with recording (UI-R1 §6 FFmpeg bug fix).
-///
-/// FFmpeg is recording-only, so its absence is non-blocking (yellow, not red): captions still run.
+/// Detects ffprobe.exe, the mate of ffmpeg.exe (recording muxing needs the pair). Resolved through
+/// the shared <see cref="FFmpegResolver"/> so it stays consistent with <see cref="FFmpegProbe"/>
+/// and the recording module (UI-R1 §6). When ffmpeg is present but ffprobe is not, this reports a
+/// warning (yellow) explaining the pair is incomplete — recording-only, never blocking captions.
 /// </summary>
-public sealed partial class FFmpegProbe : IEnvironmentProbe
+public sealed partial class FFprobeProbe : IEnvironmentProbe
 {
     private static readonly TimeSpan ProbeTimeout = TimeSpan.FromSeconds(10);
 
     private readonly IProcessRunner _processRunner;
     private readonly IOptions<KikuCaptionOptions> _options;
 
-    public FFmpegProbe(IProcessRunner processRunner, IOptions<KikuCaptionOptions> options)
+    public FFprobeProbe(IProcessRunner processRunner, IOptions<KikuCaptionOptions> options)
     {
         _processRunner = processRunner;
         _options = options;
     }
 
-    public DependencyKind Kind => DependencyKind.FFmpeg;
-    public string DisplayName => "FFmpeg";
+    public DependencyKind Kind => DependencyKind.FFprobe;
+    public string DisplayName => "FFprobe";
 
     public async Task<DependencyCheckResult> ProbeAsync(CancellationToken cancellationToken)
     {
         var configured = _options.Value.Recording.FFmpegPath;
         var resolution = FFmpegResolver.Resolve(configured, AppContext.BaseDirectory);
 
-        if (!resolution.HasFFmpeg)
+        if (!resolution.HasFFprobe)
         {
+            // Distinguish "no FFmpeg at all" from "ffmpeg found but ffprobe missing".
+            var detail = resolution.HasFFmpeg
+                ? "找到 ffmpeg.exe，但同目录缺少 ffprobe.exe，录屏封装将不完整。"
+                : "未找到 ffprobe.exe（FFmpeg 工具对缺失）。录屏不可用，字幕识别不受影响。";
             return new DependencyCheckResult
             {
                 Kind = Kind,
                 Name = DisplayName,
-                IsRequired = false, // recording-only → non-blocking (captions still work)
-                Status = EnvironmentCheckStatus.Missing,
+                IsRequired = false,
+                Status = EnvironmentCheckStatus.Warning,
                 DetectedVersion = null,
-                Detail = "未找到 ffmpeg.exe。录屏与音视频封装将不可用，但字幕识别不受影响。",
-                Remediation = "将 ffmpeg.exe 放入应用目录下的 tools/ffmpeg，或在设置中指定路径，或加入系统 PATH。"
+                Detail = detail,
+                Remediation = "请将 ffprobe.exe 与 ffmpeg.exe 放在同一目录（成对提供）。"
             };
         }
 
-        // The file exists — verify it actually launches (a copied-but-broken exe must not read "OK").
         var run = await _processRunner
-            .RunAsync(resolution.FFmpegPath!, new[] { "-version" }, ProbeTimeout, cancellationToken)
+            .RunAsync(resolution.FFprobePath!, new[] { "-version" }, ProbeTimeout, cancellationToken)
             .ConfigureAwait(false);
 
         if (!run.Started || run.ExitCode != 0)
@@ -63,10 +65,9 @@ public sealed partial class FFmpegProbe : IEnvironmentProbe
                 Name = DisplayName,
                 IsRequired = false,
                 Status = EnvironmentCheckStatus.Error,
-                DetectedVersion = null,
-                ResolvedPath = resolution.FFmpegPath,
-                Detail = "找到 ffmpeg.exe，但无法运行（可能损坏或架构不匹配）。",
-                Remediation = "请替换为可用的 FFmpeg 构建（64 位 Windows 版）。"
+                ResolvedPath = resolution.FFprobePath,
+                Detail = "找到 ffprobe.exe，但无法运行（可能损坏或架构不匹配）。",
+                Remediation = "请替换为可用的 FFmpeg 构建（含配套 ffprobe.exe）。"
             };
         }
 
@@ -77,9 +78,9 @@ public sealed partial class FFmpegProbe : IEnvironmentProbe
             Name = DisplayName,
             IsRequired = false,
             Status = EnvironmentCheckStatus.Ok,
-            DetectedVersion = version is null ? "FFmpeg" : $"FFmpeg {version}",
-            ResolvedPath = resolution.FFmpegPath,
-            Detail = "已检测到可运行的 FFmpeg。",
+            DetectedVersion = version is null ? "FFprobe" : $"FFprobe {version}",
+            ResolvedPath = resolution.FFprobePath,
+            Detail = "已检测到可运行的 FFprobe。",
             Remediation = null
         };
     }
@@ -90,6 +91,6 @@ public sealed partial class FFmpegProbe : IEnvironmentProbe
         return match.Success ? match.Groups[1].Value : null;
     }
 
-    [GeneratedRegex(@"ffmpeg version (\S+)")]
+    [GeneratedRegex(@"ffprobe version (\S+)")]
     private static partial Regex VersionRegex();
 }

@@ -31,6 +31,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<IEnvironmentProbe, DotNetRuntimeProbe>();
         services.AddSingleton<IEnvironmentProbe, PythonProbe>();
         services.AddSingleton<IEnvironmentProbe, FFmpegProbe>();
+        services.AddSingleton<IEnvironmentProbe, FFprobeProbe>();
         services.AddSingleton<IEnvironmentProbe, DiskSpaceProbe>();
         services.AddSingleton<IEnvironmentChecker, EnvironmentChecker>();
 

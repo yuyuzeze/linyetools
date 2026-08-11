@@ -1,7 +1,11 @@
 using System.IO;
 using System.Windows;
+using KikuCaption.App.Diagnostics;
+using KikuCaption.App.Navigation;
 using KikuCaption.App.ViewModels;
+using KikuCaption.App.ViewModels.Pages;
 using KikuCaption.App.Views;
+using KikuCaption.Infrastructure.Diagnostics;
 using KikuCaption.Audio.DependencyInjection;
 using KikuCaption.Infrastructure.Configuration;
 using KikuCaption.Infrastructure.DependencyInjection;
@@ -135,13 +139,42 @@ public partial class App : Application
                     services.AddSingleton<KikuCaption.App.Services.PreflightService>();
                     services.AddSingleton(_ => UserSettingsStore.CreateDefault());
 
+                    // UI-R1: app-composition environment probes (reuse already-composed options).
+                    // These join the Infrastructure probes via IEnumerable<IEnvironmentProbe>.
+                    services.AddSingleton<IEnvironmentProbe, WhisperWorkerProbe>();
+                    services.AddSingleton<IEnvironmentProbe, WhisperModelProbe>();
+                    services.AddSingleton<IEnvironmentProbe, AudioOutputDeviceProbe>();
+                    services.AddSingleton<IEnvironmentProbe, OutputDirectoryProbe>();
+                    services.AddSingleton<IEnvironmentProbe, TranslationApiProbe>();
+
                     services.AddSingleton<AudioCaptureViewModel>();
                     services.AddSingleton<SpeechViewModel>();
                     services.AddSingleton<SubtitleOverlayViewModel>();
                     services.AddSingleton<MeetingTimelineViewModel>();
                     services.AddSingleton<TranslationViewModel>();
                     services.AddSingleton<RealtimeCaptionViewModel>();
-                    services.AddSingleton<MainViewModel>();
+
+                    // UI-R1: shell + in-window navigation + pages.
+                    services.AddSingleton<HomePageViewModel>();
+                    services.AddSingleton<EnvironmentPageViewModel>();
+                    services.AddSingleton<ShellViewModel>();
+                    services.AddSingleton<INavigationService>(sp =>
+                    {
+                        var nav = new NavigationService();
+                        nav.Register(PageKey.Home, () => sp.GetRequiredService<HomePageViewModel>());
+                        nav.Register(PageKey.Environment, () => sp.GetRequiredService<EnvironmentPageViewModel>());
+                        nav.Register(PageKey.Audio, () => new PlaceholderPageViewModel(
+                            "音频",
+                            "系统音频捕获与本地语音识别将在下一阶段（UI-R2）迁移到独立的“音频”页面。当前请在“首页”使用相应功能。"));
+                        nav.Register(PageKey.Dictionary, () => new PlaceholderPageViewModel(
+                            "词典",
+                            "专业术语词典（多词典管理、每语言当前词典）将在后续阶段（UI-R4）加入。"));
+                        nav.Register(PageKey.Settings, () => new PlaceholderPageViewModel(
+                            "设置",
+                            "常用设置、字幕设置与翻译设置将在后续阶段（UI-R3 / R4）加入。当前翻译配置仍在“首页”。"));
+                        return nav;
+                    });
+
                     services.AddSingleton<SubtitleOverlayWindow>();
                     services.AddSingleton<MainWindow>();
                 })
