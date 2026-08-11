@@ -92,10 +92,17 @@ public sealed class RealtimeCaptionPipeline : IAsyncDisposable
     private long _audioReceivedBytes;
     private long _audioFinalizedBytes;
     private long _audioDiscardedBytes;
-#pragma warning disable CS0649 // Intentionally never written on the safe path: FinalizeCurrent only
-    // ever removes exactly the bytes of the snapshot it just finalized, so no code path can ever
-    // discard un-finalized audio. Kept (and exposed via CurrentMetrics) so the invariant
-    // "AudioDiscardedUncommittedSeconds == 0" is directly, objectively assertable by tests/logs.
+    // NOTE on AudioDiscardedUncommittedSeconds: this is a STRUCTURAL invariant, not an independently
+    // cross-checked runtime measurement. Every removal in this class goes through
+    // RemoveFinalizedPrefix(snapshotLen, ...), which by construction removes EXACTLY the byte count
+    // of a snapshot that was just offered to Whisper and decided upon (finalized as text, suppressed
+    // as silence, or consumed as confirmed-empty) — there is no code path that removes MORE than
+    // that. So this counter is provably always 0 by the shape of the code, not because we diffed
+    // "audio in" vs "audio out" at runtime. For an INDEPENDENT, empirically-checkable guarantee, see
+    // the reconciliation identity documented on CurrentMetrics: AudioReceivedSeconds ≈
+    // AudioFinalizedSeconds + AudioDiscardedSeconds + PendingAudioSeconds must hold at all times;
+    // tests assert this balance explicitly (not just that this field reads 0).
+#pragma warning disable CS0649 // never written — see the structural-invariant note above
     private long _audioDiscardedUncommittedBytes;
 #pragma warning restore CS0649
     private long _latestSnapshotBytesThisUtterance;
@@ -432,7 +439,22 @@ public sealed class RealtimeCaptionPipeline : IAsyncDisposable
         var reason = _finalizer!.Evaluate(signals);
         if (reason == FinalizeReason.None)
         {
-            return; // keep accumulating; nothing is ever truncated or advanced away in this mode
+            // Edge-case fix (empty-candidate / pure-silence buffer bound): Finalizer.Evaluate never
+            // fires while HasPendingText is false — by design, it must never finalize empty pending
+            // text as a caption. That means a long stretch of continuous silence / empty candidates
+            // would otherwise grow _utterance forever, since none of MaxSentenceSeconds/MaxWaitSeconds
+            // is ever consulted. Once Whisper has been given the FULL accumulated audio and STILL
+            // found nothing (this is exactly what reason==None with HasPendingText==false means) AND
+            // no audio above the silence threshold has occurred anywhere in this utterance, the
+            // already-attempted, confirmed-empty snapshot is safe to consume: it is not content we
+            // failed to offer to Whisper, it is content Whisper itself could not find anything in.
+            if (!_hadLoudAudioThisUtterance &&
+                (audioSeconds >= _options.MaxSentenceSeconds || signals.WaitSeconds >= _options.MaxWaitSeconds))
+            {
+                ConsumeSilentSnapshot(snapshotLen, endTime);
+            }
+
+            return; // otherwise keep accumulating; nothing is ever truncated or advanced away
         }
 
         // Briefly hold short, unpunctuated fragments so continuing speech can merge (「まどぐち」),
@@ -452,8 +474,13 @@ public sealed class RealtimeCaptionPipeline : IAsyncDisposable
     /// </summary>
     private void FinalizeCurrent(FinalizeReason reason, TimeSpan endTime, int snapshotLen)
     {
+        // Capture BEFORE the removal below recomputes this flag for whatever (if anything) remains
+        // — that leftover belongs to a DIFFERENT, not-yet-decided utterance and must never be judged
+        // by this one's loudness (Issue 3: no cross-utterance leak in either direction).
+        bool hadLoudThisSnapshot = _hadLoudAudioThisUtterance;
+
         var segments = _stabilizer!.Flush(endTime);
-        if (_hadLoudAudioThisUtterance)
+        if (hadLoudThisSnapshot)
         {
             foreach (var segment in segments)
             {
@@ -469,6 +496,42 @@ public sealed class RealtimeCaptionPipeline : IAsyncDisposable
             _logger.LogDebug("Suppressed a final from a silent utterance (hallucination guard).");
         }
 
+        RemoveFinalizedPrefix(snapshotLen, endTime);
+
+        _fragmentGate?.Reset();
+        _stableUnchanged = 0;
+        Interlocked.Exchange(ref _silenceMs, 0);
+        _utteranceStartUtc = DateTime.UtcNow; // reset the wait-clock for the next utterance
+    }
+
+    /// <summary>
+    /// Empty-candidate / pure-silence buffer bound (see the call site in RunCycleAsync). Whisper has
+    /// already been given this exact snapshot and returned nothing, and no audio above the silence
+    /// threshold has occurred anywhere in it — safe to consume without emitting a caption. Uses the
+    /// SAME exact-length removal as a normal finalize, so leftover audio ingested during this cycle's
+    /// inference is preserved identically.
+    /// </summary>
+    private void ConsumeSilentSnapshot(int snapshotLen, TimeSpan endTime)
+    {
+        _stabilizer!.Flush(endTime); // reset internal state; HasPendingText was false, nothing to emit
+        RemoveFinalizedPrefix(snapshotLen, endTime);
+
+        _fragmentGate?.Reset();
+        _stableUnchanged = 0;
+        Interlocked.Exchange(ref _silenceMs, 0);
+        _utteranceStartUtc = DateTime.UtcNow;
+    }
+
+    /// <summary>
+    /// Removes exactly <paramref name="snapshotLen"/> bytes from the front of the buffer (never
+    /// more — the safety invariant this whole class rests on), re-anchors the next utterance's start
+    /// boundary to an explicit time (never inferred from text), and — Issue 3 fix — recomputes
+    /// <see cref="_hadLoudAudioThisUtterance"/> strictly from whatever PCM (if any) now remains, so a
+    /// just-decided utterance's loud/silent state can never leak into a different one in either
+    /// direction.
+    /// </summary>
+    private void RemoveFinalizedPrefix(int snapshotLen, TimeSpan endTime)
+    {
         lock (_bufferGate)
         {
             int remove = Math.Min(snapshotLen, _utterance.Count); // defensive clamp; should always be equal or less
@@ -480,12 +543,35 @@ public sealed class RealtimeCaptionPipeline : IAsyncDisposable
             // utterance starts exactly where this one's finalized snapshot ended (an explicit,
             // unambiguous boundary — never inferred from text/Stable Prefix).
             _utteranceStart = _utterance.Count > 0 ? endTime : default;
+            _hadLoudAudioThisUtterance = _utterance.Count > 0
+                && HasLoudAudio(CollectionsMarshal.AsSpan(_utterance), _options.SilenceRmsThreshold);
+        }
+    }
+
+    /// <summary>
+    /// True if ANY ~10ms window of <paramref name="pcm"/> has RMS at or above
+    /// <paramref name="threshold"/>. Scanning in small windows (matching real capture chunk
+    /// granularity) rather than one aggregate RMS over the whole span avoids a brief loud moment
+    /// being diluted/hidden by surrounding quiet padding.
+    /// </summary>
+    private static bool HasLoudAudio(ReadOnlySpan<byte> pcm, double threshold)
+    {
+        const int windowBytes = 320; // ~10ms at 16 kHz / mono / int16
+        for (int offset = 0; offset < pcm.Length; offset += windowBytes)
+        {
+            int len = Math.Min(windowBytes, pcm.Length - offset);
+            if (len < 2)
+            {
+                break;
+            }
+
+            if (Rms(pcm.Slice(offset, len)) >= threshold)
+            {
+                return true;
+            }
         }
 
-        _fragmentGate?.Reset();
-        _stableUnchanged = 0;
-        Interlocked.Exchange(ref _silenceMs, 0);
-        _utteranceStartUtc = DateTime.UtcNow; // reset the wait-clock for the next utterance
+        return false;
     }
 
     /// <summary>Emits one final, clamping timestamps to stay monotonic (never before the previous final's end).</summary>
@@ -511,6 +597,21 @@ public sealed class RealtimeCaptionPipeline : IAsyncDisposable
         });
     }
 
+    /// <summary>
+    /// Bounded timeout for the ONE final recognition pass at stop (Issue 2). Deliberately a fresh,
+    /// dedicated CancellationTokenSource — never the pipeline's own <c>_cts.Token</c>, which is
+    /// already cancelled (or about to be) by the time this runs; reusing it would abort the final
+    /// RecognizeAsync call before it could start.
+    /// </summary>
+    private static readonly TimeSpan StopFlushTimeout = TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    /// Final stop-time flush (Issue 2 fix). Captures whatever PCM remains buffered — which may
+    /// include audio ingested AFTER the last successful cycle's snapshot (e.g. arriving between two
+    /// cycles right before Stop) — and runs ONE more bounded-timeout recognition on it before the
+    /// worker is released, so trailing content is never silently dropped. Runs strictly before the
+    /// caller disposes the recognizer (see CycleLoopAsync's finally).
+    /// </summary>
     private async Task FinalizeFlushAsync()
     {
         if (_stabilizer is null)
@@ -518,13 +619,99 @@ public sealed class RealtimeCaptionPipeline : IAsyncDisposable
             return;
         }
 
-        var segments = _stabilizer.Flush(_lastEnd);
-        foreach (var segment in segments)
+        // Guarantee Ingest has FULLY stopped (including its very last append) before capturing the
+        // absolute final PCM snapshot — otherwise a chunk appended microseconds after this method
+        // starts could be silently left behind.
+        if (_ingestTask is not null)
         {
-            EmitFinal(segment, FinalizeReason.FlushRequested);
+            try { await _ingestTask.ConfigureAwait(false); } catch { /* observed elsewhere */ }
         }
 
-        await Task.CompletedTask;
+        byte[] snapshot;
+        int snapshotLen;
+        TimeSpan utteranceStart;
+        lock (_bufferGate)
+        {
+            snapshotLen = _utterance.Count;
+            snapshot = _utterance.ToArray();
+            utteranceStart = _utteranceStart;
+        }
+
+        // Sub-100ms trailing leftover: nothing meaningful to recognize (same tolerance used
+        // mid-session). Just flush whatever text the stabilizer already holds.
+        if (snapshot.Length < BytesPerSecond / 10 || _recognizer is null)
+        {
+            if (snapshot.Length > 0)
+            {
+                _audioDiscardedBytes += snapshot.Length; // documented, bounded (<100ms) tail
+            }
+
+            FlushStabilizerOnly(_lastEnd);
+            return;
+        }
+
+        string candidate;
+        using (var stopCts = new CancellationTokenSource(StopFlushTimeout))
+        {
+            try
+            {
+                candidate = await TranscribeAsync(snapshot, stopCts.Token).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                // Could not confirm what's in the trailing PCM within the bounded timeout — do NOT
+                // remove/finalize it silently. Leave it buffered (honestly reflected by
+                // PendingAudioSeconds) and flush only the already-stabilized text.
+                _logger.LogWarning(ex, "Final PCM recognition timed out or failed during stop; " +
+                    "trailing audio remains buffered (see PendingAudioSeconds), not discarded.");
+                FlushStabilizerOnly(_lastEnd);
+                return;
+            }
+        }
+
+        double audioSeconds = snapshot.Length / (double)BytesPerSecond;
+        var endTime = utteranceStart + TimeSpan.FromSeconds(audioSeconds);
+        _lastEnd = endTime;
+
+        var update = new TranscriptUpdate
+        {
+            SessionId = _sessionId,
+            Kind = TranscriptUpdateKind.FinalCandidate,
+            StartTime = utteranceStart,
+            EndTime = endTime,
+            Text = candidate,
+            Sequence = Interlocked.Increment(ref _seq)
+        };
+        _stabilizer.Process(update);
+
+        bool hadLoudThisSnapshot = _hadLoudAudioThisUtterance; // capture before removal recomputes it
+        var segments = _stabilizer.Flush(endTime);
+        RemoveFinalizedPrefix(snapshotLen, endTime);
+
+        if (hadLoudThisSnapshot)
+        {
+            foreach (var segment in segments)
+            {
+                EmitFinal(segment, FinalizeReason.FlushRequested);
+            }
+        }
+        else if (segments.Count > 0)
+        {
+            _logger.LogDebug("Suppressed a final PCM flush from a silent trailing utterance (hallucination guard).");
+        }
+    }
+
+    private void FlushStabilizerOnly(TimeSpan endTime)
+    {
+        bool hadLoudThisSnapshot = _hadLoudAudioThisUtterance;
+        var segments = _stabilizer!.Flush(endTime);
+        if (hadLoudThisSnapshot)
+        {
+            foreach (var segment in segments)
+            {
+                EmitFinal(segment, FinalizeReason.FlushRequested);
+            }
+        }
     }
 
     private async Task<string> TranscribeAsync(byte[] snapshot, CancellationToken cancellationToken)
