@@ -45,8 +45,8 @@ public sealed partial class FFmpegProbe : IEnvironmentProbe
                 IsRequired = false, // recording-only → non-blocking (captions still work)
                 Status = EnvironmentCheckStatus.Missing,
                 DetectedVersion = null,
-                Detail = "未找到 ffmpeg.exe。录屏与音视频封装将不可用，但字幕识别不受影响。",
-                Remediation = "将 ffmpeg.exe 放入应用目录下的 tools/ffmpeg，或在设置中指定路径，或加入系统 PATH。"
+                MessageCode = "EnvMsg.FFmpeg.Missing",
+                RemediationCode = "EnvRem.FFmpeg.Missing"
             };
         }
 
@@ -65,8 +65,8 @@ public sealed partial class FFmpegProbe : IEnvironmentProbe
                 Status = EnvironmentCheckStatus.Error,
                 DetectedVersion = null,
                 ResolvedPath = resolution.FFmpegPath,
-                Detail = "找到 ffmpeg.exe，但无法运行（可能损坏或架构不匹配）。",
-                Remediation = "请替换为可用的 FFmpeg 构建（64 位 Windows 版）。"
+                MessageCode = "EnvMsg.FFmpeg.NotRunnable",
+                RemediationCode = "EnvRem.FFmpeg.NotRunnable"
             };
         }
 
@@ -79,8 +79,7 @@ public sealed partial class FFmpegProbe : IEnvironmentProbe
             Status = EnvironmentCheckStatus.Ok,
             DetectedVersion = version is null ? "FFmpeg" : $"FFmpeg {version}",
             ResolvedPath = resolution.FFmpegPath,
-            Detail = "已检测到可运行的 FFmpeg。",
-            Remediation = null
+            MessageCode = "EnvMsg.FFmpeg.Ok"
         };
     }
 

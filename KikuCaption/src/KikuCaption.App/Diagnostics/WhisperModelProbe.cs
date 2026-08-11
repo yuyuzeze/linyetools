@@ -44,7 +44,7 @@ public sealed class WhisperModelProbe : IEnvironmentProbe
                 IsRequired = true,
                 Status = EnvironmentCheckStatus.Ok,
                 ResolvedPath = dir,
-                Detail = "已检测到 Whisper 模型缓存。"
+                MessageCode = "EnvMsg.Model.Ok"
             }
             : new DependencyCheckResult
             {
@@ -53,8 +53,8 @@ public sealed class WhisperModelProbe : IEnvironmentProbe
                 IsRequired = true,
                 Status = EnvironmentCheckStatus.Missing,
                 ResolvedPath = dir,
-                Detail = "未找到 Whisper 模型缓存，首次识别前需要下载模型。",
-                Remediation = "请按项目说明下载模型到缓存目录（默认 models/whisper）。"
+                MessageCode = "EnvMsg.Model.Missing",
+                RemediationCode = "EnvRem.Model.Missing"
             };
 
         return Task.FromResult(result);

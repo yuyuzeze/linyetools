@@ -38,14 +38,15 @@ public sealed class DiskSpaceProbe : IEnvironmentProbe
                 Name = DisplayName,
                 IsRequired = false,
                 Status = status,
-                DetectedVersion = string.Format(CultureInfo.InvariantCulture, "{0:0.0} GB 可用", freeGb),
-                Detail = string.Format(
-                    CultureInfo.InvariantCulture,
-                    "驱动器 {0} 当前可用 {1:0.0} GB（最低要求 {2:0.0} GB）。",
-                    drive.Name, freeGb, minimumGb),
-                Remediation = status == EnvironmentCheckStatus.Warning
-                    ? "可用磁盘空间偏低，录制前请清理磁盘或更换输出目录。"
-                    : null
+                DetectedVersion = string.Format(CultureInfo.InvariantCulture, "{0:0.0} GB", freeGb),
+                MessageCode = "EnvMsg.Disk.Info",
+                MessageArguments = new[]
+                {
+                    drive.Name,
+                    freeGb.ToString("0.0", CultureInfo.InvariantCulture),
+                    minimumGb.ToString("0.0", CultureInfo.InvariantCulture)
+                },
+                RemediationCode = status == EnvironmentCheckStatus.Warning ? "EnvRem.Disk.Low" : null
             });
         }
         catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException)
@@ -57,8 +58,9 @@ public sealed class DiskSpaceProbe : IEnvironmentProbe
                 IsRequired = false,
                 Status = EnvironmentCheckStatus.Error,
                 DetectedVersion = null,
-                Detail = $"无法读取驱动器 {targetRoot} 的可用空间。",
-                Remediation = "请确认输出目录所在驱动器存在且可访问。"
+                MessageCode = "EnvMsg.Disk.Error",
+                MessageArguments = new[] { targetRoot },
+                RemediationCode = "EnvRem.Disk.Error"
             });
         }
     }

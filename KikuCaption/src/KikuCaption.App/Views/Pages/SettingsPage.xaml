@@ -14,10 +14,10 @@
             <!-- ==================== General ==================== -->
             <TabItem Header="{loc:Loc Settings.Tab.General}">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" DataContext="{Binding General}">
-                    <StackPanel MaxWidth="560" HorizontalAlignment="Left" Margin="4,14,4,4">
+                    <StackPanel MaxWidth="640" HorizontalAlignment="Left" Margin="4,14,4,4">
                         <Grid>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="180" />
+                                <ColumnDefinition Width="Auto" MinWidth="190" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <Grid.RowDefinitions>
@@ -46,10 +46,13 @@
                             </ComboBox>
 
                             <TextBlock Grid.Row="2" Grid.Column="0" Text="{loc:Loc General.OutputDirectory}" VerticalAlignment="Center" Margin="0,6" />
-                            <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Margin="0,6">
-                                <TextBox Width="240" Text="{Binding OutputDirectory, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center" />
-                                <Button Content="{loc:Loc General.Browse}" Click="BrowseOutput_Click" Margin="8,0,0,0" />
-                                <TextBlock Text="{loc:Loc Common.AfterRestart}" VerticalAlignment="Center" Margin="8,0,0,0"
+                            <StackPanel Grid.Row="2" Grid.Column="1" Margin="0,6">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBox Width="240" Text="{Binding OutputDirectory, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center" />
+                                    <Button Content="{loc:Loc General.Browse}" Click="BrowseOutput_Click" Margin="8,0,0,0" />
+                                </StackPanel>
+                                <!-- Own line + wrapping so long localized hints (e.g. Japanese) are never clipped. -->
+                                <TextBlock Text="{loc:Loc Common.AfterRestart}" TextWrapping="Wrap" Margin="0,4,0,0"
                                            Foreground="{StaticResource MutedBrush}" FontSize="11" />
                             </StackPanel>
 
@@ -58,7 +61,13 @@
 
                             <TextBlock Grid.Row="5" Grid.Column="0" Text="{loc:Loc General.DefaultRecordingTarget}" VerticalAlignment="Center" Margin="0,6" />
                             <ComboBox Grid.Row="5" Grid.Column="1" Margin="0,6" Width="200" HorizontalAlignment="Left"
-                                      ItemsSource="{Binding RecordingTargets}" SelectedItem="{Binding DefaultRecordingTarget}" />
+                                      ItemsSource="{Binding RecordingTargets}" SelectedItem="{Binding DefaultRecordingTarget}">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{loc:LocValue Prefix=Capture.}" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
 
                             <TextBlock Grid.Row="6" Grid.Column="0" Text="{loc:Loc General.LogRetentionDays}" VerticalAlignment="Center" Margin="0,6" />
                             <StackPanel Grid.Row="6" Grid.Column="1" Orientation="Horizontal" Margin="0,6">
@@ -219,7 +228,13 @@
                             <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding ApiVersion, UpdateSourceTrigger=PropertyChanged}" Margin="0,2" />
                             <TextBlock Grid.Row="3" Grid.Column="0" Text="{loc:Loc Tr.AuthMode}" VerticalAlignment="Center" Margin="0,2,8,2" />
                             <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal" Margin="0,2">
-                                <ComboBox Width="140" ItemsSource="{Binding AuthModes}" SelectedItem="{Binding AuthenticationMode}" />
+                                <ComboBox Width="160" ItemsSource="{Binding AuthModes}" SelectedItem="{Binding AuthenticationMode}">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{loc:LocValue Prefix=Auth.}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
                                 <TextBlock Text="{loc:Loc Tr.HeaderName}" VerticalAlignment="Center" Margin="12,0,6,0" />
                                 <TextBox Width="140" Text="{Binding HeaderName, UpdateSourceTrigger=PropertyChanged}" />
                             </StackPanel>

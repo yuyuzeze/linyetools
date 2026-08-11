@@ -110,7 +110,7 @@ public sealed partial class GeneralSettingsViewModel : ObservableObject
     {
         var (s, _) = _store.Load();
         _loading = true;
-        UiLanguage = LocalizedStrings.Tables.ContainsKey(s.UiLanguage) ? s.UiLanguage : LocalizedStrings.ZhCN;
+        UiLanguage = LocalizationService.NormalizeCulture(s.UiLanguage);
         DefaultRecognitionLanguage = s.RecognitionLanguage;
         OutputDirectory = s.OutputDirectory;
         LoadRecentOnStartup = s.LoadRecentOnStartup;

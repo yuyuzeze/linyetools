@@ -72,7 +72,7 @@ public partial class EnvironmentPageViewModel : ObservableObject
         Items.Clear();
         foreach (var result in Ordered(_lastResults))
         {
-            Items.Add(new EnvironmentItemViewModel(result));
+            Items.Add(new EnvironmentItemViewModel(result, _localization));
         }
     }
 

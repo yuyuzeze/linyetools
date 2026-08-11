@@ -55,10 +55,7 @@ public sealed partial class PythonProbe : IEnvironmentProbe
                 IsRequired = true,
                 Status = EnvironmentCheckStatus.Ok,
                 DetectedVersion = $"Python {version}",
-                Detail = meetsRecommended
-                    ? "已检测到可用的 Python 解释器（推荐 3.11）。"
-                    : "已检测到 Python，但版本可能与 faster-whisper 依赖不完全兼容，推荐使用 3.11。",
-                Remediation = null
+                MessageCode = meetsRecommended ? "EnvMsg.Python.Ok" : "EnvMsg.Python.OkOldish"
             };
         }
 
@@ -69,8 +66,8 @@ public sealed partial class PythonProbe : IEnvironmentProbe
             IsRequired = true,
             Status = EnvironmentCheckStatus.Missing,
             DetectedVersion = null,
-            Detail = "未检测到 Python。后续的本地语音识别（faster-whisper）功能将无法使用。",
-            Remediation = "请安装 Python 3.11（勾选加入 PATH）：https://www.python.org/downloads/"
+            MessageCode = "EnvMsg.Python.Missing",
+            RemediationCode = "EnvRem.Python.Missing"
         };
     }
 

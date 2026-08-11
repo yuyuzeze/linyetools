@@ -74,7 +74,8 @@ public class DynamicLocalizationTests
         var en = LocalizedStrings.Tables[LocalizedStrings.EnUS];
         var statusKeys = en.Keys.Where(k =>
             k.StartsWith("Session.State.") || k.StartsWith("Recorder.") || k.StartsWith("Status.")
-            || k.StartsWith("Health.") || k.StartsWith("Env.Msg.") || k.StartsWith("Error."));
+            || k.StartsWith("Health.") || k.StartsWith("Env.Msg.") || k.StartsWith("Error.")
+            || k.StartsWith("EnvMsg.") || k.StartsWith("EnvRem."));
 
         foreach (var key in statusKeys)
         {

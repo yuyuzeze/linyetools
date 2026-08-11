@@ -137,7 +137,8 @@ public class JapaneseLocalizationTests
 
         var statusKeys = ja.Keys.Where(k =>
             k.StartsWith("Session.State.") || k.StartsWith("Recorder.") || k.StartsWith("Status.")
-            || k.StartsWith("Env.Msg.") || k.StartsWith("Timeline."));
+            || k.StartsWith("Env.Msg.") || k.StartsWith("Timeline.")
+            || k.StartsWith("EnvMsg.") || k.StartsWith("EnvRem."));
 
         foreach (var key in statusKeys)
         {

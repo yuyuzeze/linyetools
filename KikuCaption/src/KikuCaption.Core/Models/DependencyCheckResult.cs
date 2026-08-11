@@ -25,6 +25,25 @@ public sealed record DependencyCheckResult
     public string? Remediation { get; init; }
 
     /// <summary>
+    /// Stable, language-neutral message code the App layer localizes into the user's UI language
+    /// (UI-R3.1). Probes set this instead of emitting a localized sentence, so Core/Infrastructure
+    /// never depend on the UI localization service. Null means fall back to <see cref="Detail"/>.
+    /// </summary>
+    public string? MessageCode { get; init; }
+
+    /// <summary>
+    /// Format arguments for <see cref="MessageCode"/> — raw values (drive name, GB, missing field
+    /// names) that are inserted verbatim and never translated.
+    /// </summary>
+    public IReadOnlyList<string>? MessageArguments { get; init; }
+
+    /// <summary>Stable message code for the remediation hint (localized in the App layer).</summary>
+    public string? RemediationCode { get; init; }
+
+    /// <summary>Format arguments for <see cref="RemediationCode"/> (raw values, never translated).</summary>
+    public IReadOnlyList<string>? RemediationArguments { get; init; }
+
+    /// <summary>
     /// Fully-resolved absolute path the check settled on (e.g. the located ffmpeg.exe, the whisper
     /// worker script, the output directory). Shown on the environment page so the user can see
     /// exactly what was used. Never contains secrets. Null when a path is not meaningful.

@@ -34,14 +34,19 @@ public sealed class LocalizationService : INotifyPropertyChanged
 
     public string Get(string key) => Resolve(key, _currentLanguage);
 
-    /// <summary>Switches the UI language. No-op for an unknown or unchanged culture.</summary>
-    public void SetLanguage(string culture)
+    /// <summary>
+    /// Switches the UI language at runtime. Returns false — leaving the current effective language
+    /// unchanged — when the culture is unknown/unsupported or already current; returns true when the
+    /// language actually changed (UI-R3.1 unified fallback). For a persisted/corrupt code, normalize
+    /// to zh-CN at load time (see <see cref="NormalizeCulture"/>) rather than relying on this method.
+    /// </summary>
+    public bool SetLanguage(string culture)
     {
         if (string.IsNullOrWhiteSpace(culture)
             || !LocalizedStrings.Tables.ContainsKey(culture)
             || string.Equals(culture, _currentLanguage, StringComparison.OrdinalIgnoreCase))
         {
-            return;
+            return false;
         }
 
         _currentLanguage = culture;
@@ -49,7 +54,17 @@ public sealed class LocalizationService : INotifyPropertyChanged
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(Binding.IndexerName));
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CurrentLanguage)));
         LanguageChanged?.Invoke(this, EventArgs.Empty);
+        return true;
     }
+
+    /// <summary>
+    /// Normalizes a persisted culture code: a supported code is returned as-is; an unknown/corrupt
+    /// code falls back to zh-CN (UI-R3.1 unified persistence fallback).
+    /// </summary>
+    public static string NormalizeCulture(string? persisted)
+        => !string.IsNullOrWhiteSpace(persisted) && LocalizedStrings.Tables.ContainsKey(persisted)
+            ? persisted
+            : LocalizedStrings.ZhCN;
 
     private static string Resolve(string key, string culture)
     {

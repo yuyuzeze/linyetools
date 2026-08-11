@@ -38,9 +38,6 @@ public sealed partial class FFprobeProbe : IEnvironmentProbe
         if (!resolution.HasFFprobe)
         {
             // Distinguish "no FFmpeg at all" from "ffmpeg found but ffprobe missing".
-            var detail = resolution.HasFFmpeg
-                ? "找到 ffmpeg.exe，但同目录缺少 ffprobe.exe，录屏封装将不完整。"
-                : "未找到 ffprobe.exe（FFmpeg 工具对缺失）。录屏不可用，字幕识别不受影响。";
             return new DependencyCheckResult
             {
                 Kind = Kind,
@@ -48,8 +45,8 @@ public sealed partial class FFprobeProbe : IEnvironmentProbe
                 IsRequired = false,
                 Status = EnvironmentCheckStatus.Warning,
                 DetectedVersion = null,
-                Detail = detail,
-                Remediation = "请将 ffprobe.exe 与 ffmpeg.exe 放在同一目录（成对提供）。"
+                MessageCode = resolution.HasFFmpeg ? "EnvMsg.FFprobe.MissingBeside" : "EnvMsg.FFprobe.MissingPair",
+                RemediationCode = "EnvRem.FFprobe.Missing"
             };
         }
 
@@ -66,8 +63,8 @@ public sealed partial class FFprobeProbe : IEnvironmentProbe
                 IsRequired = false,
                 Status = EnvironmentCheckStatus.Error,
                 ResolvedPath = resolution.FFprobePath,
-                Detail = "找到 ffprobe.exe，但无法运行（可能损坏或架构不匹配）。",
-                Remediation = "请替换为可用的 FFmpeg 构建（含配套 ffprobe.exe）。"
+                MessageCode = "EnvMsg.FFprobe.NotRunnable",
+                RemediationCode = "EnvRem.FFprobe.NotRunnable"
             };
         }
 
@@ -80,8 +77,7 @@ public sealed partial class FFprobeProbe : IEnvironmentProbe
             Status = EnvironmentCheckStatus.Ok,
             DetectedVersion = version is null ? "FFprobe" : $"FFprobe {version}",
             ResolvedPath = resolution.FFprobePath,
-            Detail = "已检测到可运行的 FFprobe。",
-            Remediation = null
+            MessageCode = "EnvMsg.FFprobe.Ok"
         };
     }
 

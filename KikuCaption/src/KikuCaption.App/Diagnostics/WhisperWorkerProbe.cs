@@ -38,8 +38,8 @@ public sealed class WhisperWorkerProbe : IEnvironmentProbe
                 Name = DisplayName,
                 IsRequired = true,
                 Status = EnvironmentCheckStatus.Missing,
-                Detail = "未找到 whisper_worker 脚本，实时字幕与本地识别无法运行。",
-                Remediation = "请建立 Python 环境并确保 whisper_worker 脚本存在（参见项目说明）。"
+                MessageCode = "EnvMsg.Worker.NoScript",
+                RemediationCode = "EnvRem.Worker.NoScript"
             };
         }
         else if (!pythonOk)
@@ -51,8 +51,8 @@ public sealed class WhisperWorkerProbe : IEnvironmentProbe
                 IsRequired = true,
                 Status = EnvironmentCheckStatus.Missing,
                 ResolvedPath = _worker.WorkerScript,
-                Detail = "找到 worker 脚本，但未找到 Python 解释器。",
-                Remediation = "请在设置中指定 Python 可执行文件，或将其加入系统 PATH。"
+                MessageCode = "EnvMsg.Worker.NoPython",
+                RemediationCode = "EnvRem.Worker.NoPython"
             };
         }
         else
@@ -65,7 +65,7 @@ public sealed class WhisperWorkerProbe : IEnvironmentProbe
                 Status = EnvironmentCheckStatus.Ok,
                 DetectedVersion = Path.IsPathRooted(python!) ? "venv" : python,
                 ResolvedPath = _worker.WorkerScript,
-                Detail = "已找到本地识别 Worker 脚本与 Python 解释器。"
+                MessageCode = "EnvMsg.Worker.Ok"
             };
         }
 

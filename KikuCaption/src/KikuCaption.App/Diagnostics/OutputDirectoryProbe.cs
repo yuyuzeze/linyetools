@@ -33,7 +33,7 @@ public sealed class OutputDirectoryProbe : IEnvironmentProbe
                 IsRequired = true,
                 Status = EnvironmentCheckStatus.Ok,
                 ResolvedPath = root,
-                Detail = "会话输出目录可写。"
+                MessageCode = "EnvMsg.Output.Ok"
             }
             : new DependencyCheckResult
             {
@@ -42,8 +42,8 @@ public sealed class OutputDirectoryProbe : IEnvironmentProbe
                 IsRequired = true,
                 Status = EnvironmentCheckStatus.Missing,
                 ResolvedPath = root,
-                Detail = "无法在输出目录写入，字幕与录制文件将无法保存。",
-                Remediation = "请在设置中改用一个可写目录，或授予该目录写入权限。"
+                MessageCode = "EnvMsg.Output.NotWritable",
+                RemediationCode = "EnvRem.Output.NotWritable"
             };
 
         return Task.FromResult(result);

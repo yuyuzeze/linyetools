@@ -27,12 +27,8 @@ public sealed class DotNetRuntimeProbe : IEnvironmentProbe
             IsRequired = true,
             Status = isNet10OrLater ? EnvironmentCheckStatus.Ok : EnvironmentCheckStatus.Warning,
             DetectedVersion = description,
-            Detail = isNet10OrLater
-                ? "已在 .NET 10 或更高版本运行时上运行。"
-                : "当前运行时低于 .NET 10。",
-            Remediation = isNet10OrLater
-                ? null
-                : "请安装 .NET 10 运行时 / SDK：https://dotnet.microsoft.com/download/dotnet/10.0"
+            MessageCode = isNet10OrLater ? "EnvMsg.DotNet.Ok" : "EnvMsg.DotNet.Old",
+            RemediationCode = isNet10OrLater ? null : "EnvRem.DotNet.Old"
         };
 
         return Task.FromResult(result);

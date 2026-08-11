@@ -41,8 +41,8 @@ public sealed class AudioOutputDeviceProbe : IEnvironmentProbe
                 Name = DisplayName,
                 IsRequired = false,
                 Status = EnvironmentCheckStatus.Warning,
-                Detail = "无法枚举音频输出设备。",
-                Remediation = "请检查 Windows 声音设置中的输出设备。"
+                MessageCode = "EnvMsg.Audio.EnumFail",
+                RemediationCode = "EnvRem.Audio.EnumFail"
             });
         }
 
@@ -53,8 +53,8 @@ public sealed class AudioOutputDeviceProbe : IEnvironmentProbe
                 Name = DisplayName,
                 IsRequired = true,
                 Status = EnvironmentCheckStatus.Missing,
-                Detail = "未检测到默认音频输出设备，无法采集系统声音。",
-                Remediation = "请在 Windows 声音设置中启用一个输出设备后重新检查。"
+                MessageCode = "EnvMsg.Audio.Missing",
+                RemediationCode = "EnvRem.Audio.Missing"
             }
             : new DependencyCheckResult
             {
@@ -63,7 +63,7 @@ public sealed class AudioOutputDeviceProbe : IEnvironmentProbe
                 IsRequired = true,
                 Status = EnvironmentCheckStatus.Ok,
                 DetectedVersion = device.Name,
-                Detail = "已检测到默认音频输出设备。"
+                MessageCode = "EnvMsg.Audio.Ok"
             };
 
         return Task.FromResult(result);

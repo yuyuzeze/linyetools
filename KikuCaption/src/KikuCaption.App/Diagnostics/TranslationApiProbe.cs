@@ -29,7 +29,7 @@ public sealed class TranslationApiProbe : IEnvironmentProbe
     {
         if (!_translation.Enabled)
         {
-            return Result(EnvironmentCheckStatus.Ok, "翻译未启用（可在设置中开启）。", null, "未启用");
+            return Result(EnvironmentCheckStatus.Ok, "EnvMsg.Trans.Disabled", null);
         }
 
         var endpointOk = Uri.TryCreate(_translation.Endpoint, UriKind.Absolute, out var u)
@@ -39,19 +39,17 @@ public sealed class TranslationApiProbe : IEnvironmentProbe
 
         if (endpointOk && modelOk && keyOk)
         {
-            return Result(EnvironmentCheckStatus.Ok, "翻译已配置并可用。", null, "已配置");
+            return Result(EnvironmentCheckStatus.Ok, "EnvMsg.Trans.Ok", null);
         }
 
+        // The missing field names are raw config identifiers (not translated).
         var missing = new List<string>();
         if (!endpointOk) missing.Add("Endpoint");
         if (!modelOk) missing.Add("Model");
         if (!keyOk) missing.Add("API Key");
 
-        return Result(
-            EnvironmentCheckStatus.Warning,
-            $"翻译已启用但配置不完整（缺少：{string.Join("、", missing)}）。字幕不受影响。",
-            "请在翻译设置中补全配置；密钥通过 Windows DPAPI 本地加密保存。",
-            "配置不完整");
+        return Result(EnvironmentCheckStatus.Warning, "EnvMsg.Trans.Incomplete", "EnvRem.Trans.Incomplete",
+            new[] { string.Join("、", missing) });
     }
 
     private bool KeyConfigured()
@@ -60,15 +58,15 @@ public sealed class TranslationApiProbe : IEnvironmentProbe
         catch { return false; }
     }
 
-    private Task<DependencyCheckResult> Result(EnvironmentCheckStatus status, string detail, string? remediation, string version)
+    private Task<DependencyCheckResult> Result(EnvironmentCheckStatus status, string messageCode, string? remediationCode, IReadOnlyList<string>? messageArgs = null)
         => Task.FromResult(new DependencyCheckResult
         {
             Kind = Kind,
             Name = DisplayName,
             IsRequired = false,
             Status = status,
-            DetectedVersion = version,
-            Detail = detail,
-            Remediation = remediation
+            MessageCode = messageCode,
+            MessageArguments = messageArgs,
+            RemediationCode = remediationCode
         });
 }

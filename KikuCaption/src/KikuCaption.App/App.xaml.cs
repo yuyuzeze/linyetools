@@ -292,7 +292,8 @@ public partial class App : Application
         var (us, _) = store.Load();
 
         var localization = sp.GetRequiredService<KikuCaption.App.Localization.LocalizationService>();
-        localization.SetLanguage(us.UiLanguage);
+        // A corrupt/unsupported persisted code normalizes to zh-CN (UI-R3.1 unified fallback).
+        localization.SetLanguage(KikuCaption.App.Localization.LocalizationService.NormalizeCulture(us.UiLanguage));
 
         sp.GetRequiredService<SubtitleOverlayViewModel>().ApplyAppearance(us);
 
