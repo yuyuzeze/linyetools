@@ -398,11 +398,6 @@ def region_has_readable_content(region: RegionIR) -> bool:
         return True
     if region.asset_ids:
         return True
-    # Screenshot-only regions carry no values/tables/assets until capture
-    # succeeds, but they still need to be rendered (image or "missing"
-    # placeholder) so the markdown surface does not drop the legend.
-    if region.metadata.get("readable_mode") == "screenshot":
-        return True
     return any(table_has_content(table) for table in region.tables)
 
 
