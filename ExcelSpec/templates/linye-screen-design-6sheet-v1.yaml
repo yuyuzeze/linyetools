@@ -150,12 +150,17 @@ sheets:
         order: 1
         locator:
           mode: anchor
-          # Locate the legend block by its title cell. The legend itself
-          # spans 5 columns × 6 rows in the OKI-Q-102 sample (R6:V11);
-          # we hard-cap width/height so the screenshot does not bleed
-          # across the whole sheet when the workbook's column layout
-          # differs.
-          anchor_pattern: "^\\s*■\\s*凡例\\s*$"
+          # Match loosely (■ optional, no trailing $) so any variant of the
+          # title cell (extra spaces, trailing punctuation, etc.) still
+          # anchors correctly — a strict full-match here silently drops the
+          # whole legend region when the cell text does not match exactly,
+          # and the legend text then leaks into a neighbouring layout
+          # region as plain bullet text instead of a screenshot.
+          # The capture AREA is still coordinate-bound via width/height so
+          # the screenshot stays small and precise (does not bleed across
+          # the whole sheet). The OKI-Q-102 sample places 凡例 at R6:V11
+          # (5 cols × 6 rows) relative to the anchor cell.
+          anchor_pattern: "^\\s*■?\\s*凡例"
           column_offset: 0
           row_offset: 0
           width: 5
