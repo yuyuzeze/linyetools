@@ -3,6 +3,7 @@ using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using KikuCaption.Core.Interfaces;
+using KikuCaption.Infrastructure.Configuration;
 using KikuCaption.Translation;
 using KikuCaption.Translation.Security;
 using Microsoft.Extensions.Logging;
@@ -21,6 +22,7 @@ public sealed partial class TranslationViewModel : ObservableObject
     private readonly ITranslationSecretStore _secrets;
     private readonly IAiTranslationService _translator;
     private readonly TranslationQueue _queue;
+    private readonly UserSettingsStore _settingsStore;
     private readonly ILogger<TranslationViewModel> _logger;
     private readonly HashSet<Guid> _active = new();
 
@@ -30,6 +32,7 @@ public sealed partial class TranslationViewModel : ObservableObject
     [ObservableProperty] private string _apiVersion = string.Empty;
     [ObservableProperty] private string _authenticationMode = "Bearer";
     [ObservableProperty] private string _headerName = "Authorization";
+    [ObservableProperty] private string _proxy = string.Empty;
     [ObservableProperty] private int _timeoutSeconds = 30;
 
     [ObservableProperty]
@@ -46,21 +49,24 @@ public sealed partial class TranslationViewModel : ObservableObject
         ITranslationSecretStore secrets,
         IAiTranslationService translator,
         TranslationQueue queue,
+        UserSettingsStore settingsStore,
         ILogger<TranslationViewModel> logger)
     {
         _options = options;
         _secrets = secrets;
         _translator = translator;
         _queue = queue;
+        _settingsStore = settingsStore;
         _logger = logger;
 
-        // Seed from the current options.
+        // Seed from the current options (already overlaid with persisted settings at startup).
         _enabled = options.Enabled;
         _endpoint = options.Endpoint;
         _model = options.Model;
         _apiVersion = options.ApiVersion;
         _authenticationMode = options.AuthenticationMode.ToString();
         _headerName = options.HeaderName;
+        _proxy = options.Proxy;
         _timeoutSeconds = options.TimeoutSeconds;
         _isKeyConfigured = _secrets.IsConfigured;
 
@@ -77,7 +83,47 @@ public sealed partial class TranslationViewModel : ObservableObject
     partial void OnModelChanged(string value) => _options.Model = value?.Trim() ?? string.Empty;
     partial void OnApiVersionChanged(string value) => _options.ApiVersion = value?.Trim() ?? string.Empty;
     partial void OnHeaderNameChanged(string value) => _options.HeaderName = string.IsNullOrWhiteSpace(value) ? "Authorization" : value.Trim();
+    partial void OnProxyChanged(string value) => _options.Proxy = value?.Trim() ?? string.Empty;
     partial void OnTimeoutSecondsChanged(int value) => _options.TimeoutSeconds = value;
+
+    /// <summary>
+    /// Saves the translation config so it is restored next launch. Non-secret fields go to
+    /// settings.json; the Endpoint (which may embed a credential) is DPAPI-encrypted. The API key is
+    /// saved separately via <see cref="SaveApiKey"/>.
+    /// </summary>
+    [RelayCommand]
+    private void SaveSettings()
+    {
+        try
+        {
+            var (existing, _) = _settingsStore.Load();
+            _settingsStore.Save(existing with
+            {
+                TranslationEnabled = Enabled,
+                TranslationModel = Model?.Trim() ?? string.Empty,
+                TranslationApiVersion = ApiVersion?.Trim() ?? string.Empty,
+                TranslationAuthMode = AuthenticationMode,
+                TranslationHeaderName = string.IsNullOrWhiteSpace(HeaderName) ? "Authorization" : HeaderName.Trim(),
+                TranslationProxy = Proxy?.Trim() ?? string.Empty
+            });
+
+            if (string.IsNullOrWhiteSpace(Endpoint))
+            {
+                _secrets.DeleteEndpoint();
+            }
+            else
+            {
+                _secrets.SaveEndpoint(Endpoint.Trim());
+            }
+
+            TestStatus = "翻译设置已保存（Endpoint 已加密，下次打开自动读取）。";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to save translation settings.");
+            TestStatus = "保存翻译设置失败。";
+        }
+    }
 
     partial void OnAuthenticationModeChanged(string value)
     {

@@ -7,6 +7,7 @@ using KikuCaption.Infrastructure.Configuration;
 using KikuCaption.Infrastructure.DependencyInjection;
 using KikuCaption.Infrastructure.Logging;
 using KikuCaption.Core.Interfaces;
+using KikuCaption.Core.Models;
 using KikuCaption.Speech.DependencyInjection;
 using KikuCaption.Speech.Stabilization;
 using KikuCaption.Speech.Streaming;
@@ -59,11 +60,37 @@ public partial class App : Application
                     services.AddSingleton(whisperOptions); // for Milestone 7 preflight
                     services.AddKikuCaptionSpeech(whisperOptions);
 
-                    // Progressive caption options (validated at startup).
+                    // One provider shared by the real-time pipeline AND the WAV entry point: base
+                    // options (model/device/compute/beam/cache) + per-language decoding context, so a
+                    // language never receives another language's prompt/hotwords, and there is a single
+                    // source of truth for the SpeechOptions construction.
+                    var baseSpeechOptions = new SpeechOptions
+                    {
+                        Model = speechSettings.Model,
+                        ComputeType = speechSettings.ComputeType,
+                        BeamSize = speechSettings.BeamSize,
+                        Language = speechSettings.Language,
+                        ModelCacheDirectory = whisperOptions.ModelCacheDirectory
+                    };
+                    var contexts = new Dictionary<string, SpeechContext>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var (lang, ctx) in speechSettings.Contexts)
+                    {
+                        contexts[lang] = new SpeechContext(
+                            string.IsNullOrWhiteSpace(ctx.InitialPrompt) ? null : ctx.InitialPrompt,
+                            Hotwords.Normalize(ctx.Hotwords)); // count/length/total limits enforced here
+                    }
+
+                    services.AddSingleton<ISpeechOptionsProvider>(new SpeechOptionsProvider(baseSpeechOptions, contexts));
+
+                    // Progressive caption options (validated at startup) — all tunables now mapped.
                     var progressive = new ProgressiveCaptionOptions
                     {
                         WindowSeconds = speechSettings.WindowSeconds,
                         OverlapSeconds = speechSettings.OverlapSeconds,
+                        SilenceFinalMs = speechSettings.SilenceFinalMs,
+                        StableRepeatCount = speechSettings.StableRepeatCount,
+                        MaxSentenceSeconds = speechSettings.MaxSentenceSeconds,
+                        MaxWaitSeconds = speechSettings.MaxWaitSeconds,
                         MaxLines = Math.Clamp(subtitleSettings.MaxLines, 2, 5)
                     };
                     progressive.Validate();
@@ -73,6 +100,7 @@ public partial class App : Application
                     services.AddTransient(sp => new RealtimeCaptionPipeline(
                         () => sp.GetRequiredService<ISpeechRecognizer>(),
                         sp.GetRequiredService<ProgressiveCaptionOptions>(),
+                        sp.GetRequiredService<ISpeechOptionsProvider>(),
                         sp.GetRequiredService<ILogger<RealtimeCaptionPipeline>>()));
                     services.AddSingleton<Func<RealtimeCaptionPipeline>>(sp => () => sp.GetRequiredService<RealtimeCaptionPipeline>());
 
@@ -129,6 +157,10 @@ public partial class App : Application
 
             Log.Information("KikuCaption starting up (version {Version}).", GetType().Assembly.GetName().Version);
 
+            // Milestone 7 / OKI: overlay persisted translation settings (settings.json + DPAPI
+            // endpoint) onto the live options BEFORE the queue starts, so a saved config is used.
+            SeedTranslationFromPersisted(_host.Services);
+
             // Start the translation queue: recovers Pending/RetryScheduled jobs and drains in the
             // background. Safe when translation is disabled (nothing gets enqueued).
             await _host.Services.GetRequiredService<TranslationQueue>().StartAsync(CancellationToken.None);
@@ -170,6 +202,37 @@ public partial class App : Application
     private static string AppVersion()
         => typeof(App).Assembly.GetName().Version?.ToString() ?? "0.0.0";
 
+    // Applies previously-saved translation settings (non-secret fields from settings.json, and the
+    // DPAPI-encrypted endpoint) onto the live TranslationOptions singleton, so "save once → read next
+    // time" works. Absent/failed items keep the appsettings defaults.
+    private static void SeedTranslationFromPersisted(IServiceProvider sp)
+    {
+        var opts = sp.GetRequiredService<TranslationOptions>();
+        var store = sp.GetRequiredService<UserSettingsStore>();
+        var secrets = sp.GetRequiredService<KikuCaption.Translation.Security.ITranslationSecretStore>();
+
+        if (File.Exists(store.FilePath))
+        {
+            var (us, _) = store.Load();
+            opts.Enabled = us.TranslationEnabled;
+            if (!string.IsNullOrWhiteSpace(us.TranslationModel)) opts.Model = us.TranslationModel;
+            if (!string.IsNullOrWhiteSpace(us.TranslationApiVersion)) opts.ApiVersion = us.TranslationApiVersion;
+            if (Enum.TryParse<TranslationAuthMode>(us.TranslationAuthMode, ignoreCase: true, out var m)) opts.AuthenticationMode = m;
+            if (!string.IsNullOrWhiteSpace(us.TranslationHeaderName)) opts.HeaderName = us.TranslationHeaderName;
+            opts.Proxy = us.TranslationProxy ?? "";
+        }
+
+        try
+        {
+            var ep = secrets.ReadEndpoint();
+            if (!string.IsNullOrWhiteSpace(ep)) opts.Endpoint = ep;
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Could not read the saved translation endpoint (DPAPI); keeping default.");
+        }
+    }
+
     private static TranslationOptions BuildTranslationOptions(TranslationSettings s)
     {
         var mode = Enum.TryParse<TranslationAuthMode>(s.AuthenticationMode, ignoreCase: true, out var m)
@@ -184,6 +247,7 @@ public partial class App : Application
             ApiVersion = s.ApiVersion,
             AuthenticationMode = mode,
             HeaderName = string.IsNullOrWhiteSpace(s.HeaderName) ? "Authorization" : s.HeaderName,
+            Proxy = s.Proxy ?? "",
             TimeoutSeconds = s.TimeoutSeconds,
             MaxRetries = s.MaxRetries,
             MaxQueueLength = s.MaxQueueLength,

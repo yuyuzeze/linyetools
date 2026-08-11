@@ -20,4 +20,19 @@ public interface ITranslationSecretStore
 
     /// <summary>Permanently removes the stored ciphertext (user-initiated "clear key").</summary>
     void Delete();
+
+    // The Endpoint URL is stored encrypted too, because some company gateways embed the credential
+    // in the URL itself (e.g. a function key in the path). It is never written to plaintext config.
+
+    /// <summary>True when an encrypted endpoint is stored.</summary>
+    bool HasEndpoint { get; }
+
+    /// <summary>Encrypts and saves the endpoint URL, replacing any existing one.</summary>
+    void SaveEndpoint(string endpoint);
+
+    /// <summary>Decrypts and returns the stored endpoint, or null if none is stored.</summary>
+    string? ReadEndpoint();
+
+    /// <summary>Removes the stored endpoint ciphertext.</summary>
+    void DeleteEndpoint();
 }

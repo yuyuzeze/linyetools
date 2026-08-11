@@ -15,6 +15,7 @@ namespace KikuCaption.App.ViewModels;
 public partial class SpeechViewModel : ObservableObject
 {
     private readonly Func<ISpeechRecognizer> _recognizerFactory;
+    private readonly ISpeechOptionsProvider _speechOptionsProvider;
     private readonly ILogger<SpeechViewModel> _logger;
 
     [ObservableProperty]
@@ -30,9 +31,13 @@ public partial class SpeechViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(HasError))]
     private string? _errorMessage;
 
-    public SpeechViewModel(Func<ISpeechRecognizer> recognizerFactory, ILogger<SpeechViewModel> logger)
+    public SpeechViewModel(
+        Func<ISpeechRecognizer> recognizerFactory,
+        ISpeechOptionsProvider speechOptionsProvider,
+        ILogger<SpeechViewModel> logger)
     {
         _recognizerFactory = recognizerFactory;
+        _speechOptionsProvider = speechOptionsProvider;
         _logger = logger;
     }
 
@@ -57,7 +62,8 @@ public partial class SpeechViewModel : ObservableObject
         try
         {
             await using var recognizer = _recognizerFactory();
-            await recognizer.InitializeAsync(new SpeechOptions { Language = SelectedLanguage }, CancellationToken.None);
+            // Same full, per-language config as the real-time pipeline (single source of truth).
+            await recognizer.InitializeAsync(_speechOptionsProvider.ForLanguage(SelectedLanguage), CancellationToken.None);
             StatusText = "模型已就绪，正在识别……";
 
             await foreach (var update in recognizer.RecognizeAsync(WavFileAudioReader.ReadAsync(wavPath), CancellationToken.None))

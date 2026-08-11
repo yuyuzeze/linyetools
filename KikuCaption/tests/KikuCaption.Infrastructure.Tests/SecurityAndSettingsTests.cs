@@ -113,16 +113,18 @@ public class UserSettingsStoreTests
         Directory.Delete(dir, true);
     }
 
-    [Fact] // 11: settings never contain the API key
-    public void Serialized_HasNoApiKey()
+    [Fact] // 11: settings never contain the API key or the (credential-bearing) endpoint
+    public void Serialized_HasNoApiKeyOrEndpoint()
     {
         var dir = TempDir();
         var store = new UserSettingsStore(dir);
-        store.Save(new UserSettings { TranslationEnabled = true, TranslationEndpoint = "https://x/y" });
+        store.Save(new UserSettings { TranslationEnabled = true, TranslationModel = "gpt-4.1", TranslationProxy = "http://proxy:8080" });
 
         var json = File.ReadAllText(store.FilePath);
         Assert.DoesNotContain("ApiKey", json, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("secret", json, StringComparison.OrdinalIgnoreCase);
+        // The endpoint (may embed a credential) is never persisted here — it is DPAPI-encrypted.
+        Assert.DoesNotContain("Endpoint", json, StringComparison.OrdinalIgnoreCase);
 
         Directory.Delete(dir, true);
     }

@@ -91,6 +91,35 @@ public static class CaptionText
         return builder.ToString();
     }
 
+    /// <summary>Returns <paramref name="text"/> with its first <paramref name="k"/> significant runes removed
+    /// (whitespace between/after is preserved). Used for CJK-aware seam de-duplication.</summary>
+    public static string SkipSignificantPrefix(string text, int k)
+    {
+        if (k <= 0)
+        {
+            return text;
+        }
+
+        var builder = new StringBuilder();
+        int skipped = 0;
+        foreach (var rune in text.EnumerateRunes())
+        {
+            if (skipped < k)
+            {
+                if (!Rune.IsWhiteSpace(rune))
+                {
+                    skipped++;
+                }
+
+                continue; // drop this rune (significant or the whitespace around the skipped prefix)
+            }
+
+            builder.Append(rune.ToString());
+        }
+
+        return builder.ToString().TrimStart();
+    }
+
     public static bool EndsWithSentencePunctuation(string text)
     {
         for (int i = text.Length - 1; i >= 0; i--)

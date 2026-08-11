@@ -1,3 +1,4 @@
+using System.Net.Http;
 using KikuCaption.Core.Interfaces;
 using KikuCaption.Translation.Security;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,8 +18,14 @@ public static class TranslationServiceCollectionExtensions
         services.AddSingleton(options);
         services.AddSingleton<ITranslationSecretStore>(_ => new DpapiTranslationSecretStore(secretsDirectory));
 
-        // One reusable, pooled client for all translation requests.
-        services.AddHttpClient(OpenAiCompatibleTranslationAdapter.HttpClientName);
+        // One reusable, pooled client for all translation requests. Its primary handler carries a
+        // dynamic proxy (TranslationOptions.Proxy, live) and otherwise uses the system proxy.
+        services.AddHttpClient(OpenAiCompatibleTranslationAdapter.HttpClientName)
+            .ConfigurePrimaryHttpMessageHandler(sp => new HttpClientHandler
+            {
+                UseProxy = true,
+                Proxy = new OptionsWebProxy(sp.GetRequiredService<TranslationOptions>())
+            });
 
         services.AddSingleton<IAiTranslationService, OpenAiCompatibleTranslationAdapter>();
         services.AddSingleton<TranslationQueue>();

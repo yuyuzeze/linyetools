@@ -45,7 +45,7 @@ public class RealtimeStorageIntegrationTests
         await using var pipeline = new RealtimeCaptionPipeline(
             RealModelSupport.RecognizerFactory(located.Value.Options),
             new ProgressiveCaptionOptions { PartialIntervalMs = 700, SilenceFinalMs = 600, MaxSentenceSeconds = 12, MaxWaitSeconds = 20 },
-            NullLogger<RealtimeCaptionPipeline>.Instance);
+            new SpeechOptionsProvider(new SpeechOptions { Language = "ja" }), NullLogger<RealtimeCaptionPipeline>.Instance);
 
         await pipeline.StartAsync(WavFileAudioReader.ReadAsync(wav!), "zh", CancellationToken.None);
 

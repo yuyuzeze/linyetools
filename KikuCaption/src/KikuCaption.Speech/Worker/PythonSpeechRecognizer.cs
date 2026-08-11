@@ -75,7 +75,10 @@ public sealed class PythonSpeechRecognizer : ISpeechRecognizer
             ComputeType = options.ComputeType,
             BeamSize = options.BeamSize,
             Language = options.Language,
-            ModelCacheDir = options.ModelCacheDirectory
+            ModelCacheDir = options.ModelCacheDirectory,
+            InitialPrompt = string.IsNullOrWhiteSpace(options.InitialPrompt) ? null : options.InitialPrompt,
+            // Structured on the wire (the worker joins it); validated/bounded by Hotwords.Normalize.
+            Hotwords = options.Hotwords is { Count: > 0 } ? Hotwords.Normalize(options.Hotwords) : null
         }, cancellationToken).ConfigureAwait(false);
 
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);

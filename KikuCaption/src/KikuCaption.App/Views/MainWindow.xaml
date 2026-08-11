@@ -252,9 +252,16 @@
                             </StackPanel>
                         </Grid>
 
+                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                            <TextBlock Text="代理（可选）" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <TextBox Width="300" Text="{Binding Proxy, UpdateSourceTrigger=PropertyChanged}"
+                                     ToolTip="公司代理，如 http://proxy.intra.example.com:8080；留空则用系统代理" />
+                        </StackPanel>
+
                         <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                             <Button Content="测试连接" Command="{Binding TestConnectionCommand}" Padding="12,4"
                                     IsEnabled="{Binding TestInProgress, Converter={StaticResource InverseBool}}" />
+                            <Button Content="保存设置" Command="{Binding SaveSettingsCommand}" Padding="12,4" Margin="8,0,0,0" />
                             <TextBlock Text="{Binding KeyStatusText}" VerticalAlignment="Center" Margin="12,0,0,0" Foreground="#444" />
                         </StackPanel>
 

@@ -20,6 +20,8 @@ public sealed record ProtocolMessage
     [JsonPropertyName("beamSize")] public int? BeamSize { get; init; }
     [JsonPropertyName("language")] public string? Language { get; init; }
     [JsonPropertyName("modelCacheDir")] public string? ModelCacheDir { get; init; }
+    [JsonPropertyName("initialPrompt")] public string? InitialPrompt { get; init; }
+    [JsonPropertyName("hotwords")] public IReadOnlyList<string>? Hotwords { get; init; }
 
     // ready
     [JsonPropertyName("modelLoadMs")] public double? ModelLoadMs { get; init; }

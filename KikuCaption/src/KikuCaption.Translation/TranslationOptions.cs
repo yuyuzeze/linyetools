@@ -27,6 +27,13 @@ public sealed class TranslationOptions
     public string ApiVersion { get; set; } = "";
     public TranslationAuthMode AuthenticationMode { get; set; } = TranslationAuthMode.Bearer;
     public string HeaderName { get; set; } = "Authorization";
+
+    /// <summary>
+    /// Optional corporate proxy, e.g. <c>http://proxy.intra.example.com:8080</c>. Empty = use the
+    /// Windows system proxy. Read live per request, so a change takes effect without a restart.
+    /// </summary>
+    public string Proxy { get; set; } = "";
+
     public int TimeoutSeconds { get; set; } = 30;
     public int MaxRetries { get; set; } = 3;
     public int MaxInputCharacters { get; set; } = 4000;

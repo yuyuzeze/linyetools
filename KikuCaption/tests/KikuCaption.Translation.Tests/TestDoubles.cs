@@ -60,6 +60,7 @@ internal sealed class SingleClientFactory : IHttpClientFactory
 internal sealed class FakeSecretStore : ITranslationSecretStore
 {
     private string? _secret;
+    private string? _endpoint;
 
     public FakeSecretStore(string? secret = "test-secret") => _secret = secret;
 
@@ -67,6 +68,11 @@ internal sealed class FakeSecretStore : ITranslationSecretStore
     public void Save(string secret) => _secret = secret;
     public string Read() => _secret ?? throw new InvalidOperationException("not configured");
     public void Delete() => _secret = null;
+
+    public bool HasEndpoint => _endpoint is not null;
+    public void SaveEndpoint(string endpoint) => _endpoint = endpoint;
+    public string? ReadEndpoint() => _endpoint;
+    public void DeleteEndpoint() => _endpoint = null;
 }
 
 /// <summary>A translator stub that records calls and returns/throws per script (queue tests).</summary>

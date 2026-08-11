@@ -1,3 +1,4 @@
+using KikuCaption.Core.Models;
 using KikuCaption.Audio.Capture;
 using KikuCaption.Audio.Wav;
 using KikuCaption.Speech.Stabilization;
@@ -47,7 +48,7 @@ public class RealtimePipelineIntegrationTests
         var options = Options();
         await using var pipeline = new RealtimeCaptionPipeline(
             RealModelSupport.RecognizerFactory(located.Value.Options), options,
-            NullLogger<RealtimeCaptionPipeline>.Instance);
+            new SpeechOptionsProvider(new SpeechOptions { Language = "ja" }), NullLogger<RealtimeCaptionPipeline>.Instance);
 
         var partials = new List<string>();
         var finals = new List<string>();
@@ -83,7 +84,7 @@ public class RealtimePipelineIntegrationTests
         var capture = new WasapiLoopbackAudioCaptureService(NullLogger<WasapiLoopbackAudioCaptureService>.Instance);
         await using var pipeline = new RealtimeCaptionPipeline(
             RealModelSupport.RecognizerFactory(located.Value.Options), Options(),
-            NullLogger<RealtimeCaptionPipeline>.Instance);
+            new SpeechOptionsProvider(new SpeechOptions { Language = "ja" }), NullLogger<RealtimeCaptionPipeline>.Instance);
 
         var partials = new List<string>();
         var finals = new List<string>();

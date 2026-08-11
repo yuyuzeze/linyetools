@@ -1,3 +1,4 @@
+using KikuCaption.Core.Models;
 using System.Diagnostics;
 using System.Globalization;
 using KikuCaption.Audio.Capture;
@@ -47,7 +48,7 @@ public class RealtimeStabilityTests
         await using var pipeline = new RealtimeCaptionPipeline(
             RealModelSupport.RecognizerFactory(located.Value.Options),
             new ProgressiveCaptionOptions { PartialIntervalMs = 800, MaxSentenceSeconds = 10, MaxWaitSeconds = 15 },
-            NullLogger<RealtimeCaptionPipeline>.Instance);
+            new SpeechOptionsProvider(new SpeechOptions { Language = "ja" }), NullLogger<RealtimeCaptionPipeline>.Instance);
 
         var main = Process.GetCurrentProcess();
         long startMain = main.WorkingSet64;

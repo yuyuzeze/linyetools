@@ -18,11 +18,14 @@ public sealed record UserSettings
     public string PreferredEncoder { get; init; } = "h264_qsv";
 
     public bool TranslationEnabled { get; init; }
-    public string TranslationEndpoint { get; init; } = "";
+
+    // NOTE: the Endpoint is intentionally NOT persisted here — it can embed a credential (e.g. a
+    // function key in the URL), so it is stored DPAPI-encrypted via ITranslationSecretStore instead.
     public string TranslationModel { get; init; } = "";
     public string TranslationApiVersion { get; init; } = "";
     public string TranslationAuthMode { get; init; } = "Bearer";
     public string TranslationHeaderName { get; init; } = "Authorization";
+    public string TranslationProxy { get; init; } = "";
 
     public double SubtitleFontSize { get; init; } = 26;
     public double SubtitleOpacity { get; init; } = 0.85;

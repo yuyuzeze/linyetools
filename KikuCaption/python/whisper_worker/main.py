@@ -84,16 +84,24 @@ def main() -> int:
                 compute_type = msg.get("computeType", "int8")
                 beam_size = int(msg.get("beamSize", 1))
                 download_root = msg.get("modelCacheDir") or args.download_root
+                initial_prompt = msg.get("initialPrompt")
+                hotwords = msg.get("hotwords")  # structured list; joined + capped in Recognizer
 
                 from recognizer import Recognizer
                 from streaming import AudioBuffer
 
                 start = time.time()
-                recognizer = Recognizer(model, device, compute_type, beam_size, download_root)
+                recognizer = Recognizer(
+                    model, device, compute_type, beam_size, download_root,
+                    initial_prompt=initial_prompt, hotwords=hotwords,
+                )
                 buffer = AudioBuffer(recognizer, language)
                 load_ms = (time.time() - start) * 1000.0
                 session_id = sid
-                log(f"model '{model}' loaded in {load_ms:.0f} ms (device={device}, compute={compute_type})")
+                # Never log the full glossary or prompt text — only counts (privacy, PROJECT.md 13).
+                hotword_count = len(hotwords) if isinstance(hotwords, list) else 0
+                log(f"model '{model}' loaded in {load_ms:.0f} ms (device={device}, compute={compute_type}, "
+                    f"beam={beam_size}, initialPrompt={'yes' if initial_prompt else 'no'}, hotwords={hotword_count})")
 
                 send({
                     "v": p.PROTOCOL_VERSION, "type": p.T_READY, "sessionId": sid, "seq": next_seq(),

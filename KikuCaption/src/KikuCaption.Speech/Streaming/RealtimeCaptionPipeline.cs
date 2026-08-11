@@ -27,25 +27,31 @@ public sealed class RealtimeCaptionPipeline : IAsyncDisposable
 
     private readonly Func<ISpeechRecognizer> _recognizerFactory;
     private readonly ProgressiveCaptionOptions _options;
+    private readonly ISpeechOptionsProvider _speechOptionsProvider;
     private readonly ILogger<RealtimeCaptionPipeline> _logger;
 
     private readonly object _bufferGate = new();
-    private readonly List<byte> _utterance = new();
+    private readonly SlidingWindowBuffer _window;
     private readonly TaskCompletionSource _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     private ISpeechRecognizer? _recognizer;
     private TranscriptStabilizer? _stabilizer;
     private Finalizer? _finalizer;
+    private ShortFragmentGate? _fragmentGate;
     private CancellationTokenSource? _cts;
     private Task? _ingestTask;
     private Task? _cycleTask;
 
     private Guid _sessionId;
-    private TimeSpan _utteranceStart;
     private DateTime _utteranceStartUtc;
     private TimeSpan _lastEnd;
     private long _silenceMs;
     private volatile bool _inputEnded;
+
+    // Monotonic-timestamp + seam-dedup state (sliding window).
+    private TimeSpan _lastFinalEnd;
+    private string _lastFinalText = string.Empty;
+    private bool _overlapActive;
 
     private int _partialCount;
     private int _finalCount;
@@ -54,7 +60,6 @@ public sealed class RealtimeCaptionPipeline : IAsyncDisposable
     private long _partialLatencyMs;
     private long _finalLatencyMs;
     private long _skippedCycles;
-    private long _droppedBytes;
     private int _stableUnchanged;
     private long _seq;
 
@@ -65,11 +70,14 @@ public sealed class RealtimeCaptionPipeline : IAsyncDisposable
     public RealtimeCaptionPipeline(
         Func<ISpeechRecognizer> recognizerFactory,
         ProgressiveCaptionOptions options,
+        ISpeechOptionsProvider speechOptionsProvider,
         ILogger<RealtimeCaptionPipeline> logger)
     {
         _recognizerFactory = recognizerFactory;
         _options = options;
+        _speechOptionsProvider = speechOptionsProvider;
         _logger = logger;
+        _window = new SlidingWindowBuffer(options.WindowSeconds, options.OverlapSeconds);
     }
 
     public event EventHandler<CaptionPartialEventArgs>? PartialUpdated;
@@ -110,7 +118,9 @@ public sealed class RealtimeCaptionPipeline : IAsyncDisposable
         try
         {
             _recognizer = _recognizerFactory();
-            await _recognizer.InitializeAsync(new SpeechOptions { Language = language }, cancellationToken).ConfigureAwait(false);
+            // Full config (model/device/compute/beam/cache) plus ONLY this language's prompt/hotwords —
+            // a zh session never receives the Japanese context and vice versa.
+            await _recognizer.InitializeAsync(_speechOptionsProvider.ForLanguage(language), cancellationToken).ConfigureAwait(false);
         }
         catch (Exception)
         {
@@ -128,6 +138,7 @@ public sealed class RealtimeCaptionPipeline : IAsyncDisposable
 
         _stabilizer = new TranscriptStabilizer(_options, _sessionId, language);
         _finalizer = new Finalizer(_options);
+        _fragmentGate = new ShortFragmentGate(_options);
         _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
         SetState(CaptionPipelineState.Running);
@@ -180,22 +191,12 @@ public sealed class RealtimeCaptionPipeline : IAsyncDisposable
 
                 lock (_bufferGate)
                 {
-                    if (_utterance.Count == 0)
+                    if (_window.ByteCount == 0)
                     {
-                        _utteranceStart = chunk.Timestamp;
                         _utteranceStartUtc = DateTime.UtcNow;
                     }
 
-                    _utterance.AddRange(span);
-
-                    // Hard memory bound (finalizer normally cuts sooner at MaxSentenceSeconds).
-                    int hardCap = (int)(_options.MaxSentenceSeconds * 2 * BytesPerSecond);
-                    if (_utterance.Count > hardCap)
-                    {
-                        int drop = _utterance.Count - hardCap;
-                        _utterance.RemoveRange(0, drop);
-                        Interlocked.Add(ref _droppedBytes, drop);
-                    }
+                    _window.Append(span, chunk.Timestamp);
                 }
 
                 if (rms < _options.SilenceRmsThreshold)
@@ -231,11 +232,11 @@ public sealed class RealtimeCaptionPipeline : IAsyncDisposable
                 await Task.Delay(_options.PartialIntervalMs, cancellationToken).ConfigureAwait(false);
 
                 byte[] snapshot;
-                TimeSpan utteranceStart;
+                TimeSpan windowStart;
                 lock (_bufferGate)
                 {
-                    snapshot = _utterance.ToArray();
-                    utteranceStart = _utteranceStart;
+                    // The audio sent to Whisper is the last WindowSeconds of the buffer (capped input).
+                    snapshot = _window.TranscriptionWindow(out windowStart);
                 }
 
                 bool ended = _inputEnded;
@@ -251,7 +252,7 @@ public sealed class RealtimeCaptionPipeline : IAsyncDisposable
                     continue;
                 }
 
-                await RunCycleAsync(snapshot, utteranceStart, ended, cancellationToken).ConfigureAwait(false);
+                await RunCycleAsync(snapshot, windowStart, ended, cancellationToken).ConfigureAwait(false);
 
                 if (ended)
                 {
@@ -287,29 +288,36 @@ public sealed class RealtimeCaptionPipeline : IAsyncDisposable
         }
     }
 
-    private async Task RunCycleAsync(byte[] snapshot, TimeSpan utteranceStart, bool ended, CancellationToken cancellationToken)
+    private async Task RunCycleAsync(byte[] snapshot, TimeSpan windowStart, bool ended, CancellationToken cancellationToken)
     {
         var stopwatch = Stopwatch.StartNew();
         string candidate = await TranscribeAsync(snapshot, cancellationToken).ConfigureAwait(false);
         stopwatch.Stop();
 
-        double audioSeconds = snapshot.Length / (double)BytesPerSecond;
+        double windowAudioSeconds = snapshot.Length / (double)BytesPerSecond;
         _lastInferenceMs = stopwatch.ElapsedMilliseconds;
-        _rtf = audioSeconds > 0 ? stopwatch.Elapsed.TotalSeconds / audioSeconds : 0;
+        _rtf = windowAudioSeconds > 0 ? stopwatch.Elapsed.TotalSeconds / windowAudioSeconds : 0;
         _partialLatencyMs = stopwatch.ElapsedMilliseconds;
         if (stopwatch.ElapsedMilliseconds > _options.PartialIntervalMs)
         {
             Interlocked.Increment(ref _skippedCycles); // behind real time (back-pressure signal)
         }
 
-        var endTime = utteranceStart + TimeSpan.FromSeconds(audioSeconds);
+        // Absolute end time of buffered audio (windowStart is the tail's start).
+        var endTime = windowStart + TimeSpan.FromSeconds(windowAudioSeconds);
         _lastEnd = endTime;
+
+        double utteranceSeconds;
+        lock (_bufferGate)
+        {
+            utteranceSeconds = _window.DurationSeconds;
+        }
 
         var update = new TranscriptUpdate
         {
             SessionId = _sessionId,
             Kind = TranscriptUpdateKind.FinalCandidate,
-            StartTime = utteranceStart,
+            StartTime = windowStart,
             EndTime = endTime,
             Text = candidate,
             Sequence = Interlocked.Increment(ref _seq)
@@ -326,46 +334,100 @@ public sealed class RealtimeCaptionPipeline : IAsyncDisposable
         });
 
         string pendingForPunct = result.StableText.Length > 0 ? result.StableText : result.PartialText;
+        int pendingRunes = CaptionText.SignificantCount(pendingForPunct);
+        bool endsWithPunct = CaptionText.EndsWithSentencePunctuation(pendingForPunct);
         var signals = new FinalizerSignals(
             HasPendingText: result.StableText.Trim().Length > 0 || result.PartialText.Trim().Length > 0,
-            EndsWithSentencePunctuation: CaptionText.EndsWithSentencePunctuation(pendingForPunct),
+            EndsWithSentencePunctuation: endsWithPunct,
             StableUnchangedCount: _stableUnchanged,
             SilenceMs: (int)Interlocked.Read(ref _silenceMs),
-            UtteranceSeconds: audioSeconds,
+            UtteranceSeconds: utteranceSeconds,
             WaitSeconds: (DateTime.UtcNow - _utteranceStartUtc).TotalSeconds,
             FlushRequested: ended);
 
         var reason = _finalizer!.Evaluate(signals);
         if (reason != FinalizeReason.None)
         {
-            FinalizeCurrent(reason, endTime);
+            // Briefly hold short, unpunctuated fragments so continuing speech can merge (「まどぐち」),
+            // while never losing a genuine short reply like「はい」.
+            if (_fragmentGate!.ShouldFinalize(reason, pendingRunes, endsWithPunct, Environment.TickCount64))
+            {
+                FinalizeCurrent(reason, endTime, slide: false);
+            }
+        }
+        else if (result.StableText.Trim().Length > 0)
+        {
+            // Continuous speech longer than the window with no natural boundary: commit the stable
+            // prefix and advance the window, keeping OverlapSeconds of context (real sliding window).
+            lock (_bufferGate)
+            {
+                if (_window.ExceedsWindow)
+                {
+                    FinalizeCurrent(FinalizeReason.MaxSentenceLength, endTime, slide: true);
+                }
+            }
         }
     }
 
-    private void FinalizeCurrent(FinalizeReason reason, TimeSpan endTime)
+    private void FinalizeCurrent(FinalizeReason reason, TimeSpan endTime, bool slide)
     {
         var segments = _stabilizer!.Flush(endTime);
         foreach (var segment in segments)
         {
-            _finalCount++;
-            _finalLatencyMs = (int)Interlocked.Read(ref _silenceMs);
-            FinalProduced?.Invoke(this, new CaptionFinalEventArgs
-            {
-                Text = segment.Text,
-                StartTime = segment.StartTime,
-                EndTime = segment.EndTime,
-                Reason = reason
-            });
+            EmitFinal(segment, reason);
         }
 
         lock (_bufferGate)
         {
-            _utterance.Clear();
-            _utteranceStart = default;
+            if (slide)
+            {
+                // Keep OverlapSeconds so the next window continues seamlessly.
+                _window.AdvanceKeepingOverlap(endTime);
+                _overlapActive = true;
+            }
+            else
+            {
+                _window.Clear();
+                _overlapActive = false;
+            }
         }
 
+        _fragmentGate?.Reset();
         _stableUnchanged = 0;
         Interlocked.Exchange(ref _silenceMs, 0);
+    }
+
+    /// <summary>
+    /// Emits one final: de-duplicates any leading text carried over an overlapping window seam, and
+    /// clamps the timestamps to be monotonic (never before the previous final's end).
+    /// </summary>
+    private void EmitFinal(TranscriptSegment segment, FinalizeReason reason)
+    {
+        string text = segment.Text;
+        if (_overlapActive && _lastFinalText.Length > 0)
+        {
+            text = SeamDedup.StripLeadingOverlap(_lastFinalText, text).Trim();
+        }
+
+        if (text.Length == 0)
+        {
+            return; // fully duplicated by the overlap — nothing new to emit
+        }
+
+        var start = segment.StartTime < _lastFinalEnd ? _lastFinalEnd : segment.StartTime;
+        var end = segment.EndTime < start ? start : segment.EndTime;
+        _lastFinalEnd = end;
+        _lastFinalText = text;
+
+        _finalCount++;
+        _finalLatencyMs = (int)Interlocked.Read(ref _silenceMs);
+        FinalProduced?.Invoke(this, new CaptionFinalEventArgs
+        {
+            Text = text,
+            StartTime = start,
+            EndTime = end,
+            Reason = reason
+        });
     }
 
     private async Task FinalizeFlushAsync()
@@ -378,14 +440,7 @@ public sealed class RealtimeCaptionPipeline : IAsyncDisposable
         var segments = _stabilizer.Flush(_lastEnd);
         foreach (var segment in segments)
         {
-            _finalCount++;
-            FinalProduced?.Invoke(this, new CaptionFinalEventArgs
-            {
-                Text = segment.Text,
-                StartTime = segment.StartTime,
-                EndTime = segment.EndTime,
-                Reason = FinalizeReason.FlushRequested
-            });
+            EmitFinal(segment, FinalizeReason.FlushRequested);
         }
 
         await Task.CompletedTask;
@@ -435,7 +490,7 @@ public sealed class RealtimeCaptionPipeline : IAsyncDisposable
     {
         lock (_bufferGate)
         {
-            return (int)(_utterance.Count / (double)BytesPerSecond * 1000);
+            return (int)(_window.ByteCount / (double)BytesPerSecond * 1000);
         }
     }
 
