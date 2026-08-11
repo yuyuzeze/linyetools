@@ -25,13 +25,17 @@
                     <TextBlock Text="KikuCaption" FontSize="16" FontWeight="Bold" VerticalAlignment="Center"
                                Margin="4,0,16,0" Foreground="{StaticResource AccentBrush}" />
                     <Button Content="首页" Style="{StaticResource NavButton}" Command="{Binding GoHomeCommand}"
+                            Tag="{Binding IsHomeSelected}"
                             AutomationProperties.Name="首页" ToolTip="返回会议首页" />
                     <Button Content="音频" Style="{StaticResource NavButton}" Command="{Binding GoAudioCommand}"
-                            AutomationProperties.Name="音频" ToolTip="系统音频捕获与本地语音识别（下一阶段）" />
+                            Tag="{Binding IsAudioSelected}"
+                            AutomationProperties.Name="音频" ToolTip="系统音频捕获与本地语音识别" />
                     <Button Content="词典" Style="{StaticResource NavButton}" Command="{Binding GoDictionaryCommand}"
+                            Tag="{Binding IsDictionarySelected}"
                             AutomationProperties.Name="词典" ToolTip="专业术语词典（下一阶段）" />
                     <Button Content="设置" Style="{StaticResource NavButton}" Command="{Binding GoSettingsCommand}"
-                            AutomationProperties.Name="设置" ToolTip="常用设置、字幕与翻译（下一阶段）" />
+                            Tag="{Binding IsSettingsSelected}"
+                            AutomationProperties.Name="设置" ToolTip="翻译等设置" />
                 </StackPanel>
 
                 <!-- Right: environment status cluster (dot + text + dropdown) -->

@@ -1,0 +1,70 @@
+<UserControl x:Class="KikuCaption.App.Views.Pages.SettingsPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel MaxWidth="720" HorizontalAlignment="Left">
+            <TextBlock Text="设置" FontSize="18" FontWeight="SemiBold" />
+            <TextBlock Text="常用设置与字幕设置将在后续阶段加入。以下为翻译配置。"
+                       Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,4,0,14" />
+
+            <!-- Translation configuration (relocated from the home page; behaviour unchanged) -->
+            <GroupBox Header="翻译" Padding="10" DataContext="{Binding Translation}">
+                <StackPanel>
+                    <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,8"
+                               Text="仅将 final 字幕文本发送到公司内部 OpenAI 兼容 API 翻译。不发送音频、partial 或视频。API Key 以 Windows DPAPI 加密保存在本机，不写入配置或日志。" />
+                    <CheckBox Content="启用翻译" IsChecked="{Binding Enabled}" Margin="0,0,0,8" />
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Endpoint" VerticalAlignment="Center" Margin="0,2,8,2" />
+                        <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding Endpoint, UpdateSourceTrigger=PropertyChanged}" Margin="0,2" />
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Model/Deployment" VerticalAlignment="Center" Margin="0,2,8,2" />
+                        <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Model, UpdateSourceTrigger=PropertyChanged}" Margin="0,2" />
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="API Version" VerticalAlignment="Center" Margin="0,2,8,2" />
+                        <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding ApiVersion, UpdateSourceTrigger=PropertyChanged}" Margin="0,2" />
+                        <TextBlock Grid.Row="3" Grid.Column="0" Text="认证模式" VerticalAlignment="Center" Margin="0,2,8,2" />
+                        <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal" Margin="0,2">
+                            <ComboBox Width="140" ItemsSource="{Binding AuthModes}" SelectedItem="{Binding AuthenticationMode}" />
+                            <TextBlock Text="Header 名" VerticalAlignment="Center" Margin="12,0,6,0" />
+                            <TextBox Width="140" Text="{Binding HeaderName, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+                        <TextBlock Grid.Row="4" Grid.Column="0" Text="API Key" VerticalAlignment="Center" Margin="0,2,8,2" />
+                        <StackPanel Grid.Row="4" Grid.Column="1" Orientation="Horizontal" Margin="0,2">
+                            <PasswordBox x:Name="ApiKeyBox" Width="220" />
+                            <Button Content="保存密钥" Click="SaveApiKey_Click" Margin="8,0,0,0" />
+                            <Button Content="清除密钥" Command="{Binding ClearApiKeyCommand}" Margin="6,0,0,0" />
+                        </StackPanel>
+                    </Grid>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                        <TextBlock Text="代理（可选）" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <TextBox Width="300" Text="{Binding Proxy, UpdateSourceTrigger=PropertyChanged}"
+                                 ToolTip="公司代理，如 http://proxy.intra.example.com:8080；留空则用系统代理" />
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                        <Button Content="测试连接" Command="{Binding TestConnectionCommand}"
+                                IsEnabled="{Binding TestInProgress, Converter={StaticResource InverseBool}}" />
+                        <Button Content="保存设置" Style="{StaticResource PrimaryButton}" Margin="8,0,0,0"
+                                Command="{Binding SaveSettingsCommand}" />
+                        <TextBlock Text="{Binding KeyStatusText}" VerticalAlignment="Center" Margin="12,0,0,0" Foreground="{StaticResource MutedBrush}" />
+                    </StackPanel>
+
+                    <TextBlock Text="{Binding TestStatus}" TextWrapping="Wrap" Margin="0,8,0,0" Foreground="{StaticResource AccentBrush}" />
+                    <TextBlock Text="{Binding QueueStatus}" Margin="0,2,0,0" Foreground="{StaticResource MutedBrush}" />
+                    <TextBlock Text="{Binding LastErrorText}" TextWrapping="Wrap" Margin="0,2,0,0" Foreground="#B26A00" />
+                </StackPanel>
+            </GroupBox>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

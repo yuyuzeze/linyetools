@@ -1,0 +1,56 @@
+<UserControl x:Class="KikuCaption.App.Views.Pages.AudioPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel MaxWidth="820" HorizontalAlignment="Left">
+            <TextBlock Text="音频工具" FontSize="18" FontWeight="SemiBold" />
+            <TextBlock Text="用于验证系统音频采集与本地识别的诊断工具，与会议流程独立。"
+                       Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,4,0,14" />
+
+            <!-- System audio capture -->
+            <GroupBox Header="系统音频捕获" Padding="10" DataContext="{Binding Capture}">
+                <StackPanel>
+                    <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,8"
+                               Text="将系统输出声音录制为 16 kHz / 单声道 / 16-bit PCM 的 WAV。请在捕获期间播放音频。" />
+                    <StackPanel Orientation="Horizontal">
+                        <Button Content="开始捕获…" Click="StartCapture_Click" MinWidth="110"
+                                IsEnabled="{Binding IsCapturing, Converter={StaticResource InverseBool}}" />
+                        <Button Content="停止" Command="{Binding StopCommand}" MinWidth="80" Margin="8,0,0,0"
+                                IsEnabled="{Binding IsCapturing}" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" Margin="0,8,0,0" />
+                    <TextBlock Text="{Binding OutputPath}" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                    <TextBlock Text="{Binding ErrorMessage}" Foreground="{StaticResource DangerBrush}" TextWrapping="Wrap" Margin="0,4,0,0"
+                               Visibility="{Binding HasError, Converter={StaticResource BoolToVisibility}}" />
+                </StackPanel>
+            </GroupBox>
+
+            <!-- Local speech recognition -->
+            <GroupBox Header="本地语音识别" Margin="0,12,0,0" Padding="10" DataContext="{Binding Speech}">
+                <StackPanel>
+                    <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,8"
+                               Text="用本地 faster-whisper 识别一个 WAV 文件，输出带时间戳的文本。首次会加载模型。" />
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="识别语言：" VerticalAlignment="Center" />
+                        <ComboBox ItemsSource="{Binding Languages}" SelectedItem="{Binding SelectedLanguage}"
+                                  Width="80" Margin="6,0,0,0" IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
+                        <Button Content="识别 WAV 文件…" Click="RecognizeWav_Click" MinWidth="130" Margin="12,0,0,0"
+                                IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}" />
+                        <ProgressBar IsIndeterminate="True" Width="120" Height="6" Margin="12,0,0,0"
+                                     Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" Margin="0,8,0,0" />
+                    <TextBlock Text="{Binding ErrorMessage}" Foreground="{StaticResource DangerBrush}" TextWrapping="Wrap" Margin="0,4,0,0"
+                               Visibility="{Binding HasError, Converter={StaticResource BoolToVisibility}}" />
+                    <ItemsControl ItemsSource="{Binding Results}" Margin="0,6,0,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding}" TextWrapping="Wrap" FontFamily="Consolas" Margin="0,1,0,1" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </GroupBox>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

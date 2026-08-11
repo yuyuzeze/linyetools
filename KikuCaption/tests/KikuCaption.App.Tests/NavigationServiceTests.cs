@@ -82,4 +82,30 @@ public class NavigationServiceTests
         var nav = new NavigationService();
         Assert.Throws<InvalidOperationException>(() => nav.Navigate(PageKey.Settings));
     }
+
+    // UI-R2 detail 9: switching pages must never rebuild or stop the running (home) session — the
+    // cached page view model, and any state it holds, survives navigating away and back.
+    private sealed class RunningSessionVm { public bool IsRunning { get; set; } }
+
+    [Fact]
+    public void RunningSession_SurvivesNavigationAwayAndBack()
+    {
+        var nav = new NavigationService();
+        var home = new RunningSessionVm();
+        int homeBuilds = 0;
+        nav.Register(PageKey.Home, () => { homeBuilds++; return home; });
+        nav.Register(PageKey.Audio, () => new object());
+        nav.Register(PageKey.Settings, () => new object());
+
+        nav.Navigate(PageKey.Home);
+        ((RunningSessionVm)nav.CurrentViewModel!).IsRunning = true; // session running
+
+        nav.Navigate(PageKey.Audio);    // visit another page
+        nav.Navigate(PageKey.Settings); // and another
+        nav.Navigate(PageKey.Home);     // back home
+
+        Assert.Same(home, nav.CurrentViewModel);                        // same instance, not rebuilt
+        Assert.True(((RunningSessionVm)nav.CurrentViewModel!).IsRunning); // session state preserved
+        Assert.Equal(1, homeBuilds);                                    // home built exactly once
+    }
 }

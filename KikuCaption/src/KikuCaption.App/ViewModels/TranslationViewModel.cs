@@ -37,6 +37,7 @@ public sealed partial class TranslationViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(KeyStatusText))]
+    [NotifyPropertyChangedFor(nameof(IsConfigured))]
     private bool _isKeyConfigured;
 
     [ObservableProperty] private string _testStatus = string.Empty;
@@ -76,6 +77,27 @@ public sealed partial class TranslationViewModel : ObservableObject
     public IReadOnlyList<string> AuthModes { get; } = new[] { "Bearer", "ApiKeyHeader", "None" };
 
     public string KeyStatusText => IsKeyConfigured ? "API Key：已配置" : "API Key：未配置";
+
+    /// <summary>
+    /// Display-only current translation direction, e.g. "日本語 → 中文" (UI-R2 home quick control).
+    /// Derived from the configured source/target languages; the dynamic "source follows recognition
+    /// language" behaviour and target selection are UI-R4, not implemented here.
+    /// </summary>
+    public string DirectionText => $"{LanguageName(_options.SourceLanguage)} → {LanguageName(_options.TargetLanguage)}";
+
+    /// <summary>True when a usable translation configuration exists (endpoint + model, and a key unless auth is None).</summary>
+    public bool IsConfigured =>
+        Uri.TryCreate(_options.Endpoint, UriKind.Absolute, out var u) && u.Scheme == Uri.UriSchemeHttps
+        && !string.IsNullOrWhiteSpace(_options.Model)
+        && (_options.AuthenticationMode == TranslationAuthMode.None || IsKeyConfigured);
+
+    private static string LanguageName(string? code) => (code ?? string.Empty).ToLowerInvariant() switch
+    {
+        "ja" => "日本語",
+        "zh" => "中文",
+        "en" => "English",
+        _ => code ?? string.Empty
+    };
 
     // Keep the live options in sync as the user edits the panel.
     partial void OnEnabledChanged(bool value) => _options.Enabled = value;

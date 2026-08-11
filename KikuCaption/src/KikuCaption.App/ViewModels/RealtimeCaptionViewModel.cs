@@ -24,7 +24,7 @@ namespace KikuCaption.App.ViewModels;
 /// storage (Milestone 4). Marshals pipeline/recorder events onto the UI thread. No recognition,
 /// stabilization or persistence logic lives here — only orchestration.
 /// </summary>
-public partial class RealtimeCaptionViewModel : ObservableObject
+public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptureTargetSink
 {
     private readonly Func<IAudioCaptureService> _captureFactory;
     private readonly Func<RealtimeCaptionPipeline> _pipelineFactory;
@@ -161,6 +161,19 @@ public partial class RealtimeCaptionViewModel : ObservableObject
 
     /// <summary>Titles of visible top-level windows for the window-capture picker.</summary>
     public ObservableCollection<string> Windows { get; } = new();
+
+    /// <summary>The live capture target — read to seed the start dialog draft (UI-R2).</summary>
+    public MeetingCaptureTarget CaptureTarget => new(SelectedCaptureType, IsWindowCapture ? SelectedWindow : null);
+
+    /// <summary>
+    /// Applies a chosen capture target. This is the only path the start dialog uses to write the
+    /// target, and it is invoked once, on confirm — never during editing (UI-R2 dialog-draft fix).
+    /// </summary>
+    public void ApplyCaptureTarget(MeetingCaptureTarget target)
+    {
+        SelectedCaptureType = target.CaptureType;
+        SelectedWindow = target.WindowTitle;
+    }
 
     [RelayCommand]
     private void RefreshWindows()

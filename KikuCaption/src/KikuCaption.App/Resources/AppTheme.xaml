@@ -16,6 +16,8 @@
     <SolidColorBrush x:Key="WindowBrush" Color="#FBFBFC" />
     <SolidColorBrush x:Key="BarBrush" Color="#FFFFFF" />
     <SolidColorBrush x:Key="NavHoverBrush" Color="#EDEFF2" />
+    <SolidColorBrush x:Key="NavSelectedBrush" Color="#E3EDF9" />
+    <SolidColorBrush x:Key="FocusRingBrush" Color="#005FB8" />
     <SolidColorBrush x:Key="TextBrush" Color="#1A1A1A" />
 
     <!-- ==================== Typography ==================== -->
@@ -35,6 +37,7 @@
         <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="Padding" Value="12,6" />
+        <Setter Property="MinHeight" Value="32" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="SnapsToDevicePixels" Value="True" />
         <Setter Property="Template">
@@ -115,22 +118,38 @@
         </Setter>
     </Style>
 
-    <!-- ==================== Top-bar navigation button ==================== -->
+    <!-- ==================== Top-bar navigation button ====================
+         Supports hover, keyboard-focus ring, and a selected state driven by the button's Tag
+         (bound to a shell "IsXSelected" flag). FocusVisualStyle is cleared because the template
+         draws its own accessible focus ring (UI-R2 detail 1). -->
     <Style x:Key="NavButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="Padding" Value="12,7" />
+        <Setter Property="MinHeight" Value="30" />
         <Setter Property="FontSize" Value="13" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="5" SnapsToDevicePixels="True">
-                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                    <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="5"
+                            BorderBrush="{StaticResource FocusRingBrush}" BorderThickness="0" SnapsToDevicePixels="True">
+                        <ContentPresenter x:Name="Cp" HorizontalAlignment="Center" VerticalAlignment="Center"
                                           Margin="{TemplateBinding Padding}" />
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="Bd" Property="Background" Value="{StaticResource NavHoverBrush}" />
+                        </Trigger>
+                        <!-- Selected page: Tag is bound to the shell's IsXSelected flag. -->
+                        <Trigger Property="Tag" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource NavSelectedBrush}" />
+                            <Setter TargetName="Cp" Property="TextElement.Foreground" Value="{StaticResource AccentBrush}" />
+                            <Setter TargetName="Cp" Property="TextElement.FontWeight" Value="SemiBold" />
+                        </Trigger>
+                        <!-- Keyboard focus: visible accessible ring. -->
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Bd" Property="BorderThickness" Value="2" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -164,6 +183,12 @@
     </DataTemplate>
     <DataTemplate DataType="{x:Type vmp:EnvironmentPageViewModel}">
         <pages:EnvironmentPage />
+    </DataTemplate>
+    <DataTemplate DataType="{x:Type vmp:AudioPageViewModel}">
+        <pages:AudioPage />
+    </DataTemplate>
+    <DataTemplate DataType="{x:Type vmp:SettingsPageViewModel}">
+        <pages:SettingsPage />
     </DataTemplate>
     <DataTemplate DataType="{x:Type vmp:PlaceholderPageViewModel}">
         <pages:PlaceholderPage />

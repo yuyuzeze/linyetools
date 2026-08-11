@@ -1,0 +1,49 @@
+<Window x:Class="KikuCaption.App.Views.StartMeetingDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="开始会议" Width="520" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        Background="{StaticResource WindowBrush}" ShowInTaskbar="False">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="开始会议" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,4" />
+        <TextBlock Grid.Row="1" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,0,0,16"
+                   Text="选择录制目标并开始。字幕与录屏会保存到下方输出目录。" />
+
+        <!-- Capture target (edits the draft only; the main view model is untouched until confirm) -->
+        <StackPanel Grid.Row="2">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="录制目标：" VerticalAlignment="Center" Width="72" />
+                <ComboBox Width="130" SelectedValuePath="Tag" SelectedValue="{Binding CaptureType}">
+                    <ComboBoxItem Content="整个屏幕" Tag="screen" />
+                    <ComboBoxItem Content="指定窗口" Tag="window" />
+                </ComboBox>
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" Margin="72,10,0,0"
+                        Visibility="{Binding IsWindowCapture, Converter={StaticResource BoolToVisibility}}">
+                <ComboBox Width="280" ItemsSource="{Binding Windows}" SelectedItem="{Binding SelectedWindow}" />
+                <Button Content="刷新窗口" Command="{Binding RefreshWindowsCommand}" Margin="8,0,0,0" Padding="10,4" />
+            </StackPanel>
+        </StackPanel>
+
+        <StackPanel Grid.Row="3" Margin="0,18,0,0">
+            <TextBlock Text="输出位置" FontWeight="SemiBold" />
+            <TextBlock Text="{Binding OutputRoot}" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap"
+                       FontFamily="Consolas" FontSize="12" Margin="0,2,0,0" />
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,18,0,0">
+                <!-- IsCancel makes Esc (and window-close) resolve to cancel without touching the draft. -->
+                <Button Content="取消" MinWidth="88" IsCancel="True" />
+                <Button Content="开始会议" Style="{StaticResource PrimaryButton}" MinWidth="110" Margin="10,0,0,0"
+                        Click="Start_Click" IsDefault="True" IsEnabled="{Binding CanStart}" />
+            </StackPanel>
+        </StackPanel>
+    </Grid>
+</Window>

@@ -21,9 +21,27 @@ public partial class ShellViewModel : ObservableObject
         Navigation = navigation;
         Home = home;
         Environment = environment;
+
+        // Re-raise the per-item "selected" flags whenever the current page changes, so the top-bar
+        // navigation highlights the active page (UI-R2 detail 1).
+        Navigation.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(INavigationService.CurrentPage))
+            {
+                OnPropertyChanged(nameof(IsHomeSelected));
+                OnPropertyChanged(nameof(IsAudioSelected));
+                OnPropertyChanged(nameof(IsDictionarySelected));
+                OnPropertyChanged(nameof(IsSettingsSelected));
+            }
+        };
     }
 
     public INavigationService Navigation { get; }
+
+    public bool IsHomeSelected => Navigation.CurrentPage == PageKey.Home;
+    public bool IsAudioSelected => Navigation.CurrentPage == PageKey.Audio;
+    public bool IsDictionarySelected => Navigation.CurrentPage == PageKey.Dictionary;
+    public bool IsSettingsSelected => Navigation.CurrentPage == PageKey.Settings;
 
     /// <summary>Home page — exposed so the window can safely stop a running session on close.</summary>
     public HomePageViewModel Home { get; }
