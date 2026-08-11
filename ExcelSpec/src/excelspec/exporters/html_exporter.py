@@ -171,6 +171,7 @@ class HtmlExporter:
                     content.append("</dl>")
 
                 if region.metadata.get("readable_mode") == "screenshot":
+                    rendered_one = False
                     for asset_id in region.asset_ids:
                         asset = assets.get(asset_id)
                         if asset is None or asset_id in rendered_assets:
@@ -179,6 +180,13 @@ class HtmlExporter:
                             continue
                         content.append(_asset_html(asset, destination))
                         rendered_assets.add(asset_id)
+                        rendered_one = True
+                    if not rendered_one:
+                        status = region.metadata.get("screenshot_status", "missing")
+                        content.append(
+                            f'<p class="screenshot-missing">区域截图不可用（{status}）'
+                            f"，请查看 diagnostics.json <code>template.screenshot_failed</code>。</p>"
+                        )
                     content.append("</section>")
                     continue
 

@@ -143,6 +143,7 @@ class MarkdownExporter:
                     lines.append("")
 
                 if region.metadata.get("readable_mode") == "screenshot":
+                    rendered_one = False
                     for asset_id in region.asset_ids:
                         asset = assets.get(asset_id)
                         if asset is None or asset_id in rendered_assets:
@@ -151,6 +152,16 @@ class MarkdownExporter:
                             continue
                         lines.extend([_render_asset(asset, destination), ""])
                         rendered_assets.add(asset_id)
+                        rendered_one = True
+                    if not rendered_one:
+                        status = region.metadata.get("screenshot_status", "missing")
+                        lines.extend(
+                            [
+                                f"> 区域截图不可用（{status}），请查看 diagnostics.json "
+                                f"`template.screenshot_failed` 了解原因。",
+                                "",
+                            ]
+                        )
                     continue
 
                 if should_interleave_region(region):
