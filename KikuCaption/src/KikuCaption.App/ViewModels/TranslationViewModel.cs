@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using KikuCaption.App.Localization;
 using KikuCaption.Core.Interfaces;
+using KikuCaption.Core.Models;
 using KikuCaption.Infrastructure.Configuration;
 using KikuCaption.Translation;
 using KikuCaption.Translation.Security;
@@ -29,6 +30,17 @@ public sealed partial class TranslationViewModel : ObservableObject
     private readonly HashSet<Guid> _active = new();
 
     [ObservableProperty] private bool _enabled;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DirectionText))]
+    [NotifyPropertyChangedFor(nameof(IsConfigured))]
+    [NotifyPropertyChangedFor(nameof(IsSameLanguage))]
+    private string _targetLanguage = "zh";
+
+    /// <summary>True when the (recognition-following) source equals the target — nothing to translate.</summary>
+    public bool IsSameLanguage =>
+        string.Equals(_options.SourceLanguage, TargetLanguage, StringComparison.OrdinalIgnoreCase);
+
     [ObservableProperty] private string _endpoint = string.Empty;
     [ObservableProperty] private string _model = string.Empty;
     [ObservableProperty] private string _apiVersion = string.Empty;
@@ -36,6 +48,7 @@ public sealed partial class TranslationViewModel : ObservableObject
     [ObservableProperty] private string _headerName = "Authorization";
     [ObservableProperty] private string _proxy = string.Empty;
     [ObservableProperty] private int _timeoutSeconds = 30;
+    [ObservableProperty] private int _maxRetries = 3;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(KeyStatusText))]
@@ -63,7 +76,12 @@ public sealed partial class TranslationViewModel : ObservableObject
         _settingsStore = settingsStore;
         _loc = localization;
         _logger = logger;
-        _loc.LanguageChanged += (_, _) => Dispatch(() => OnPropertyChanged(nameof(DirectionText)));
+        _loc.LanguageChanged += (_, _) => Dispatch(() =>
+        {
+            OnPropertyChanged(nameof(DirectionText));
+            OnPropertyChanged(nameof(KeyStatusText));
+            RefreshQueueStatus();
+        });
 
         // Seed from the current options (already overlaid with persisted settings at startup).
         _enabled = options.Enabled;
@@ -74,14 +92,23 @@ public sealed partial class TranslationViewModel : ObservableObject
         _headerName = options.HeaderName;
         _proxy = options.Proxy;
         _timeoutSeconds = options.TimeoutSeconds;
+        _maxRetries = options.MaxRetries;
+        _targetLanguage = string.IsNullOrWhiteSpace(options.TargetLanguage) ? "zh" : options.TargetLanguage;
         _isKeyConfigured = _secrets.IsConfigured;
 
         _queue.OutcomeChanged += OnOutcomeChanged;
+        RefreshQueueStatus(); // localized initial "Idle"
     }
 
     public IReadOnlyList<string> AuthModes { get; } = new[] { "Bearer", "ApiKeyHeader", "None" };
 
-    public string KeyStatusText => IsKeyConfigured ? "API Key：已配置" : "API Key：未配置";
+    /// <summary>Selectable target languages (stable codes; display is localized in the view).</summary>
+    public IReadOnlyList<string> TargetLanguages { get; } = new[] { "zh", "en", "ja" };
+
+    // Keep the live options + persisted setting in sync as the user picks a target (UI-R4A).
+    partial void OnTargetLanguageChanged(string value) => _options.TargetLanguage = string.IsNullOrWhiteSpace(value) ? "zh" : value;
+
+    public string KeyStatusText => _loc[IsKeyConfigured ? "Tr.KeyConfigured" : "Tr.KeyNotConfigured"];
 
     /// <summary>
     /// Display-only current translation direction, e.g. "日本語 → 中文" (UI-R2 home quick control).
@@ -104,7 +131,11 @@ public sealed partial class TranslationViewModel : ObservableObject
     partial void OnApiVersionChanged(string value) => _options.ApiVersion = value?.Trim() ?? string.Empty;
     partial void OnHeaderNameChanged(string value) => _options.HeaderName = string.IsNullOrWhiteSpace(value) ? "Authorization" : value.Trim();
     partial void OnProxyChanged(string value) => _options.Proxy = value?.Trim() ?? string.Empty;
-    partial void OnTimeoutSecondsChanged(int value) => _options.TimeoutSeconds = value;
+    // Clamp to valid ranges so an out-of-range value can never be applied or saved (UI-R4A fix).
+    // A non-numeric TextBox entry fails WPF binding validation and leaves the property unchanged
+    // (no crash); these clamps guard the numeric range.
+    partial void OnTimeoutSecondsChanged(int value) => _options.TimeoutSeconds = Math.Clamp(value, 1, 300);
+    partial void OnMaxRetriesChanged(int value) => _options.MaxRetries = Math.Clamp(value, 0, 10);
 
     /// <summary>
     /// Saves the translation config so it is restored next launch. Non-secret fields go to
@@ -124,7 +155,10 @@ public sealed partial class TranslationViewModel : ObservableObject
                 TranslationApiVersion = ApiVersion?.Trim() ?? string.Empty,
                 TranslationAuthMode = AuthenticationMode,
                 TranslationHeaderName = string.IsNullOrWhiteSpace(HeaderName) ? "Authorization" : HeaderName.Trim(),
-                TranslationProxy = Proxy?.Trim() ?? string.Empty
+                TranslationProxy = Proxy?.Trim() ?? string.Empty,
+                TranslationTargetLanguage = string.IsNullOrWhiteSpace(TargetLanguage) ? "zh" : TargetLanguage,
+                TranslationTimeoutSeconds = Math.Clamp(TimeoutSeconds, 1, 300),
+                TranslationMaxRetries = Math.Clamp(MaxRetries, 0, 10)
             });
 
             if (string.IsNullOrWhiteSpace(Endpoint))
@@ -136,12 +170,12 @@ public sealed partial class TranslationViewModel : ObservableObject
                 _secrets.SaveEndpoint(Endpoint.Trim());
             }
 
-            TestStatus = "翻译设置已保存（Endpoint 已加密，下次打开自动读取）。";
+            TestStatus = _loc["Tr.SettingsSaved"];
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to save translation settings.");
-            TestStatus = "保存翻译设置失败。";
+            TestStatus = _loc["Tr.SettingsSaveFailed"];
         }
     }
 
@@ -194,34 +228,45 @@ public sealed partial class TranslationViewModel : ObservableObject
     [RelayCommand]
     private async Task TestConnectionAsync()
     {
+        // Same-language: nothing to translate — validate config / ask for a different target, no call.
+        if (string.Equals(_options.SourceLanguage, _options.TargetLanguage, StringComparison.OrdinalIgnoreCase))
+        {
+            TestStatus = _loc["Tr.TestSameLanguage"];
+            return;
+        }
+
         TestInProgress = true;
-        TestStatus = "正在测试连接……";
+        TestStatus = _loc["Tr.Test.Testing"];
         try
         {
-            // Fixed, non-sensitive text — never a real meeting subtitle.
+            // Fixed, non-sensitive text — never a real meeting subtitle. Validates the request format
+            // for the CURRENT source/target direction.
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(Math.Clamp(_options.TimeoutSeconds, 1, 60)));
-            var result = await _translator.TranslateAsync("テスト接続", _options.SourceLanguage, _options.TargetLanguage, cts.Token);
-            TestStatus = string.IsNullOrWhiteSpace(result) ? "连接成功，但返回为空。" : "连接成功。";
+            // Current prompt version (v2), current source/target, and the configured model.
+            var request = new TranslationRequest("connection test", _options.SourceLanguage, _options.TargetLanguage,
+                _options.Model, TranslationPrompt.Version);
+            var result = await _translator.TranslateAsync(request, cts.Token);
+            TestStatus = _loc[string.IsNullOrWhiteSpace(result) ? "Tr.Test.Empty" : "Tr.Test.Success"];
         }
         catch (TranslationException ex)
         {
-            TestStatus = ex.Code switch
+            TestStatus = _loc[ex.Code switch
             {
-                Core.Enums.TranslationErrorCode.Auth => "认证失败（请检查 API Key / 认证模式）。",
-                Core.Enums.TranslationErrorCode.RateLimited => "被限流（429）。",
-                Core.Enums.TranslationErrorCode.ServiceUnavailable => "服务暂时不可用（5xx）。",
-                Core.Enums.TranslationErrorCode.Timeout => "连接超时。",
-                Core.Enums.TranslationErrorCode.Network => "网络错误。",
-                Core.Enums.TranslationErrorCode.InvalidConfig => "配置无效（Endpoint / HTTPS / Key）。",
-                _ => "连接失败：" + ex.Code
-            };
+                Core.Enums.TranslationErrorCode.Auth => "Tr.Test.Auth",
+                Core.Enums.TranslationErrorCode.RateLimited => "Tr.Test.RateLimited",
+                Core.Enums.TranslationErrorCode.ServiceUnavailable => "Tr.Test.Unavailable",
+                Core.Enums.TranslationErrorCode.Timeout => "Tr.Test.Timeout",
+                Core.Enums.TranslationErrorCode.Network => "Tr.Test.Network",
+                Core.Enums.TranslationErrorCode.InvalidConfig => "Tr.Test.InvalidConfig",
+                _ => "Tr.Test.Failed"
+            }];
             // Never log the key or response body.
             _logger.LogWarning("Test connection failed ({Code}).", ex.Code);
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Test connection error.");
-            TestStatus = "连接失败。";
+            TestStatus = _loc["Tr.Test.Failed"];
         }
         finally
         {
@@ -247,12 +292,17 @@ public sealed partial class TranslationViewModel : ObservableObject
 
             if (outcome.ErrorCode != Core.Enums.TranslationErrorCode.None)
             {
-                LastErrorText = "最近错误：" + outcome.ErrorCode;
+                LastErrorText = string.Format(_loc["Tr.LastError"], outcome.ErrorCode);
             }
 
-            QueueStatus = _active.Count == 0 ? "空闲" : $"翻译队列：{_active.Count} 条处理中";
+            RefreshQueueStatus();
         });
     }
+
+    // Localized queue status ("Idle" / "Translation queue: N in progress"), refreshed on outcome or
+    // UI-language change.
+    private void RefreshQueueStatus()
+        => QueueStatus = _active.Count == 0 ? _loc["Tr.QueueIdle"] : string.Format(_loc["Tr.QueueBusy"], _active.Count);
 
     private static void Dispatch(Action action)
     {

@@ -34,17 +34,18 @@
                     </ComboBox>
                 </StackPanel>
 
-                <!-- Translation toggle + direction (direction dimmed when translation is off) -->
+                <!-- Translation toggle + direction (source follows recognition; target from session
+                     snapshot while running). Prefix: 翻译中/无需翻译; dimmed when off or same-language. -->
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="20,0,0,0">
                     <CheckBox Content="{loc:Loc Home.Translation}" IsChecked="{Binding Translation.Enabled}" VerticalAlignment="Center" />
-                    <TextBlock Text="{Binding Translation.DirectionText}" VerticalAlignment="Center" Margin="8,0,0,0"
-                               Foreground="{StaticResource MutedBrush}">
+                    <TextBlock VerticalAlignment="Center" Margin="8,0,0,0" Foreground="{StaticResource MutedBrush}">
+                        <Run Text="{Binding TranslationPrefix, Mode=OneWay}" /><Run Text="{Binding TranslationDirectionText, Mode=OneWay}" />
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">
-                                <Setter Property="Opacity" Value="0.4" />
+                                <Setter Property="Opacity" Value="1.0" />
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding Translation.Enabled}" Value="True">
-                                        <Setter Property="Opacity" Value="1.0" />
+                                    <DataTrigger Binding="{Binding TranslationDimmed}" Value="True">
+                                        <Setter Property="Opacity" Value="0.4" />
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
@@ -115,7 +116,7 @@
                         <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Realtime.SelectedLanguageDisplay}" Margin="0,0,0,6" />
 
                         <TextBlock Grid.Row="3" Grid.Column="0" Text="{loc:Loc Session.Direction}" Foreground="{StaticResource MutedBrush}" Margin="0,0,10,6" />
-                        <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding Translation.DirectionText}" Margin="0,0,0,6" />
+                        <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding TranslationDirectionText}" Margin="0,0,0,6" />
 
                         <TextBlock Grid.Row="4" Grid.Column="0" Text="{loc:Loc Session.Recording}" Foreground="{StaticResource MutedBrush}" Margin="0,0,10,6" />
                         <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding Realtime.RecorderStatus}" TextWrapping="Wrap" Margin="0,0,0,6" />

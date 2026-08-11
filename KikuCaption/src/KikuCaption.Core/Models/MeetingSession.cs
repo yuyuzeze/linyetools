@@ -17,4 +17,14 @@ public sealed record MeetingSession
 
     /// <summary>Path to the recorded MP4, when recording is enabled.</summary>
     public string? RecordingPath { get; init; }
+
+    // UI-R4A: immutable translation direction chosen when this meeting started (null for legacy
+    // sessions). Recorded in session.json and used to keep a whole session's translation.srt in one
+    // target language, even across crash recovery.
+    public bool? TranslationEnabled { get; init; }
+    public string? TranslationSource { get; init; }
+    public string? TranslationTarget { get; init; }
+
+    /// <summary>The translation model chosen when this meeting started (null for legacy sessions).</summary>
+    public string? TranslationModel { get; init; }
 }

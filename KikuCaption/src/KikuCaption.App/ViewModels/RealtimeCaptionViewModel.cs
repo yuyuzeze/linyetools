@@ -57,6 +57,9 @@ public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptur
     private DateTime _lastMp4SampleUtc = DateTime.UtcNow;
     private readonly HashSet<Guid> _activeTranslations = new();
 
+    // UI-R4A: immutable translation-direction snapshot for the running meeting (null when idle).
+    private SessionTranslationOptions? _sessionTranslation;
+
     private RealtimeCaptionPipeline? _pipeline;
     private IAudioCaptureService? _capture;
     private IScreenRecorder? _screenRecorder;
@@ -144,6 +147,8 @@ public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptur
         SetRecorder(recordingRuntime.FFmpegPath is null ? "Recorder.NoFFmpeg" : "Recorder.Ready");
         // Re-localize the long-lived status strings live when the UI language changes (UI-R3).
         _loc.LanguageChanged += (_, _) => Dispatch(RefreshLocalizedText);
+        // UI-R4A: the live translation source always follows the recognition language (idle preview).
+        _translationOptions.SourceLanguage = SelectedLanguage;
         RefreshWindows();
 
         _recorder.SavedFinal += (_, _) => Dispatch(RefreshStorageStatus);
@@ -194,8 +199,17 @@ public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptur
         SelectedWindow = target.WindowTitle;
     }
 
+    // UI-R4A: keep the translation source following the recognition language (idle direction preview).
+    partial void OnSelectedLanguageChanged(string value) => _translationOptions.SourceLanguage = value;
+
     /// <summary>Localized display name of the recognition language (e.g. 日本語 / Japanese).</summary>
     public string SelectedLanguageDisplay => _loc["Lang." + SelectedLanguage];
+
+    /// <summary>The running session's snapshot source language (recognition), or null when idle (UI-R4A).</summary>
+    public string? SessionSourceLanguage => _sessionTranslation?.SourceLanguage;
+
+    /// <summary>The running session's snapshot target language, or null when idle (UI-R4A).</summary>
+    public string? SessionTargetLanguage => _sessionTranslation?.TargetLanguage;
 
     // Status/recorder text are stored as resource keys so they re-localize on a language switch.
     private void SetStatus(string key)
@@ -303,6 +317,17 @@ public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptur
 
             await _pipeline.StartAsync(_capture.CaptureAsync(_cts.Token), SelectedLanguage, _cts.Token);
 
+            // UI-R4A: snapshot the translation direction now (source = recognition language; target =
+            // the configured target). Immutable for the whole meeting, even if the user later changes
+            // the target in settings. Same-language → EffectiveEnabled is false (no jobs, no API).
+            _sessionTranslation = new SessionTranslationOptions(
+                SourceLanguage: SelectedLanguage,
+                TargetLanguage: string.IsNullOrWhiteSpace(_translationOptions.TargetLanguage) ? "zh" : _translationOptions.TargetLanguage,
+                Enabled: _translationOptions.Enabled,
+                Model: _translationOptions.Model,
+                PromptVersion: TranslationPrompt.Version);
+            OnPropertyChanged(nameof(SessionTargetLanguage));
+
             // Create the session + directory and begin real-time persistence.
             var startedAt = DateTimeOffset.Now;
             var seed = new MeetingSession
@@ -310,7 +335,11 @@ public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptur
                 Id = _pipeline.SessionId,
                 StartedAt = startedAt,
                 RecognitionLanguage = SelectedLanguage,
-                OutputDirectory = root
+                OutputDirectory = root,
+                TranslationEnabled = _sessionTranslation.EffectiveEnabled,
+                TranslationSource = _sessionTranslation.SourceLanguage,
+                TranslationTarget = _sessionTranslation.TargetLanguage,
+                TranslationModel = _sessionTranslation.Model
             };
             var session = seed with { OutputDirectory = SessionPaths.BuildSessionDirectory(root, seed) };
             await _recorder.StartSessionAsync(session, CancellationToken.None);
@@ -523,8 +552,8 @@ public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptur
     {
         var segmentId = Guid.NewGuid();
         var createdAt = DateTimeOffset.Now;
-        bool willTranslate = _translationOptions.Enabled
-            && string.Equals(SelectedLanguage, _translationOptions.SourceLanguage, StringComparison.OrdinalIgnoreCase);
+        // UI-R4A: translate only when the session snapshot's direction is effectively enabled.
+        bool willTranslate = _sessionTranslation?.EffectiveEnabled == true;
         var display = willTranslate ? TranslationDisplayState.Translating : TranslationDisplayState.None;
 
         Dispatch(() =>
@@ -571,11 +600,11 @@ public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptur
             return;
         }
 
-        if (willTranslate)
+        if (willTranslate && _sessionTranslation is not null)
         {
             try
             {
-                await _translation.EnqueueAsync(segment, CancellationToken.None);
+                await _translation.EnqueueAsync(segment, _sessionTranslation, CancellationToken.None);
             }
             catch (Exception ex)
             {

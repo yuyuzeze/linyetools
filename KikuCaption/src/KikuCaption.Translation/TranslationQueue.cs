@@ -85,10 +85,17 @@ public sealed class TranslationQueue : ITranslationQueue, IAsyncDisposable
         _pump = Task.Run(() => PumpLoopAsync(token), token);
     }
 
-    public async ValueTask EnqueueAsync(TranscriptSegment finalSegment, CancellationToken cancellationToken)
+    public async ValueTask EnqueueAsync(TranscriptSegment finalSegment, SessionTranslationOptions session, CancellationToken cancellationToken)
     {
-        if (!TranslationTrigger.ShouldEnqueue(finalSegment, _options))
+        if (!TranslationTrigger.ShouldEnqueue(finalSegment, session))
         {
+            return;
+        }
+
+        // A new job must carry a model — never enqueue an empty-model job (UI-R4A fix).
+        if (string.IsNullOrWhiteSpace(session.Model))
+        {
+            _logger.LogWarning("Skipping translation enqueue: the session snapshot has no model configured.");
             return;
         }
 
@@ -107,6 +114,12 @@ public sealed class TranslationQueue : ITranslationQueue, IAsyncDisposable
             SegmentId = finalSegment.Id,
             State = TranslationJobState.Pending,
             AttemptCount = 0,
+            // Snapshot the direction + model + prompt version onto the job so recovery re-translates
+            // it unchanged (UI-R4A §3/§5), regardless of later settings changes.
+            SourceLanguage = session.SourceLanguage,
+            TargetLanguage = session.TargetLanguage,
+            Model = session.Model,
+            PromptVersion = session.PromptVersion,
             CreatedAt = now,
             UpdatedAt = now
         };
@@ -233,8 +246,19 @@ public sealed class TranslationQueue : ITranslationQueue, IAsyncDisposable
 
         try
         {
-            var translation = await _translator.TranslateAsync(
-                segment.Text, _options.SourceLanguage, _options.TargetLanguage, token).ConfigureAwait(false);
+            // Use the JOB's snapshotted direction/model/prompt version, never live options (UI-R4A §3):
+            // a mid-session change or a recovered job always translates exactly as enqueued.
+            var model = job.Model;
+            if (string.IsNullOrWhiteSpace(model))
+            {
+                // Legacy (pre-v4) job with no snapshotted model: fall back to the current config and
+                // record a sanitized warning (model NAME only — never the key/prompt/caption text).
+                model = _options.Model;
+                _logger.LogWarning("Translation job for a segment has no snapshotted model; falling back to current model '{Model}'.", model);
+            }
+
+            var request = new TranslationRequest(segment.Text, job.SourceLanguage, job.TargetLanguage, model, job.PromptVersion);
+            var translation = await _translator.TranslateAsync(request, token).ConfigureAwait(false);
 
             await _store.SetSegmentTranslationAsync(segmentId, translation, TranscriptStatus.Translated, token).ConfigureAwait(false);
             await UpdateAsync(job with { State = TranslationJobState.Succeeded, LastErrorCode = null }, TranslationErrorCode.None, translation).ConfigureAwait(false);

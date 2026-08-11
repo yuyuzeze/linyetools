@@ -16,8 +16,12 @@ namespace KikuCaption.Storage.Export;
 /// </summary>
 public sealed class TranscriptExporter : ITranscriptExporter
 {
-    /// <summary>Bumped when the on-disk file format changes.</summary>
-    public const int DataFormatVersion = 1;
+    /// <summary>
+    /// Bumped when the on-disk file format changes. v2 (UI-R4A) adds the translation direction
+    /// (translationEnabled / translationSource / translationTarget) to session.json — additive and
+    /// backward-compatible (older readers ignore the new fields).
+    /// </summary>
+    public const int DataFormatVersion = 2;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -141,6 +145,13 @@ public sealed class TranscriptExporter : ITranscriptExporter
     private string BuildSessionJson(StoredSession stored, int segmentCount, int translatedCount)
     {
         var session = stored.Session;
+
+        // Translation direction snapshot (UI-R4A). Legacy sessions (pre-v3 DB) have null columns:
+        // fall back to the historical ja→zh behaviour, inferred from whether anything was translated.
+        var translationEnabled = session.TranslationEnabled ?? (translatedCount > 0);
+        var translationSource = session.TranslationSource ?? (translatedCount > 0 ? "ja" : session.RecognitionLanguage);
+        var translationTarget = session.TranslationTarget ?? (translatedCount > 0 ? "zh" : null);
+
         var dto = new
         {
             sessionId = session.Id.ToString("N"),
@@ -152,6 +163,10 @@ public sealed class TranscriptExporter : ITranscriptExporter
             recordingPath = session.RecordingPath,
             segmentCount,
             translatedCount,
+            translationEnabled,
+            translationSource,
+            translationTarget,
+            translationModel = session.TranslationModel,
             appVersion = _appVersion,
             dataFormatVersion = DataFormatVersion
         };

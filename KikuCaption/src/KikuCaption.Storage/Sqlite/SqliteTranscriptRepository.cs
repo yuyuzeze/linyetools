@@ -102,8 +102,10 @@ public sealed class SqliteTranscriptRepository : ITranscriptStore, IAsyncDisposa
             using var command = _connection!.CreateCommand();
             command.CommandText = """
                 INSERT INTO MeetingSession
-                    (Id, StartedAt, EndedAt, RecognitionLanguage, OutputDirectory, RecordingPath, State, CreatedAt, UpdatedAt)
-                VALUES (@id, @started, @ended, @lang, @dir, @rec, @state, @created, @updated)
+                    (Id, StartedAt, EndedAt, RecognitionLanguage, OutputDirectory, RecordingPath, State,
+                     TranslationEnabled, TranslationSource, TranslationTarget, TranslationModel, CreatedAt, UpdatedAt)
+                VALUES (@id, @started, @ended, @lang, @dir, @rec, @state,
+                     @tren, @trsrc, @trtgt, @trmodel, @created, @updated)
                 ON CONFLICT(Id) DO NOTHING;
                 """;
             command.Parameters.AddWithValue("@id", session.Id.ToString("N"));
@@ -113,6 +115,10 @@ public sealed class SqliteTranscriptRepository : ITranscriptStore, IAsyncDisposa
             command.Parameters.AddWithValue("@dir", session.OutputDirectory);
             command.Parameters.AddWithValue("@rec", (object?)session.RecordingPath ?? DBNull.Value);
             command.Parameters.AddWithValue("@state", SessionStates.Running);
+            command.Parameters.AddWithValue("@tren", (object?)(session.TranslationEnabled is { } te ? (te ? 1 : 0) : null) ?? DBNull.Value);
+            command.Parameters.AddWithValue("@trsrc", (object?)session.TranslationSource ?? DBNull.Value);
+            command.Parameters.AddWithValue("@trtgt", (object?)session.TranslationTarget ?? DBNull.Value);
+            command.Parameters.AddWithValue("@trmodel", (object?)session.TranslationModel ?? DBNull.Value);
             command.Parameters.AddWithValue("@created", now);
             command.Parameters.AddWithValue("@updated", now);
             await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
@@ -223,6 +229,7 @@ public sealed class SqliteTranscriptRepository : ITranscriptStore, IAsyncDisposa
             using var command = _connection!.CreateCommand();
             command.CommandText = """
                 SELECT Id, StartedAt, EndedAt, RecognitionLanguage, OutputDirectory, RecordingPath, State,
+                       TranslationEnabled, TranslationSource, TranslationTarget, TranslationModel,
                        (SELECT COUNT(*) FROM TranscriptSegment WHERE SessionId = MeetingSession.Id) AS SegCount
                 FROM MeetingSession WHERE Id = @id;
                 """;
@@ -250,6 +257,7 @@ public sealed class SqliteTranscriptRepository : ITranscriptStore, IAsyncDisposa
             using var command = _connection!.CreateCommand();
             command.CommandText = """
                 SELECT Id, StartedAt, EndedAt, RecognitionLanguage, OutputDirectory, RecordingPath, State,
+                       TranslationEnabled, TranslationSource, TranslationTarget, TranslationModel,
                        (SELECT COUNT(*) FROM TranscriptSegment WHERE SessionId = MeetingSession.Id) AS SegCount
                 FROM MeetingSession ORDER BY StartedAt DESC LIMIT 1;
                 """;
@@ -304,6 +312,7 @@ public sealed class SqliteTranscriptRepository : ITranscriptStore, IAsyncDisposa
             using var command = _connection!.CreateCommand();
             command.CommandText = """
                 SELECT Id, StartedAt, EndedAt, RecognitionLanguage, OutputDirectory, RecordingPath, State,
+                       TranslationEnabled, TranslationSource, TranslationTarget, TranslationModel,
                        (SELECT COUNT(*) FROM TranscriptSegment WHERE SessionId = MeetingSession.Id) AS SegCount
                 FROM MeetingSession
                 WHERE State NOT IN (@completed, @recovered)
@@ -330,7 +339,7 @@ public sealed class SqliteTranscriptRepository : ITranscriptStore, IAsyncDisposa
     // ----- Translation jobs (Milestone 6) -----
 
     private const string JobColumns =
-        "Id, SessionId, SegmentId, State, AttemptCount, NextAttemptAt, LastErrorCode, CreatedAt, UpdatedAt";
+        "Id, SessionId, SegmentId, State, AttemptCount, NextAttemptAt, LastErrorCode, CreatedAt, UpdatedAt, SourceLanguage, TargetLanguage, PromptVersion, Model";
 
     public async Task<TranscriptSegment?> GetSegmentAsync(Guid segmentId, CancellationToken cancellationToken)
     {
@@ -367,8 +376,10 @@ public sealed class SqliteTranscriptRepository : ITranscriptStore, IAsyncDisposa
             using var command = _connection!.CreateCommand();
             command.CommandText = """
                 INSERT INTO TranslationJob
-                    (Id, SessionId, SegmentId, State, AttemptCount, NextAttemptAt, LastErrorCode, LastError, CreatedAt, UpdatedAt)
-                VALUES (@id, @sid, @seg, @state, @attempt, @next, @code, @code, @created, @updated);
+                    (Id, SessionId, SegmentId, State, AttemptCount, NextAttemptAt, LastErrorCode, LastError,
+                     SourceLanguage, TargetLanguage, PromptVersion, Model, CreatedAt, UpdatedAt)
+                VALUES (@id, @sid, @seg, @state, @attempt, @next, @code, @code,
+                     @src, @tgt, @pv, @model, @created, @updated);
                 """;
             BindJob(command, job);
             await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
@@ -510,6 +521,10 @@ public sealed class SqliteTranscriptRepository : ITranscriptStore, IAsyncDisposa
         command.Parameters.AddWithValue("@attempt", job.AttemptCount);
         command.Parameters.AddWithValue("@next", (object?)(job.NextAttemptAt is { } n ? Iso(n) : null) ?? DBNull.Value);
         command.Parameters.AddWithValue("@code", (object?)job.LastErrorCode ?? DBNull.Value);
+        command.Parameters.AddWithValue("@src", job.SourceLanguage);
+        command.Parameters.AddWithValue("@tgt", job.TargetLanguage);
+        command.Parameters.AddWithValue("@pv", job.PromptVersion);
+        command.Parameters.AddWithValue("@model", job.Model ?? string.Empty);
         command.Parameters.AddWithValue("@created", Iso(job.CreatedAt));
         command.Parameters.AddWithValue("@updated", Iso(job.UpdatedAt));
     }
@@ -536,7 +551,11 @@ public sealed class SqliteTranscriptRepository : ITranscriptStore, IAsyncDisposa
         NextAttemptAt = r.IsDBNull(5) ? null : ParseIso(r.GetString(5)),
         LastErrorCode = r.IsDBNull(6) ? null : r.GetString(6),
         CreatedAt = ParseIso(r.GetString(7)),
-        UpdatedAt = ParseIso(r.GetString(8))
+        UpdatedAt = ParseIso(r.GetString(8)),
+        SourceLanguage = r.GetString(9),
+        TargetLanguage = r.GetString(10),
+        PromptVersion = (int)r.GetInt64(11),
+        Model = r.IsDBNull(12) ? string.Empty : r.GetString(12)
     };
 
     private static StoredSession ReadSession(DbDataReader reader)
@@ -548,9 +567,13 @@ public sealed class SqliteTranscriptRepository : ITranscriptStore, IAsyncDisposa
             EndedAt = reader.IsDBNull(2) ? null : ParseIso(reader.GetString(2)),
             RecognitionLanguage = reader.GetString(3),
             OutputDirectory = reader.GetString(4),
-            RecordingPath = reader.IsDBNull(5) ? null : reader.GetString(5)
+            RecordingPath = reader.IsDBNull(5) ? null : reader.GetString(5),
+            TranslationEnabled = reader.IsDBNull(7) ? null : reader.GetInt64(7) != 0,
+            TranslationSource = reader.IsDBNull(8) ? null : reader.GetString(8),
+            TranslationTarget = reader.IsDBNull(9) ? null : reader.GetString(9),
+            TranslationModel = reader.IsDBNull(10) ? null : reader.GetString(10)
         };
-        return new StoredSession(session, reader.GetString(6), reader.GetInt32(7));
+        return new StoredSession(session, reader.GetString(6), reader.GetInt32(11));
     }
 
     private static StoredSegment ReadSegment(DbDataReader reader)
@@ -601,6 +624,38 @@ public sealed class SqliteTranscriptRepository : ITranscriptStore, IAsyncDisposa
                 await ExecuteAsync("PRAGMA user_version=2;", cancellationToken).ConfigureAwait(false);
                 fromVersion = 2;
                 _logger.LogInformation("Migrated database schema v1 → v2 (translation retry columns).");
+            }
+
+            if (fromVersion == 2)
+            {
+                await using var tx = await _connection!.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+                using (var command = _connection.CreateCommand())
+                {
+                    command.Transaction = (SqliteTransaction)tx;
+                    command.CommandText = SqliteSchema.MigrateV2ToV3Sql;
+                    await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                }
+
+                await tx.CommitAsync(cancellationToken).ConfigureAwait(false);
+                await ExecuteAsync("PRAGMA user_version=3;", cancellationToken).ConfigureAwait(false);
+                fromVersion = 3;
+                _logger.LogInformation("Migrated database schema v2 → v3 (translation direction snapshot; legacy jobs default ja→zh).");
+            }
+
+            if (fromVersion == 3)
+            {
+                await using var tx = await _connection!.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+                using (var command = _connection.CreateCommand())
+                {
+                    command.Transaction = (SqliteTransaction)tx;
+                    command.CommandText = SqliteSchema.MigrateV3ToV4Sql;
+                    await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                }
+
+                await tx.CommitAsync(cancellationToken).ConfigureAwait(false);
+                await ExecuteAsync("PRAGMA user_version=4;", cancellationToken).ConfigureAwait(false);
+                fromVersion = 4;
+                _logger.LogInformation("Migrated database schema v3 → v4 (translation model snapshot; legacy jobs fall back to current model).");
             }
 
             // Future migrations chain here (each guarded by the source version).

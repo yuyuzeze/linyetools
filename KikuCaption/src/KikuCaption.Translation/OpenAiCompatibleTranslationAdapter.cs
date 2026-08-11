@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using KikuCaption.Core.Enums;
 using KikuCaption.Core.Interfaces;
+using KikuCaption.Core.Models;
 using KikuCaption.Translation.Security;
 using Microsoft.Extensions.Logging;
 
@@ -39,8 +40,20 @@ public sealed class OpenAiCompatibleTranslationAdapter : IAiTranslationService
         _logger = logger;
     }
 
-    public async Task<string> TranslateAsync(string text, string sourceLanguage, string targetLanguage, CancellationToken cancellationToken)
+    public async Task<string> TranslateAsync(TranslationRequest req, CancellationToken cancellationToken)
     {
+        // Unsupported prompt version → invalid config, rejected BEFORE any HTTP call (UI-R4A fix).
+        if (!TranslationPrompt.IsSupported(req.PromptVersion))
+        {
+            throw new TranslationException(TranslationErrorCode.InvalidConfig,
+                $"不支持的翻译 Prompt 版本 {req.PromptVersion}。");
+        }
+
+        if (string.IsNullOrWhiteSpace(req.Model))
+        {
+            throw new TranslationException(TranslationErrorCode.InvalidConfig, "翻译 Model 未配置。");
+        }
+
         if (string.IsNullOrWhiteSpace(_options.Endpoint) || !Uri.TryCreate(_options.Endpoint, UriKind.Absolute, out var baseUri))
         {
             throw new TranslationException(TranslationErrorCode.InvalidConfig, "翻译 Endpoint 未配置或无效。");
@@ -51,21 +64,25 @@ public sealed class OpenAiCompatibleTranslationAdapter : IAiTranslationService
             throw new TranslationException(TranslationErrorCode.InvalidConfig, "翻译 Endpoint 必须使用 HTTPS。");
         }
 
-        if (string.IsNullOrWhiteSpace(text))
+        if (string.IsNullOrWhiteSpace(req.Text))
         {
             throw new TranslationException(TranslationErrorCode.InvalidResponse, "空文本不翻译。");
         }
 
-        if (text.Length > _options.MaxInputCharacters)
+        if (req.Text.Length > _options.MaxInputCharacters)
         {
             throw new TranslationException(TranslationErrorCode.InputTooLong,
-                $"字幕长度 {text.Length} 超过上限 {_options.MaxInputCharacters}，拒绝发送。");
+                $"字幕长度 {req.Text.Length} 超过上限 {_options.MaxInputCharacters}，拒绝发送。");
         }
+
+        // Log the model + direction + prompt version only — never the key, prompt, or caption text.
+        _logger.LogInformation("Translating (model={Model}, {Src}->{Tgt}, promptV={Version}).",
+            req.Model, req.SourceLanguage, req.TargetLanguage, req.PromptVersion);
 
         var requestUri = BuildRequestUri(baseUri);
         using var request = new HttpRequestMessage(HttpMethod.Post, requestUri)
         {
-            Content = new StringContent(BuildRequestBody(text), Encoding.UTF8, "application/json")
+            Content = new StringContent(BuildRequestBody(req), Encoding.UTF8, "application/json")
         };
         ApplyAuth(request);
 
@@ -104,8 +121,8 @@ public sealed class OpenAiCompatibleTranslationAdapter : IAiTranslationService
             }
 
             EnsureBodyWithinLimit(response);
-            var body = await ReadCappedAsync(response, cancellationToken).ConfigureAwait(false);
-            return ExtractTranslation(body);
+            var responseBody = await ReadCappedAsync(response, cancellationToken).ConfigureAwait(false);
+            return ExtractTranslation(responseBody);
         }
     }
 
@@ -121,17 +138,19 @@ public sealed class OpenAiCompatibleTranslationAdapter : IAiTranslationService
         return new Uri(baseUri.AbsoluteUri + separator + "api-version=" + Uri.EscapeDataString(_options.ApiVersion));
     }
 
-    private string BuildRequestBody(string text)
+    private static string BuildRequestBody(TranslationRequest req)
     {
-        // Low randomness for faithful translation; original text is a SEPARATE user message.
-        int maxTokens = Math.Min(2048, (text.Length * 2) + 64);
+        // Low randomness for faithful translation. The system message is the versioned, source/target
+        // instruction; the original text is a SEPARATE user message (never concatenated in). The model
+        // and prompt version come from the request's session snapshot, not live settings.
+        int maxTokens = Math.Min(2048, (req.Text.Length * 2) + 64);
         var payload = new
         {
-            model = _options.Model,
+            model = req.Model,
             messages = new object[]
             {
-                new { role = "system", content = TranslationPrompt.System },
-                new { role = "user", content = text }
+                new { role = "system", content = TranslationPrompt.BuildSystem(req.PromptVersion, req.SourceLanguage, req.TargetLanguage) },
+                new { role = "user", content = req.Text }
             },
             temperature = 0.2,
             top_p = 0.9,

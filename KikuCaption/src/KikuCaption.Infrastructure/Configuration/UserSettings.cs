@@ -27,6 +27,13 @@ public sealed record UserSettings
     public string TranslationHeaderName { get; init; } = "Authorization";
     public string TranslationProxy { get; init; } = "";
 
+    /// <summary>UI-R4A: configurable translation target language (stable code zh/en/ja).</summary>
+    public string TranslationTargetLanguage { get; init; } = "zh";
+
+    /// <summary>UI-R4A: request timeout (1–300 s) and max retries (0–10) for the translation API.</summary>
+    public int TranslationTimeoutSeconds { get; init; } = 30;
+    public int TranslationMaxRetries { get; init; } = 3;
+
     public double SubtitleFontSize { get; init; } = 26;
     public double SubtitleOpacity { get; init; } = 0.85;
     public double TimelineWidth { get; init; } = 430;

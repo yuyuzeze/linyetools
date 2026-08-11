@@ -265,6 +265,9 @@ public partial class App : Application
             if (Enum.TryParse<TranslationAuthMode>(us.TranslationAuthMode, ignoreCase: true, out var m)) opts.AuthenticationMode = m;
             if (!string.IsNullOrWhiteSpace(us.TranslationHeaderName)) opts.HeaderName = us.TranslationHeaderName;
             opts.Proxy = us.TranslationProxy ?? "";
+            if (!string.IsNullOrWhiteSpace(us.TranslationTargetLanguage)) opts.TargetLanguage = us.TranslationTargetLanguage;
+            opts.TimeoutSeconds = Math.Clamp(us.TranslationTimeoutSeconds, 1, 300);
+            opts.MaxRetries = Math.Clamp(us.TranslationMaxRetries, 0, 10);
         }
 
         try

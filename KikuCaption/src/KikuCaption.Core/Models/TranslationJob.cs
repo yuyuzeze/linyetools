@@ -15,6 +15,19 @@ public sealed record TranslationJob
     public required TranslationJobState State { get; init; }
     public int AttemptCount { get; init; }
 
+    // UI-R4A: the direction is snapshotted onto the job so crash recovery re-translates in the
+    // original direction even if the user later changes the target. Stable codes (ja/zh/en);
+    // legacy jobs default to ja→zh, prompt version 1.
+    public string SourceLanguage { get; init; } = "ja";
+    public string TargetLanguage { get; init; } = "zh";
+    public int PromptVersion { get; init; } = 1;
+
+    /// <summary>
+    /// The model snapshotted at meeting start. Empty on legacy (pre-v4) jobs — the queue then falls
+    /// back to the live model and logs a sanitized warning; new jobs never enter the queue empty.
+    /// </summary>
+    public string Model { get; init; } = "";
+
     /// <summary>When a <see cref="TranslationJobState.RetryScheduled"/> job becomes eligible again.</summary>
     public DateTimeOffset? NextAttemptAt { get; init; }
 

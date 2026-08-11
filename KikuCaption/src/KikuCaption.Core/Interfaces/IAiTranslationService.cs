@@ -1,3 +1,5 @@
+using KikuCaption.Core.Models;
+
 namespace KikuCaption.Core.Interfaces;
 
 /// <summary>
@@ -8,13 +10,11 @@ namespace KikuCaption.Core.Interfaces;
 public interface IAiTranslationService
 {
     /// <summary>
-    /// Translates <paramref name="text"/> from <paramref name="sourceLanguage"/> to
-    /// <paramref name="targetLanguage"/>. Returns the trimmed translation; throws a typed
-    /// translation exception on any failure so the queue can classify it.
+    /// Translates <see cref="TranslationRequest.Text"/> in the request's direction, using the
+    /// request's model and prompt version (all from the job's session snapshot — UI-R4A). Returns the
+    /// trimmed translation; throws a typed translation exception on any failure so the queue can
+    /// classify it. An unsupported prompt version fails as an invalid configuration before any HTTP
+    /// call is made.
     /// </summary>
-    Task<string> TranslateAsync(
-        string text,
-        string sourceLanguage,
-        string targetLanguage,
-        CancellationToken cancellationToken);
+    Task<string> TranslateAsync(TranslationRequest request, CancellationToken cancellationToken);
 }

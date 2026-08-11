@@ -3,6 +3,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text.Json;
 using KikuCaption.Core.Enums;
+using KikuCaption.Core.Models;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -49,13 +50,15 @@ public sealed class OpenAiCompatibleAdapterTests
     private static async Task<TranslationException> CaptureAsync(Func<Task> action)
         => await Assert.ThrowsAsync<TranslationException>(action);
 
+    private static TranslationRequest Req(string text) => new(text, "ja", "zh", "meeting-translate", 2);
+
     [Fact] // adapter 1: Bearer auth
     public async Task Bearer_SetsAuthorizationHeader()
     {
         var handler = FakeHttpMessageHandler.Json(HttpStatusCode.OK, OkBody("确认发布内容。"));
         var adapter = Adapter(handler, Opts(TranslationAuthMode.Bearer), out _);
 
-        var result = await adapter.TranslateAsync(SampleJa, "ja", "zh", CancellationToken.None);
+        var result = await adapter.TranslateAsync(Req(SampleJa), CancellationToken.None);
 
         Assert.Equal("确认发布内容。", result);
         Assert.Equal("Bearer", handler.LastRequest!.Headers.Authorization!.Scheme);
@@ -68,7 +71,7 @@ public sealed class OpenAiCompatibleAdapterTests
         var handler = FakeHttpMessageHandler.Json(HttpStatusCode.OK, OkBody("你好"));
         var adapter = Adapter(handler, Opts(TranslationAuthMode.ApiKeyHeader, headerName: "api-key"), out _);
 
-        await adapter.TranslateAsync(SampleJa, "ja", "zh", CancellationToken.None);
+        await adapter.TranslateAsync(Req(SampleJa), CancellationToken.None);
 
         Assert.True(handler.LastRequest!.Headers.TryGetValues("api-key", out var values));
         Assert.Equal("test-secret-XYZ", values!.Single());
@@ -81,7 +84,7 @@ public sealed class OpenAiCompatibleAdapterTests
         var handler = FakeHttpMessageHandler.Json(HttpStatusCode.OK, OkBody("你好"));
         var adapter = Adapter(handler, Opts(TranslationAuthMode.None), out _, secret: null);
 
-        await adapter.TranslateAsync(SampleJa, "ja", "zh", CancellationToken.None);
+        await adapter.TranslateAsync(Req(SampleJa), CancellationToken.None);
 
         Assert.Null(handler.LastRequest!.Headers.Authorization);
         Assert.False(handler.LastRequest.Headers.Contains("api-key"));
@@ -94,11 +97,11 @@ public sealed class OpenAiCompatibleAdapterTests
 
         var httpAdapter = Adapter(handler, Opts(endpoint: "http://insecure.internal/v1"), out _);
         Assert.Equal(TranslationErrorCode.InvalidConfig,
-            (await CaptureAsync(() => httpAdapter.TranslateAsync(SampleJa, "ja", "zh", CancellationToken.None))).Code);
+            (await CaptureAsync(() => httpAdapter.TranslateAsync(Req(SampleJa), CancellationToken.None))).Code);
 
         var emptyAdapter = Adapter(handler, Opts(endpoint: ""), out _);
         Assert.Equal(TranslationErrorCode.InvalidConfig,
-            (await CaptureAsync(() => emptyAdapter.TranslateAsync(SampleJa, "ja", "zh", CancellationToken.None))).Code);
+            (await CaptureAsync(() => emptyAdapter.TranslateAsync(Req(SampleJa), CancellationToken.None))).Code);
 
         Assert.Equal(0, handler.CallCount); // never hit the wire
     }
@@ -109,7 +112,7 @@ public sealed class OpenAiCompatibleAdapterTests
         var handler = FakeHttpMessageHandler.Json(HttpStatusCode.OK, OkBody("你好"));
         var adapter = Adapter(handler, Opts(), out _);
 
-        await adapter.TranslateAsync(SampleJa, "ja", "zh", CancellationToken.None);
+        await adapter.TranslateAsync(Req(SampleJa), CancellationToken.None);
 
         using var doc = JsonDocument.Parse(handler.LastRequestBody!);
         var root = doc.RootElement;
@@ -118,7 +121,7 @@ public sealed class OpenAiCompatibleAdapterTests
         var messages = root.GetProperty("messages");
         Assert.Equal(2, messages.GetArrayLength());
         Assert.Equal("system", messages[0].GetProperty("role").GetString());
-        Assert.Equal(TranslationPrompt.System, messages[0].GetProperty("content").GetString());
+        Assert.Equal(TranslationPrompt.BuildSystem(2, "ja", "zh"), messages[0].GetProperty("content").GetString());
         Assert.Equal("user", messages[1].GetProperty("role").GetString());
         Assert.Equal(SampleJa, messages[1].GetProperty("content").GetString());
 
@@ -127,13 +130,72 @@ public sealed class OpenAiCompatibleAdapterTests
         Assert.Equal(0.2, root.GetProperty("temperature").GetDouble(), 3);
     }
 
+    [Theory] // UI-R4A: the HTTP body's model + versioned system prompt come from the request
+    [InlineData("ja", "en", "modelA", 2)]
+    [InlineData("zh", "ja", "modelB", 2)]
+    [InlineData("ja", "zh", "legacyModel", 1)]
+    public async Task RequestBody_ModelAndVersionedPrompt_FromRequest(string src, string tgt, string model, int version)
+    {
+        var handler = FakeHttpMessageHandler.Json(HttpStatusCode.OK, OkBody("ok"));
+        var adapter = Adapter(handler, Opts(), out _); // live options model is "meeting-translate"
+
+        await adapter.TranslateAsync(new TranslationRequest("原文", src, tgt, model, version), CancellationToken.None);
+
+        using var doc = JsonDocument.Parse(handler.LastRequestBody!);
+        var root = doc.RootElement;
+        Assert.Equal(model, root.GetProperty("model").GetString()); // request model, not live options
+        var messages = root.GetProperty("messages");
+        Assert.Equal(TranslationPrompt.BuildSystem(version, src, tgt), messages[0].GetProperty("content").GetString());
+        Assert.Equal("原文", messages[1].GetProperty("content").GetString()); // user message separated
+    }
+
+    [Fact] // UI-R4A: an unknown prompt version fails as invalid config BEFORE any HTTP call
+    public async Task UnknownPromptVersion_FailsBeforeHttp()
+    {
+        var handler = FakeHttpMessageHandler.Json(HttpStatusCode.OK, OkBody("x"));
+        var adapter = Adapter(handler, Opts(), out _);
+
+        var ex = await CaptureAsync(() =>
+            adapter.TranslateAsync(new TranslationRequest(SampleJa, "ja", "zh", "m", 99), CancellationToken.None));
+
+        Assert.Equal(TranslationErrorCode.InvalidConfig, ex.Code);
+        Assert.Equal(0, handler.CallCount); // never hit the wire
+    }
+
+    [Fact] // UI-R4A: an empty model fails as invalid config before any HTTP call
+    public async Task EmptyModel_FailsBeforeHttp()
+    {
+        var handler = FakeHttpMessageHandler.Json(HttpStatusCode.OK, OkBody("x"));
+        var adapter = Adapter(handler, Opts(), out _);
+
+        var ex = await CaptureAsync(() =>
+            adapter.TranslateAsync(new TranslationRequest(SampleJa, "ja", "zh", "", 2), CancellationToken.None));
+
+        Assert.Equal(TranslationErrorCode.InvalidConfig, ex.Code);
+        Assert.Equal(0, handler.CallCount);
+    }
+
+    [Theory] // UI-R4A: timeout is clamped to 1..300 s (out-of-range values are never effective)
+    [InlineData(0, 1)]
+    [InlineData(999, 300)]
+    [InlineData(45, 45)]
+    public void TimeoutSeconds_Clamped(int input, int expected)
+        => Assert.Equal(expected, (int)new TranslationOptions { TimeoutSeconds = input }.Timeout.TotalSeconds);
+
+    [Theory] // UI-R4A: max retries is clamped to 0..10
+    [InlineData(-5, 0)]
+    [InlineData(99, 10)]
+    [InlineData(5, 5)]
+    public void MaxRetries_Clamped(int input, int expected)
+        => Assert.Equal(expected, new TranslationOptions { MaxRetries = input }.EffectiveMaxRetries);
+
     [Fact] // adapter: api-version appended only when configured
     public async Task ApiVersion_AppendedWhenPresent()
     {
         var handler = FakeHttpMessageHandler.Json(HttpStatusCode.OK, OkBody("你好"));
         var adapter = Adapter(handler, Opts(apiVersion: "2024-10-01"), out _);
 
-        await adapter.TranslateAsync(SampleJa, "ja", "zh", CancellationToken.None);
+        await adapter.TranslateAsync(Req(SampleJa), CancellationToken.None);
 
         Assert.Contains("api-version=2024-10-01", handler.LastRequest!.RequestUri!.Query);
     }
@@ -144,7 +206,7 @@ public sealed class OpenAiCompatibleAdapterTests
         var handler = FakeHttpMessageHandler.Json(HttpStatusCode.OK, OkBody("  确认一下本次发布内容。  "));
         var adapter = Adapter(handler, Opts(), out _);
 
-        var result = await adapter.TranslateAsync(SampleJa, "ja", "zh", CancellationToken.None);
+        var result = await adapter.TranslateAsync(Req(SampleJa), CancellationToken.None);
 
         Assert.Equal("确认一下本次发布内容。", result);
     }
@@ -156,7 +218,7 @@ public sealed class OpenAiCompatibleAdapterTests
         var adapter = Adapter(handler, Opts(), out _);
 
         Assert.Equal(TranslationErrorCode.InvalidResponse,
-            (await CaptureAsync(() => adapter.TranslateAsync(SampleJa, "ja", "zh", CancellationToken.None))).Code);
+            (await CaptureAsync(() => adapter.TranslateAsync(Req(SampleJa), CancellationToken.None))).Code);
     }
 
     [Fact] // adapter 11: non-JSON / error HTML
@@ -169,7 +231,7 @@ public sealed class OpenAiCompatibleAdapterTests
         var adapter = Adapter(handler, Opts(), out _);
 
         Assert.Equal(TranslationErrorCode.InvalidResponse,
-            (await CaptureAsync(() => adapter.TranslateAsync(SampleJa, "ja", "zh", CancellationToken.None))).Code);
+            (await CaptureAsync(() => adapter.TranslateAsync(Req(SampleJa), CancellationToken.None))).Code);
     }
 
     [Fact] // adapter 12: oversized response rejected
@@ -180,7 +242,7 @@ public sealed class OpenAiCompatibleAdapterTests
         var adapter = Adapter(handler, Opts(maxResponseBytes: 64), out _);
 
         Assert.Equal(TranslationErrorCode.InvalidResponse,
-            (await CaptureAsync(() => adapter.TranslateAsync(SampleJa, "ja", "zh", CancellationToken.None))).Code);
+            (await CaptureAsync(() => adapter.TranslateAsync(Req(SampleJa), CancellationToken.None))).Code);
     }
 
     [Fact] // adapter: input length limit
@@ -189,7 +251,7 @@ public sealed class OpenAiCompatibleAdapterTests
         var handler = FakeHttpMessageHandler.Json(HttpStatusCode.OK, OkBody("x"));
         var adapter = Adapter(handler, Opts(maxInput: 10), out _);
 
-        var ex = await CaptureAsync(() => adapter.TranslateAsync(new string('あ', 50), "ja", "zh", CancellationToken.None));
+        var ex = await CaptureAsync(() => adapter.TranslateAsync(Req(new string('あ', 50)), CancellationToken.None));
         Assert.Equal(TranslationErrorCode.InputTooLong, ex.Code);
         Assert.Equal(0, handler.CallCount);
     }
@@ -204,7 +266,7 @@ public sealed class OpenAiCompatibleAdapterTests
         });
         var adapter = Adapter(handler, Opts(timeoutSeconds: 1), out _);
 
-        var ex = await CaptureAsync(() => adapter.TranslateAsync(SampleJa, "ja", "zh", CancellationToken.None));
+        var ex = await CaptureAsync(() => adapter.TranslateAsync(Req(SampleJa), CancellationToken.None));
         Assert.Equal(TranslationErrorCode.Timeout, ex.Code);
     }
 
@@ -220,7 +282,7 @@ public sealed class OpenAiCompatibleAdapterTests
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
-        var ex = await CaptureAsync(() => adapter.TranslateAsync(SampleJa, "ja", "zh", cts.Token));
+        var ex = await CaptureAsync(() => adapter.TranslateAsync(Req(SampleJa), cts.Token));
         Assert.Equal(TranslationErrorCode.Cancelled, ex.Code);
     }
 
@@ -236,7 +298,7 @@ public sealed class OpenAiCompatibleAdapterTests
         var handler = new FakeHttpMessageHandler((_, _) => Task.FromResult(new HttpResponseMessage((HttpStatusCode)status)));
         var adapter = Adapter(handler, Opts(), out _);
 
-        Assert.Equal(expected, (await CaptureAsync(() => adapter.TranslateAsync(SampleJa, "ja", "zh", CancellationToken.None))).Code);
+        Assert.Equal(expected, (await CaptureAsync(() => adapter.TranslateAsync(Req(SampleJa), CancellationToken.None))).Code);
     }
 
     [Fact] // adapter 18: 429 + Retry-After
@@ -250,7 +312,7 @@ public sealed class OpenAiCompatibleAdapterTests
         });
         var adapter = Adapter(handler, Opts(), out _);
 
-        var ex = await CaptureAsync(() => adapter.TranslateAsync(SampleJa, "ja", "zh", CancellationToken.None));
+        var ex = await CaptureAsync(() => adapter.TranslateAsync(Req(SampleJa), CancellationToken.None));
         Assert.Equal(TranslationErrorCode.RateLimited, ex.Code);
         Assert.NotNull(ex.RetryAfter);
         Assert.Equal(7, ex.RetryAfter!.Value.TotalSeconds, 0);
@@ -263,7 +325,7 @@ public sealed class OpenAiCompatibleAdapterTests
         var adapter = Adapter(handler, Opts(), out _);
 
         Assert.Equal(TranslationErrorCode.Network,
-            (await CaptureAsync(() => adapter.TranslateAsync(SampleJa, "ja", "zh", CancellationToken.None))).Code);
+            (await CaptureAsync(() => adapter.TranslateAsync(Req(SampleJa), CancellationToken.None))).Code);
     }
 
     [Fact] // adapter 21/22: secret never in body; client is reused (not per-call)
@@ -273,8 +335,8 @@ public sealed class OpenAiCompatibleAdapterTests
         var adapter = Adapter(handler, Opts(), out var factory);
 
         var c1 = factory.CreateClient("translation");
-        await adapter.TranslateAsync(SampleJa, "ja", "zh", CancellationToken.None);
-        await adapter.TranslateAsync(SampleJa, "ja", "zh", CancellationToken.None);
+        await adapter.TranslateAsync(Req(SampleJa), CancellationToken.None);
+        await adapter.TranslateAsync(Req(SampleJa), CancellationToken.None);
         var c2 = factory.CreateClient("translation");
 
         Assert.DoesNotContain("test-secret-XYZ", handler.LastRequestBody);

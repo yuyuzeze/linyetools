@@ -84,10 +84,10 @@ internal sealed class ScriptedTranslator : KikuCaption.Core.Interfaces.IAiTransl
 
     public ScriptedTranslator(Func<string, CancellationToken, Task<string>> behavior) => _behavior = behavior;
 
-    public async Task<string> TranslateAsync(string text, string sourceLanguage, string targetLanguage, CancellationToken cancellationToken)
+    public async Task<string> TranslateAsync(KikuCaption.Core.Models.TranslationRequest request, CancellationToken cancellationToken)
     {
         Interlocked.Increment(ref Calls);
-        lock (Inputs) { Inputs.Add(text); }
-        return await _behavior(text, cancellationToken);
+        lock (Inputs) { Inputs.Add(request.Text); }
+        return await _behavior(request.Text, cancellationToken);
     }
 }

@@ -208,6 +208,39 @@
                         <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,8" Text="{loc:Loc Tr.Intro}" />
                         <CheckBox Content="{loc:Loc Tr.Enable}" IsChecked="{Binding Enabled}" Margin="0,0,0,8" />
 
+                        <!-- UI-R4A: source follows recognition (read-only); target is configurable. -->
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="120" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="{loc:Loc Tr.SourceLanguage}" VerticalAlignment="Center" Margin="0,4" />
+                            <TextBlock Grid.Row="0" Grid.Column="1" Text="{loc:Loc Tr.SourceFollow}" VerticalAlignment="Center" Margin="0,4"
+                                       Foreground="{StaticResource MutedBrush}" />
+
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="{loc:Loc Tr.TargetLanguage}" VerticalAlignment="Center" Margin="0,4" />
+                            <ComboBox Grid.Row="1" Grid.Column="1" Width="200" HorizontalAlignment="Left" Margin="0,4"
+                                      ItemsSource="{Binding TargetLanguages}" SelectedItem="{Binding TargetLanguage}">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{loc:LangName}" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="{loc:Loc Tr.CurrentDirection}" VerticalAlignment="Center" Margin="0,4" />
+                            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding DirectionText}" VerticalAlignment="Center" Margin="0,4" FontWeight="SemiBold" />
+                        </Grid>
+                        <TextBlock Text="{loc:Loc Tr.SameLanguageNote}" TextWrapping="Wrap" Foreground="#B26A00" FontSize="12" Margin="0,0,0,4"
+                                   Visibility="{Binding IsSameLanguage, Converter={StaticResource BoolToVisibility}}" />
+                        <TextBlock Text="{loc:Loc Common.NextMeeting}" Foreground="{StaticResource MutedBrush}" FontSize="12" Margin="0,0,0,8" />
+
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
@@ -249,6 +282,15 @@
                         <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                             <TextBlock Text="{loc:Loc Tr.Proxy}" VerticalAlignment="Center" Margin="0,0,8,0" />
                             <TextBox Width="300" Text="{Binding Proxy, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+
+                        <!-- Numeric fields: invalid text fails binding validation (no crash) and is not
+                             applied; values are clamped to their ranges before saving (UI-R4A fix). -->
+                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                            <TextBlock Text="{loc:Loc Tr.Timeout}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <TextBox Width="70" Text="{Binding TimeoutSeconds, UpdateSourceTrigger=LostFocus}" />
+                            <TextBlock Text="{loc:Loc Tr.MaxRetries}" VerticalAlignment="Center" Margin="24,0,8,0" />
+                            <TextBox Width="70" Text="{Binding MaxRetries, UpdateSourceTrigger=LostFocus}" />
                         </StackPanel>
 
                         <StackPanel Orientation="Horizontal" Margin="0,10,0,0">

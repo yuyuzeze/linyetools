@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
+using KikuCaption.App.Localization;
 using KikuCaption.Infrastructure.Configuration;
 using KikuCaption.Storage;
 using KikuCaption.Storage.Recovery;
@@ -20,6 +21,7 @@ public partial class HomePageViewModel : ObservableObject
     private readonly SessionRecoveryService _recoveryService;
     private readonly StorageOptions _storage;
     private readonly UserSettingsStore _settingsStore;
+    private readonly LocalizationService _loc;
     private readonly ILogger<HomePageViewModel> _logger;
     private readonly DispatcherTimer _elapsedTimer;
     private DateTime _sessionStartedUtc;
@@ -30,6 +32,7 @@ public partial class HomePageViewModel : ObservableObject
         SessionRecoveryService recoveryService,
         StorageOptions storage,
         UserSettingsStore settingsStore,
+        LocalizationService localization,
         ILogger<HomePageViewModel> logger)
     {
         Realtime = realtime;
@@ -37,6 +40,7 @@ public partial class HomePageViewModel : ObservableObject
         _recoveryService = recoveryService;
         _storage = storage;
         _settingsStore = settingsStore;
+        _loc = localization;
         _logger = logger;
 
         _elapsedTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
@@ -45,6 +49,47 @@ public partial class HomePageViewModel : ObservableObject
         Realtime.PropertyChanged += OnRealtimeChanged;
         Realtime.Timeline.PropertyChanged += OnTimelineChanged;
         Translation.PropertyChanged += OnTranslationChanged;
+        _loc.LanguageChanged += (_, _) => RaiseTranslationDisplay();
+    }
+
+    // ---- UI-R4A translation direction display (source follows recognition; target from session
+    // snapshot while running, else live setting). Localized; recomputed on the relevant changes. ----
+
+    private string EffectiveSource => Realtime.SelectedLanguage;
+
+    private string EffectiveTarget => Realtime.IsRunning
+        ? (Realtime.SessionTargetLanguage ?? Translation.TargetLanguage)
+        : Translation.TargetLanguage;
+
+    /// <summary>Localized "source → target", e.g. 日本語 → 中文 / Japanese → Chinese / 日本語 → 中国語.</summary>
+    public string TranslationDirectionText => $"{_loc["Lang." + EffectiveSource]} → {_loc["Lang." + EffectiveTarget]}";
+
+    /// <summary>True when the effective source and target are the same language (no translation needed).</summary>
+    public bool IsTranslationSameLanguage => string.Equals(EffectiveSource, EffectiveTarget, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Localized state prefix: "翻译中：" while running, "无需翻译：" when same-language, else empty.</summary>
+    public string TranslationPrefix
+    {
+        get
+        {
+            if (IsTranslationSameLanguage)
+            {
+                return _loc["Home.NoTranslationNeeded"];
+            }
+
+            return Realtime.IsRunning && Translation.Enabled ? _loc["Home.Translating"] : string.Empty;
+        }
+    }
+
+    /// <summary>Dim the direction when translation is off or same-language (UI-R4A §8).</summary>
+    public bool TranslationDimmed => !Translation.Enabled || IsTranslationSameLanguage;
+
+    private void RaiseTranslationDisplay()
+    {
+        OnPropertyChanged(nameof(TranslationDirectionText));
+        OnPropertyChanged(nameof(IsTranslationSameLanguage));
+        OnPropertyChanged(nameof(TranslationPrefix));
+        OnPropertyChanged(nameof(TranslationDimmed));
     }
 
     /// <summary>Real-time captioning + overlay controls and meeting timeline (unchanged pipeline).</summary>
@@ -118,6 +163,12 @@ public partial class HomePageViewModel : ObservableObject
             }
 
             OnPropertyChanged(nameof(HasNoSession));
+            RaiseTranslationDisplay(); // running↔idle changes which target is shown
+        }
+        else if (e.PropertyName is nameof(RealtimeCaptionViewModel.SelectedLanguage)
+                 or nameof(RealtimeCaptionViewModel.SessionTargetLanguage))
+        {
+            RaiseTranslationDisplay(); // recognition-language / session target changed
         }
     }
 
@@ -133,9 +184,11 @@ public partial class HomePageViewModel : ObservableObject
     {
         if (e.PropertyName is nameof(TranslationViewModel.Enabled)
             or nameof(TranslationViewModel.IsConfigured)
-            or nameof(TranslationViewModel.DirectionText))
+            or nameof(TranslationViewModel.DirectionText)
+            or nameof(TranslationViewModel.TargetLanguage))
         {
             OnPropertyChanged(nameof(TranslationNotConfiguredHint));
+            RaiseTranslationDisplay();
         }
     }
 

@@ -57,6 +57,17 @@ public class SettingsPersistenceTests : IDisposable
         Assert.Equal(LocalizedStrings.EnUS, reloaded.UiLanguage);
     }
 
+    [Fact] // UI-R4A: translation timeout / max retries persist across a restart
+    public void TranslationTimeoutAndRetries_RoundTrip()
+    {
+        _store.Save(new UserSettings { TranslationTimeoutSeconds = 45, TranslationMaxRetries = 5, TranslationTargetLanguage = "en" });
+
+        var (s, _) = _store.Load();
+        Assert.Equal(45, s.TranslationTimeoutSeconds);
+        Assert.Equal(5, s.TranslationMaxRetries);
+        Assert.Equal("en", s.TranslationTargetLanguage);
+    }
+
     [Fact] // the API key must never be part of the persisted settings type
     public void UserSettings_HasNoSecretProperty()
     {

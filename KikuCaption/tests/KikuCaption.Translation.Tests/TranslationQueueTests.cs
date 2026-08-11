@@ -39,6 +39,10 @@ public sealed class TranslationQueueTests : IAsyncDisposable
         => new(_repo, translator, options, NullLogger<TranslationQueue>.Instance,
             pollInterval: TimeSpan.FromMilliseconds(40), retryBaseDelay: TimeSpan.FromMilliseconds(30));
 
+    // UI-R4A: the per-session immutable direction snapshot passed to EnqueueAsync / ShouldEnqueue.
+    private static SessionTranslationOptions Snap(bool enabled = true, string source = "ja", string target = "zh")
+        => new(source, target, enabled, "m", 2);
+
     private async Task<TranscriptSegment> SeedFinalAsync(string text = "今回のリリースについて確認します。", string lang = "ja", int seq = 0)
     {
         // Idempotent (ON CONFLICT DO NOTHING) — safe to call for every seeded segment.
@@ -88,12 +92,12 @@ public sealed class TranslationQueueTests : IAsyncDisposable
     public void ShouldEnqueue_RejectsPartialChineseEmptyDisabled()
     {
         var ja = new TranscriptSegment { Id = Guid.NewGuid(), SessionId = _sessionId, StartTime = default, EndTime = default, Language = "ja", Text = "あ", Status = TranscriptStatus.Final, CreatedAt = DateTimeOffset.Now };
-        Assert.True(TranslationTrigger.ShouldEnqueue(ja, Opts()));
-        Assert.False(TranslationTrigger.ShouldEnqueue(ja with { Status = TranscriptStatus.Partial }, Opts()));
-        Assert.False(TranslationTrigger.ShouldEnqueue(ja with { Language = "zh" }, Opts()));
-        Assert.False(TranslationTrigger.ShouldEnqueue(ja with { Text = "  " }, Opts()));
-        Assert.False(TranslationTrigger.ShouldEnqueue(ja, Opts(enabled: false)));
-        Assert.False(TranslationTrigger.ShouldEnqueue(ja with { Translation = "已翻译" }, Opts()));
+        Assert.True(TranslationTrigger.ShouldEnqueue(ja, Snap()));
+        Assert.False(TranslationTrigger.ShouldEnqueue(ja with { Status = TranscriptStatus.Partial }, Snap()));
+        Assert.False(TranslationTrigger.ShouldEnqueue(ja with { Language = "zh" }, Snap()));
+        Assert.False(TranslationTrigger.ShouldEnqueue(ja with { Text = "  " }, Snap()));
+        Assert.False(TranslationTrigger.ShouldEnqueue(ja, Snap(enabled: false)));
+        Assert.False(TranslationTrigger.ShouldEnqueue(ja with { Translation = "已翻译" }, Snap()));
     }
 
     [Fact] // triggers 1: ja final → success end to end
@@ -104,7 +108,7 @@ public sealed class TranslationQueueTests : IAsyncDisposable
         await using var queue = NewQueue(translator, Opts());
         await queue.StartAsync(CancellationToken.None);
 
-        await queue.EnqueueAsync(seg, CancellationToken.None);
+        await queue.EnqueueAsync(seg, Snap(), CancellationToken.None);
 
         Assert.True(await WaitUntilAsync(async () => (await ReloadAsync(seg.Id))?.Status == TranscriptStatus.Translated));
         var reloaded = await ReloadAsync(seg.Id);
@@ -122,9 +126,9 @@ public sealed class TranslationQueueTests : IAsyncDisposable
         await using var queue = NewQueue(translator, Opts());
         await queue.StartAsync(CancellationToken.None);
 
-        await queue.EnqueueAsync(seg, CancellationToken.None);
-        await queue.EnqueueAsync(seg, CancellationToken.None);
-        await queue.EnqueueAsync(seg, CancellationToken.None);
+        await queue.EnqueueAsync(seg, Snap(), CancellationToken.None);
+        await queue.EnqueueAsync(seg, Snap(), CancellationToken.None);
+        await queue.EnqueueAsync(seg, Snap(), CancellationToken.None);
 
         // Only one active job exists regardless of repeated enqueues.
         var jobs = await _repo.GetJobsForSessionAsync(_sessionId, CancellationToken.None);
@@ -148,7 +152,7 @@ public sealed class TranslationQueueTests : IAsyncDisposable
         });
         await using var queue = NewQueue(translator, Opts());
         await queue.StartAsync(CancellationToken.None);
-        await queue.EnqueueAsync(seg, CancellationToken.None);
+        await queue.EnqueueAsync(seg, Snap(), CancellationToken.None);
 
         Assert.True(await WaitUntilAsync(async () => (await ReloadAsync(seg.Id))?.Status == TranscriptStatus.Translated));
         Assert.Equal("成功", (await ReloadAsync(seg.Id))!.Translation);
@@ -162,7 +166,7 @@ public sealed class TranslationQueueTests : IAsyncDisposable
         var translator = new ScriptedTranslator((_, _) => throw new TranslationException(TranslationErrorCode.BadRequest, "400"));
         await using var queue = NewQueue(translator, Opts());
         await queue.StartAsync(CancellationToken.None);
-        await queue.EnqueueAsync(seg, CancellationToken.None);
+        await queue.EnqueueAsync(seg, Snap(), CancellationToken.None);
 
         Assert.True(await WaitUntilAsync(async () => (await JobAsync(seg.Id))?.State == TranslationJobState.FailedPermanent));
         var reloaded = await ReloadAsync(seg.Id);
@@ -179,7 +183,7 @@ public sealed class TranslationQueueTests : IAsyncDisposable
         var translator = new ScriptedTranslator((_, _) => throw new TranslationException(TranslationErrorCode.ServiceUnavailable, "503"));
         await using var queue = NewQueue(translator, Opts(maxRetries: 2));
         await queue.StartAsync(CancellationToken.None);
-        await queue.EnqueueAsync(seg, CancellationToken.None);
+        await queue.EnqueueAsync(seg, Snap(), CancellationToken.None);
 
         Assert.True(await WaitUntilAsync(async () => (await JobAsync(seg.Id))?.State == TranslationJobState.FailedPermanent, 8000));
         Assert.Equal(TranscriptStatus.TranslationFailed, (await ReloadAsync(seg.Id))!.Status);
@@ -199,8 +203,8 @@ public sealed class TranslationQueueTests : IAsyncDisposable
         });
         await using var queue = NewQueue(translator, Opts(concurrency: 2));
         await queue.StartAsync(CancellationToken.None);
-        await queue.EnqueueAsync(a, CancellationToken.None);
-        await queue.EnqueueAsync(b, CancellationToken.None);
+        await queue.EnqueueAsync(a, Snap(), CancellationToken.None);
+        await queue.EnqueueAsync(b, Snap(), CancellationToken.None);
 
         Assert.True(await WaitUntilAsync(async () =>
             (await ReloadAsync(a.Id))?.Translation == "第一" && (await ReloadAsync(b.Id))?.Translation == "第二"));
@@ -256,7 +260,7 @@ public sealed class TranslationQueueTests : IAsyncDisposable
         await queue.StartAsync(CancellationToken.None);
         foreach (var s in segs)
         {
-            await queue.EnqueueAsync(s, CancellationToken.None);
+            await queue.EnqueueAsync(s, Snap(), CancellationToken.None);
         }
 
         Assert.True(await WaitUntilAsync(async () =>
@@ -282,7 +286,7 @@ public sealed class TranslationQueueTests : IAsyncDisposable
         });
         var queue = NewQueue(translator, Opts());
         await queue.StartAsync(CancellationToken.None);
-        await queue.EnqueueAsync(seg, CancellationToken.None);
+        await queue.EnqueueAsync(seg, Snap(), CancellationToken.None);
         await started.Task; // ensure the request is in flight
 
         await queue.DisposeAsync(); // stop → cancel current request
