@@ -586,7 +586,11 @@ public partial class RealtimeCaptionViewModel : ObservableObject
         MetricsText = m is null
             ? string.Empty
             : $"partial={m.PartialCount}  final={m.FinalCount}  RTF={m.Rtf:0.00}  推理={m.LastInferenceMs}ms  " +
-              $"队列={m.QueueDepthMs}ms  背压跳过={m.SkippedCycles}";
+              $"队列={m.QueueDepthMs}ms  背压跳过={m.SkippedCycles}  " +
+              // Audio-loss Hotfix diagnostics (numbers only, never caption text): received vs
+              // finalized/pending, and the invariant that must always read 0 on the safe path.
+              $"音频收到={m.AudioReceivedSeconds:0.0}s 已final={m.AudioFinalizedSeconds:0.0}s " +
+              $"待处理={m.PendingAudioSeconds:0.0}s 丢弃(未提交)={m.AudioDiscardedUncommittedSeconds:0.0}s";
 
         // Milestone 7: reproducible resource sampling (main + ffmpeg CPU/mem) → redacted log + health.
         try

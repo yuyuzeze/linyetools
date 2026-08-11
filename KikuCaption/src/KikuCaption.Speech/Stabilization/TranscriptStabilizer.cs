@@ -91,7 +91,15 @@ public sealed class TranscriptStabilizer : ITranscriptStabilizer
 
     public IReadOnlyList<TranscriptSegment> Flush(TimeSpan endTime)
     {
-        var text = (_committed.Length > 0 ? _committed : _lastPartial).Trim();
+        // Data-loss Hotfix: prefer the FULLEST known text (_lastPartial), not the conservative
+        // stable-agreed prefix (_committed). _lastPartial is always >= _committed in content — it
+        // equals the latest full candidate whenever that candidate still starts with _committed,
+        // and only falls back to _committed if the latest candidate genuinely contradicts it. A hard
+        // finalize (max length/wait/flush) can fire before a still-growing tail (e.g. one more word
+        // recognized this very cycle) has had a second cycle to reconfirm it via LocalAgreement —
+        // using _committed there would silently drop that already-transcribed tail even though its
+        // audio was correctly consumed. Content must never be sacrificed for stability here.
+        var text = (_lastPartial.Length > 0 ? _lastPartial : _committed).Trim();
         var segments = new List<TranscriptSegment>();
 
         if (text.Length > 0)

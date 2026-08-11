@@ -39,4 +39,27 @@ public class ProgressiveCaptionOptionsTests
         Assert.Throws<ArgumentOutOfRangeException>(() =>
             new ProgressiveCaptionOptions { WindowSeconds = 6, MaxSentenceSeconds = 3 }.Validate());
     }
+
+    [Fact] // Data-loss Hotfix: the experimental sliding-window path must never be enabled
+    public void ExperimentalSlidingWindow_Enabled_Throws()
+    {
+        Assert.Throws<NotSupportedException>(() =>
+            new ProgressiveCaptionOptions { UseExperimentalSlidingWindow = true }.Validate());
+    }
+
+    [Fact]
+    public void ExperimentalSlidingWindow_DefaultsFalse()
+    {
+        Assert.False(new ProgressiveCaptionOptions().UseExperimentalSlidingWindow);
+    }
+
+    [Fact] // Data-loss Hotfix: recommended defaults are restored to the pre-sliding-window values
+    public void RestoredDefaults_MatchHotfixRecommendation()
+    {
+        var o = new ProgressiveCaptionOptions();
+        Assert.Equal(700, o.SilenceFinalMs);
+        Assert.Equal(2, o.StableRepeatCount);
+        Assert.Equal(12, o.MaxSentenceSeconds);
+        Assert.Equal(20, o.MaxWaitSeconds);
+    }
 }

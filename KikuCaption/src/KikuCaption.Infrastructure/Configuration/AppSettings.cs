@@ -24,11 +24,18 @@ public sealed class SpeechSettings
     public double WindowSeconds { get; set; } = 6;
     public double OverlapSeconds { get; set; } = 2;
 
-    // Progressive-captioning tunables (now actually mapped through to the pipeline).
-    public int SilenceFinalMs { get; set; } = 1000;
-    public int StableRepeatCount { get; set; } = 3;
+    // Progressive-captioning tunables (mapped through to the pipeline).
+    public int SilenceFinalMs { get; set; } = 700;
+    public int StableRepeatCount { get; set; } = 2;
     public double MaxSentenceSeconds { get; set; } = 12;
     public double MaxWaitSeconds { get; set; } = 20;
+
+    /// <summary>
+    /// Hotfix safety switch. Must stay false: real-time captioning uses the safe "complete
+    /// utterance" buffering; the experimental sliding-window path is known to lose audio and is
+    /// rejected at startup validation if this is true. See ProgressiveCaptionOptions.
+    /// </summary>
+    public bool UseExperimentalSlidingWindow { get; set; } = false;
 
     /// <summary>
     /// Per-language decoding context. Keyed by language ("ja" / "zh"); each provides an initial

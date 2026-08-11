@@ -91,7 +91,9 @@ public partial class App : Application
                         StableRepeatCount = speechSettings.StableRepeatCount,
                         MaxSentenceSeconds = speechSettings.MaxSentenceSeconds,
                         MaxWaitSeconds = speechSettings.MaxWaitSeconds,
-                        MaxLines = Math.Clamp(subtitleSettings.MaxLines, 2, 5)
+                        MaxLines = Math.Clamp(subtitleSettings.MaxLines, 2, 5),
+                        // Hotfix safety switch: Validate() below refuses true (data-loss risk).
+                        UseExperimentalSlidingWindow = speechSettings.UseExperimentalSlidingWindow
                     };
                     progressive.Validate();
                     services.AddSingleton(progressive);

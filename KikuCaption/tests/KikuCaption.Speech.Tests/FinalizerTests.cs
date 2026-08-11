@@ -16,17 +16,17 @@ public class FinalizerTests
         WaitSeconds: 3,
         FlushRequested: false);
 
-    [Fact] // 1. sustained silence finalizes (default SilenceFinalMs = 1000)
+    [Fact] // 1. sustained silence finalizes (default SilenceFinalMs = 700, restored Hotfix value)
     public void Silence_Finalizes()
     {
-        var r = Create().Evaluate(Base() with { SilenceMs = 1000 });
+        var r = Create().Evaluate(Base() with { SilenceMs = 700 });
         Assert.Equal(FinalizeReason.Silence, r);
     }
 
-    [Fact] // 2. punctuation + stability finalizes (default StableRepeatCount = 3)
+    [Fact] // 2. punctuation + stability finalizes (default StableRepeatCount = 2, restored Hotfix value)
     public void PunctuationAndStable_Finalizes()
     {
-        var r = Create().Evaluate(Base() with { EndsWithSentencePunctuation = true, StableUnchangedCount = 3 });
+        var r = Create().Evaluate(Base() with { EndsWithSentencePunctuation = true, StableUnchangedCount = 2 });
         Assert.Equal(FinalizeReason.PunctuationStable, r);
     }
 
