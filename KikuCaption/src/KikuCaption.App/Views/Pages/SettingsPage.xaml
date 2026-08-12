@@ -77,6 +77,12 @@
                             </StackPanel>
                         </Grid>
 
+                        <!-- UI-R5B system tray -->
+                        <CheckBox Margin="0,10,0,0"
+                                  Content="{loc:Loc General.MinimizeToTray}" IsChecked="{Binding MinimizeToTray}" />
+                        <CheckBox Margin="0,6,0,0"
+                                  Content="{loc:Loc General.CloseToTray}" IsChecked="{Binding CloseToTray}" />
+
                         <TextBlock Text="{loc:Loc Settings.NextMeetingHint}" TextWrapping="Wrap" Margin="0,12,0,0"
                                    Foreground="{StaticResource MutedBrush}" FontSize="12" />
 

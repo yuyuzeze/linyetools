@@ -68,6 +68,44 @@ public class SettingsPersistenceTests : IDisposable
         Assert.Equal("en", s.TranslationTargetLanguage);
     }
 
+    [Fact] // UI-R5A: meeting audio inputs (system / mic / stable device id) round-trip across a restart
+    public void AudioInputs_RoundTrip()
+    {
+        _store.Save(new UserSettings { RecordSystemAudio = true, RecordMicrophone = false, MicrophoneDeviceId = "mic-endpoint-42" });
+
+        var (s, _) = _store.Load();
+        Assert.True(s.RecordSystemAudio);
+        Assert.False(s.RecordMicrophone);
+        Assert.Equal("mic-endpoint-42", s.MicrophoneDeviceId);
+    }
+
+    [Fact] // UI-R5A defaults: system audio on, microphone on, default communications device (null id)
+    public void AudioInputs_DefaultsOn()
+    {
+        var s = new UserSettings();
+        Assert.True(s.RecordSystemAudio);
+        Assert.True(s.RecordMicrophone);
+        Assert.Null(s.MicrophoneDeviceId);
+    }
+
+    [Fact] // UI-R5B: tray preferences round-trip across a restart
+    public void TrayPreferences_RoundTrip()
+    {
+        _store.Save(new UserSettings { MinimizeToTray = false, CloseToTray = true });
+
+        var (s, _) = _store.Load();
+        Assert.False(s.MinimizeToTray);
+        Assert.True(s.CloseToTray);
+    }
+
+    [Fact] // UI-R5B defaults: MinimizeToTray on, CloseToTray off (safe default)
+    public void TrayPreferences_Defaults()
+    {
+        var s = new UserSettings();
+        Assert.True(s.MinimizeToTray);
+        Assert.False(s.CloseToTray);
+    }
+
     [Fact] // the API key must never be part of the persisted settings type
     public void UserSettings_HasNoSecretProperty()
     {

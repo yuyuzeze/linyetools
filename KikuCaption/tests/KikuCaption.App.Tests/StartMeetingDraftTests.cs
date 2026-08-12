@@ -1,4 +1,5 @@
 using KikuCaption.App.ViewModels;
+using KikuCaption.Audio.Diagnostics;
 using Xunit;
 
 namespace KikuCaption.App.Tests;
@@ -14,12 +15,23 @@ public class StartMeetingDraftTests
     private sealed class FakeSink : IMeetingCaptureTargetSink
     {
         public MeetingCaptureTarget CaptureTarget { get; private set; } = MeetingCaptureTarget.ScreenTarget;
+        public MeetingAudioOptions AudioOptions { get; private set; } = MeetingAudioOptions.Default;
         public int ApplyCount { get; private set; }
+        public int AudioApplyCount { get; private set; }
         public void ApplyCaptureTarget(MeetingCaptureTarget target) { CaptureTarget = target; ApplyCount++; }
+        public void ApplyAudioOptions(MeetingAudioOptions options) { AudioOptions = options; AudioApplyCount++; }
     }
 
     private static StartMeetingDialogViewModel Draft(MeetingCaptureTarget initial)
         => new(initial, new[] { "Teams", "Chrome" }, @"C:\Meetings");
+
+    private static readonly AudioCaptureDeviceInfo DevA = new("id-a", "Headset Mic", IsDefaultCommunications: false);
+    private static readonly AudioCaptureDeviceInfo DevB = new("id-b", "Laptop Mic", IsDefaultCommunications: true);
+
+    private static StartMeetingDialogViewModel AudioDraft(MeetingAudioOptions audio,
+        System.Collections.Generic.IReadOnlyList<AudioCaptureDeviceInfo>? devices = null)
+        => new(MeetingCaptureTarget.ScreenTarget, System.Array.Empty<string>(), @"C:\Meetings",
+               audio, devices ?? new[] { DevA, DevB });
 
     [Fact] // draft copies the initial target and editing it does not touch the seed
     public void Draft_SeedsFromInitial_AndEditsStayLocal()
@@ -107,5 +119,74 @@ public class StartMeetingDraftTests
 
         Assert.Null(draft.ToTarget().WindowTitle);
         Assert.True(draft.CanStart);
+    }
+
+    // ---- UI-R5A audio inputs --------------------------------------------
+
+    [Fact] // scenario 1: a null saved device id selects the default communications device
+    public void NullDevice_SelectsDefaultCommunications()
+    {
+        var draft = AudioDraft(new MeetingAudioOptions(true, true, null));
+        Assert.Equal("id-b", draft.SelectedMicDeviceId); // DevB is the default-communications device
+    }
+
+    [Fact] // scenario 2: a saved (still-present) device id is restored
+    public void SavedDevice_IsRestored()
+    {
+        var draft = AudioDraft(new MeetingAudioOptions(true, true, "id-a"));
+        Assert.Equal("id-a", draft.SelectedMicDeviceId);
+    }
+
+    [Fact] // scenario 3: a saved device that has vanished falls back to the default (never a dead id)
+    public void VanishedDevice_FallsBackToDefault()
+    {
+        var draft = AudioDraft(new MeetingAudioOptions(true, true, "id-gone"));
+        Assert.Equal("id-b", draft.SelectedMicDeviceId);
+    }
+
+    [Fact] // scenario 21: microphone off → the audio options carry no device id
+    public void MicOff_DropsDeviceId()
+    {
+        var draft = AudioDraft(new MeetingAudioOptions(true, false, "id-a"));
+        Assert.False(draft.RecordMicrophone);
+        Assert.Null(draft.ToAudioOptions().MicrophoneDeviceId);
+        Assert.True(draft.CanStart); // system audio alone is enough
+    }
+
+    [Fact] // a meeting requires at least one audio input
+    public void NoInput_CannotStart()
+    {
+        var draft = AudioDraft(new MeetingAudioOptions(false, false, null));
+        Assert.False(draft.HasAnyInput);
+        Assert.False(draft.CanStart);
+        Assert.True(draft.ShowNoInputWarning);
+    }
+
+    [Fact] // confirming applies the audio options to the sink alongside the target
+    public void Confirm_AppliesAudioOptions()
+    {
+        var sink = new FakeSink();
+        var draft = AudioDraft(new MeetingAudioOptions(true, true, "id-a"));
+
+        var proceed = MeetingStartCoordinator.ResolveStart(dialogResult: true, draft, sink);
+
+        Assert.True(proceed);
+        Assert.Equal(1, sink.AudioApplyCount);
+        Assert.True(sink.AudioOptions.RecordSystemAudio);
+        Assert.True(sink.AudioOptions.RecordMicrophone);
+        Assert.Equal("id-a", sink.AudioOptions.MicrophoneDeviceId);
+    }
+
+    [Fact] // confirming with no audio input never starts and applies nothing
+    public void Confirm_NoInput_DoesNotStart()
+    {
+        var sink = new FakeSink();
+        var draft = AudioDraft(new MeetingAudioOptions(false, false, null));
+
+        var proceed = MeetingStartCoordinator.ResolveStart(dialogResult: true, draft, sink);
+
+        Assert.False(proceed);
+        Assert.Equal(0, sink.ApplyCount);
+        Assert.Equal(0, sink.AudioApplyCount);
     }
 }

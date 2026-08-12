@@ -5,10 +5,21 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
+    <!-- UI-R5B: WinForms is enabled ONLY here (the WPF entry point) for System.Windows.Forms.NotifyIcon.
+         It ships with the Windows Desktop SDK — no NuGet package, no third-party dependency. -->
+    <UseWindowsForms>true</UseWindowsForms>
     <RootNamespace>KikuCaption.App</RootNamespace>
     <AssemblyName>KikuCaption</AssemblyName>
-    <ApplicationIcon></ApplicationIcon>
+    <ApplicationIcon>Resources\app.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <!-- UseWindowsForms adds System.Windows.Forms/Drawing to the implicit global usings, which clash
+       with the WPF equivalents (UserControl, ListBox, Application). Remove those implicit usings; the
+       tray adapter references WinForms via an explicit alias instead. -->
+  <ItemGroup>
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\KikuCaption.Core\KikuCaption.Core.csproj" />
@@ -33,6 +44,8 @@
     <None Update="appsettings.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <!-- UI-R5B: the tray/app icon, packaged as a WPF Resource (loaded via pack URI, never a source path). -->
+    <Resource Include="Resources\app.ico" />
   </ItemGroup>
 
 </Project>

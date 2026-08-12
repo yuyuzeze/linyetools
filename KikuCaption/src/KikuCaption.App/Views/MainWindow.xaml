@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:loc="clr-namespace:KikuCaption.App.Localization"
         Title="KikuCaption" Height="820" Width="1180" MinWidth="900" MinHeight="600"
+        Icon="/Resources/app.ico"
         Background="{StaticResource WindowBrush}"
         WindowStartupLocation="CenterScreen">
     <Grid>

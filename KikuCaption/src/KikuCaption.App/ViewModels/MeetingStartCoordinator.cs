@@ -30,7 +30,14 @@ public static class MeetingStartCoordinator
             return false; // never apply/save an invalid target, and do not start
         }
 
+        var audio = draft.ToAudioOptions();
+        if (!audio.HasAnyInput)
+        {
+            return false; // a meeting needs at least one audio input (system and/or microphone)
+        }
+
         sink.ApplyCaptureTarget(target);
+        sink.ApplyAudioOptions(audio);
         return true;
     }
 }

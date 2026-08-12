@@ -17,6 +17,17 @@ public sealed record UserSettings
     public int FrameRate { get; init; } = 15;
     public string PreferredEncoder { get; init; } = "h264_qsv";
 
+    // UI-R5A meeting audio inputs (non-secret). Defaults: system audio on, microphone on, default
+    // communications input device (null id). MicrophoneDeviceId is a stable WASAPI endpoint id.
+    public bool RecordSystemAudio { get; init; } = true;
+    public bool RecordMicrophone { get; init; } = true;
+    public string? MicrophoneDeviceId { get; init; }
+
+    // UI-R5B system tray. MinimizeToTray hides the window to the notification area on minimize;
+    // CloseToTray makes the window's X hide to tray instead of exiting. The tray "Exit" always exits.
+    public bool MinimizeToTray { get; init; } = true;
+    public bool CloseToTray { get; init; }
+
     public bool TranslationEnabled { get; init; }
 
     // NOTE: the Endpoint is intentionally NOT persisted here — it can embed a credential (e.g. a

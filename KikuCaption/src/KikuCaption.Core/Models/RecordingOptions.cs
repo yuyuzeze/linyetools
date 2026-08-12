@@ -1,4 +1,5 @@
 using KikuCaption.Core.Enums;
+using KikuCaption.Core.Interfaces;
 
 namespace KikuCaption.Core.Models;
 
@@ -30,4 +31,12 @@ public sealed record RecordingOptions
     public int AudioSampleRate { get; init; } = 16000;
 
     public int AudioChannels { get; init; } = 1;
+
+    /// <summary>
+    /// UI-R5A: when set, the recorder consumes this already-mixed audio source (system + microphone
+    /// from the session mixer) instead of opening its own WASAPI loopback — so exactly one loopback
+    /// exists and the recording hears the same mix as the live captions. Null keeps the legacy
+    /// behavior (the recorder opens its own loopback). Not serialized; wired at runtime only.
+    /// </summary>
+    public IAudioCaptureService? ExternalAudioSource { get; init; }
 }

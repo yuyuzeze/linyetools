@@ -189,6 +189,39 @@ public partial class App : Application
 
                     services.AddSingleton<SubtitleOverlayWindow>();
                     services.AddSingleton<MainWindow>();
+
+                    // UI-R5B: shared meeting launcher (home button + tray) and the system-tray coordinator.
+                    services.AddSingleton<Func<HomePageViewModel>>(sp => () => sp.GetRequiredService<HomePageViewModel>());
+                    services.AddSingleton<KikuCaption.App.Services.IMeetingLauncher, KikuCaption.App.Services.MeetingLauncher>();
+                    services.AddSingleton<Func<KikuCaption.App.Services.IMeetingLauncher>>(
+                        sp => () => sp.GetRequiredService<KikuCaption.App.Services.IMeetingLauncher>());
+                    services.AddSingleton<KikuCaption.App.Tray.ITrayIconAdapter, KikuCaption.App.Tray.WinFormsTrayIconAdapter>();
+                    services.AddSingleton<KikuCaption.App.Tray.IMainWindowController>(sp => sp.GetRequiredService<MainWindow>());
+                    services.AddSingleton<KikuCaption.App.Tray.ITraySessionSource>(sp =>
+                        new KikuCaption.App.Tray.RealtimeTraySessionSource(sp.GetRequiredService<RealtimeCaptionViewModel>()));
+                    services.AddSingleton<KikuCaption.App.Tray.ISystemTrayService>(sp =>
+                    {
+                        var store = sp.GetRequiredService<UserSettingsStore>();
+                        var loc = sp.GetRequiredService<KikuCaption.App.Localization.LocalizationService>();
+                        return new KikuCaption.App.Tray.SystemTrayService(
+                            sp.GetRequiredService<KikuCaption.App.Tray.ITrayIconAdapter>(),
+                            sp.GetRequiredService<KikuCaption.App.Tray.IMainWindowController>(),
+                            sp.GetRequiredService<KikuCaption.App.Tray.ITraySessionSource>(),
+                            sp.GetRequiredService<INavigationService>(),
+                            sp.GetRequiredService<KikuCaption.App.Services.IMeetingLauncher>(),
+                            loc,
+                            minimizeToTray: () => store.Load().Settings.MinimizeToTray,
+                            closeToTray: () => store.Load().Settings.CloseToTray,
+                            confirmExitWhileRunning: () => MessageBox.Show(
+                                loc["Confirm.CloseWhileRecording"], loc["Common.AppName"],
+                                MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes,
+                            shutdown: () => Dispatcher.Invoke(() =>
+                            {
+                                try { sp.GetRequiredService<SubtitleOverlayWindow>().Close(); } catch { /* ignore */ }
+                                Shutdown();
+                            }),
+                            sp.GetRequiredService<ILogger<KikuCaption.App.Tray.SystemTrayService>>());
+                    });
                 })
                 .Build();
 
@@ -221,6 +254,11 @@ public partial class App : Application
 
             var window = _host.Services.GetRequiredService<MainWindow>();
             window.Show();
+
+            // UI-R5B: attach + start the single system-tray coordinator after the window is shown.
+            var tray = _host.Services.GetRequiredService<KikuCaption.App.Tray.ISystemTrayService>();
+            window.AttachTray(tray);
+            tray.Start();
         }
         catch (OptionsValidationException ex)
         {
@@ -236,6 +274,10 @@ public partial class App : Application
     {
         if (_host is not null)
         {
+            // UI-R5B: dispose the tray icon first so no ghost remains, on every exit path (idempotent
+            // if the explicit-exit flow already disposed it).
+            try { _host.Services.GetRequiredService<KikuCaption.App.Tray.ISystemTrayService>().Dispose(); } catch { /* ignore */ }
+
             // Stop the translation queue first: cancels the in-flight request but leaves Pending
             // jobs durable in SQLite for the next run.
             try { await _host.Services.GetRequiredService<TranslationQueue>().DisposeAsync(); } catch { /* ignore */ }
@@ -317,6 +359,10 @@ public partial class App : Application
         realtime.ApplyCaptureTarget(new KikuCaption.App.ViewModels.MeetingCaptureTarget(
             string.IsNullOrWhiteSpace(us.CaptureType) ? "screen" : us.CaptureType,
             us.CaptureTarget));
+
+        // UI-R5A: restore the meeting audio inputs (system audio / microphone / stable device id).
+        realtime.ApplyAudioOptions(new KikuCaption.App.ViewModels.MeetingAudioOptions(
+            us.RecordSystemAudio, us.RecordMicrophone, us.MicrophoneDeviceId));
     }
 
     private static TranslationOptions BuildTranslationOptions(TranslationSettings s)

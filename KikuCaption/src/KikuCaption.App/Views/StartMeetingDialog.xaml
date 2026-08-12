@@ -11,6 +11,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <TextBlock Grid.Row="0" Text="{loc:Loc StartDialog.Title}" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,4" />
@@ -34,7 +35,35 @@
             </StackPanel>
         </StackPanel>
 
+        <!-- Audio inputs (UI-R5A): edits the draft only; applied to the meeting on confirm -->
         <StackPanel Grid.Row="3" Margin="0,18,0,0">
+            <TextBlock Text="{loc:Loc StartDialog.AudioSection}" FontWeight="SemiBold" Margin="0,0,0,6" />
+            <CheckBox Content="{loc:Loc StartDialog.RecordSystemAudio}" IsChecked="{Binding RecordSystemAudio}" Margin="0,2" />
+            <CheckBox Content="{loc:Loc StartDialog.RecordMicrophone}" IsChecked="{Binding RecordMicrophone}" Margin="0,2"
+                      ToolTip="{loc:Loc StartDialog.MicTooltip}" />
+
+            <StackPanel Margin="24,4,0,0" Visibility="{Binding RecordMicrophone, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="{loc:Loc StartDialog.MicDevice}" VerticalAlignment="Center" Width="76" />
+                    <ComboBox Width="240" ItemsSource="{Binding MicDevices}" DisplayMemberPath="Name"
+                              SelectedValuePath="Id" SelectedValue="{Binding SelectedMicDeviceId}" />
+                    <Button Content="{loc:Loc StartDialog.RefreshDevices}" Command="{Binding RefreshMicDevicesCommand}" Margin="8,0,0,0" Padding="10,4" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                    <TextBlock Text="{loc:Loc StartDialog.InputLevel}" VerticalAlignment="Center" Width="76" />
+                    <ProgressBar Width="240" Height="12" Minimum="0" Maximum="1" Value="{Binding InputLevel, Mode=OneWay}" />
+                </StackPanel>
+                <TextBlock Text="{loc:Loc StartDialog.MicTooltip}" TextWrapping="Wrap" Margin="0,6,0,0"
+                           Foreground="{StaticResource MutedBrush}" FontSize="11" />
+                <TextBlock Text="{loc:Loc StartDialog.MicUnavailable}" TextWrapping="Wrap" Margin="0,6,0,0" Foreground="#C0392B"
+                           Visibility="{Binding MicrophoneUnavailable, Converter={StaticResource BoolToVisibility}}" />
+            </StackPanel>
+
+            <TextBlock Text="{loc:Loc StartDialog.NoAudioInput}" TextWrapping="Wrap" Margin="0,6,0,0" Foreground="#C0392B"
+                       Visibility="{Binding ShowNoInputWarning, Converter={StaticResource BoolToVisibility}}" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="4" Margin="0,18,0,0">
             <TextBlock Text="{loc:Loc StartDialog.OutputLocation}" FontWeight="SemiBold" />
             <TextBlock Text="{Binding OutputRoot}" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap"
                        FontFamily="Consolas" FontSize="12" Margin="0,2,0,0" />

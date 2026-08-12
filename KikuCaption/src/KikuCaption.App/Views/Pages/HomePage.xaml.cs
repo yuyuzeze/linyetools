@@ -25,20 +25,10 @@ public partial class HomePage : UserControl
             return;
         }
 
-        var realtime = ViewModel.Realtime;
-        var draft = new StartMeetingDialogViewModel(realtime.CaptureTarget, realtime.Windows, ViewModel.OutputRootSummary);
-        var dialog = new StartMeetingDialog(draft) { Owner = Window.GetWindow(this) };
-
-        var result = dialog.ShowDialog();
-        if (MeetingStartCoordinator.ResolveStart(result, draft, realtime))
-        {
-            // Remember the confirmed target across restarts (UI-R3), then start.
-            ViewModel.PersistCaptureTarget(realtime.CaptureTarget);
-            if (realtime.StartCommand.CanExecute(null))
-            {
-                await realtime.StartCommand.ExecuteAsync(null);
-            }
-        }
+        // UI-R5B: the start-meeting flow lives in the shared IMeetingLauncher (reused by the tray), so
+        // the home button and the tray "Start session" behave identically. Same dialog, same confirm,
+        // same persistence, same StartCommand — no duplicated start logic.
+        await ViewModel.StartMeetingAsync();
     }
 
     private void TimelineMenuItem_Click(object sender, RoutedEventArgs e) => TimelineMenuToggle.IsChecked = false;

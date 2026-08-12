@@ -47,6 +47,8 @@ public sealed partial class GeneralSettingsViewModel : ObservableObject
     [ObservableProperty] private bool _defaultTranslationEnabled;
     [ObservableProperty] private string _defaultRecordingTarget = "screen";
     [ObservableProperty] private int _logRetentionDays = 14;
+    [ObservableProperty] private bool _minimizeToTray = true;
+    [ObservableProperty] private bool _closeToTray;
     [ObservableProperty] private string _statusText = string.Empty;
 
     // UI language applies live and persists immediately (discrete choice, safe to write once).
@@ -76,7 +78,9 @@ public sealed partial class GeneralSettingsViewModel : ObservableObject
                 LoadRecentOnStartup = LoadRecentOnStartup,
                 TranslationEnabled = DefaultTranslationEnabled, // shares the existing translation on/off flag
                 CaptureType = DefaultRecordingTarget,
-                LogRetentionDays = Math.Clamp(LogRetentionDays, 1, 365)
+                LogRetentionDays = Math.Clamp(LogRetentionDays, 1, 365),
+                MinimizeToTray = MinimizeToTray,
+                CloseToTray = CloseToTray
             });
             StatusText = _localization["Settings.Saved"];
         }
@@ -98,6 +102,8 @@ public sealed partial class GeneralSettingsViewModel : ObservableObject
         DefaultTranslationEnabled = d.TranslationEnabled;
         DefaultRecordingTarget = d.CaptureType;
         LogRetentionDays = d.LogRetentionDays;
+        MinimizeToTray = d.MinimizeToTray;
+        CloseToTray = d.CloseToTray;
         _loading = false;
         // Language reset applies live + persists via the changed handler.
         UiLanguage = d.UiLanguage;
@@ -117,6 +123,8 @@ public sealed partial class GeneralSettingsViewModel : ObservableObject
         DefaultTranslationEnabled = s.TranslationEnabled;
         DefaultRecordingTarget = s.CaptureType;
         LogRetentionDays = s.LogRetentionDays;
+        MinimizeToTray = s.MinimizeToTray;
+        CloseToTray = s.CloseToTray;
         _loading = false;
     }
 }

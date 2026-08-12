@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using KikuCaption.App.Localization;
 using KikuCaption.App.Services;
+using KikuCaption.Audio.Mixing;
 using KikuCaption.Core.Enums;
 using KikuCaption.Core.Interfaces;
 using KikuCaption.Core.Models;
@@ -27,7 +28,7 @@ namespace KikuCaption.App.ViewModels;
 /// </summary>
 public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptureTargetSink
 {
-    private readonly Func<IAudioCaptureService> _captureFactory;
+    private readonly Func<AudioMixOptions, SessionAudioMixer> _mixerFactory;
     private readonly Func<RealtimeCaptionPipeline> _pipelineFactory;
     private readonly SessionRecorder _recorder;
     private readonly StorageOptions _storageOptions;
@@ -61,8 +62,14 @@ public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptur
     private SessionTranslationOptions? _sessionTranslation;
 
     private RealtimeCaptionPipeline? _pipeline;
-    private IAudioCaptureService? _capture;
+    private SessionAudioMixer? _mixer;
+    private IAudioCaptureService? _recordingAudioSource;
     private IScreenRecorder? _screenRecorder;
+
+    // UI-R5A meeting audio inputs (seeded from persisted settings; applied from the start dialog).
+    private bool _recordSystemAudio = true;
+    private bool _recordMicrophone = true;
+    private string? _micDeviceId;
     private FFmpegCapabilities? _capabilities;
     private CancellationTokenSource? _cts;
 
@@ -109,7 +116,7 @@ public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptur
     [ObservableProperty] private string _preflightSummary = string.Empty;
 
     public RealtimeCaptionViewModel(
-        Func<IAudioCaptureService> captureFactory,
+        Func<AudioMixOptions, SessionAudioMixer> mixerFactory,
         Func<RealtimeCaptionPipeline> pipelineFactory,
         SessionRecorder recorder,
         StorageOptions storageOptions,
@@ -126,7 +133,7 @@ public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptur
         ILogger<RealtimeCaptionViewModel> logger)
     {
         _loc = localization;
-        _captureFactory = captureFactory;
+        _mixerFactory = mixerFactory;
         _pipelineFactory = pipelineFactory;
         _recorder = recorder;
         _storageOptions = storageOptions;
@@ -197,6 +204,17 @@ public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptur
     {
         SelectedCaptureType = target.CaptureType;
         SelectedWindow = target.WindowTitle;
+    }
+
+    /// <summary>The live audio-input choice (UI-R5A) — used to seed the start dialog draft.</summary>
+    public MeetingAudioOptions AudioOptions => new(_recordSystemAudio, _recordMicrophone, _micDeviceId);
+
+    /// <summary>Applies the chosen audio inputs (system audio / microphone / device) to the live state.</summary>
+    public void ApplyAudioOptions(MeetingAudioOptions options)
+    {
+        _recordSystemAudio = options.RecordSystemAudio;
+        _recordMicrophone = options.RecordMicrophone;
+        _micDeviceId = options.MicrophoneDeviceId;
     }
 
     // UI-R4A: keep the translation source following the recognition language (idle direction preview).
@@ -303,7 +321,15 @@ public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptur
         try
         {
             _cts = new CancellationTokenSource();
-            _capture = _captureFactory();
+
+            // UI-R5A: one session mixer opens a single system loopback + (optionally) the microphone,
+            // mixes to 16k/mono/int16, and fans the SAME mixed PCM out to the caption pipeline and the
+            // recorder — so exactly one loopback exists and the mic reaches both captions and meeting.mp4.
+            var mixOptions = new AudioMixOptions(_recordSystemAudio, _recordMicrophone, _micDeviceId);
+            _mixer = _mixerFactory(mixOptions);
+            _recordingAudioSource = recordThisSession ? _mixer.CreateRecordingSource() : null;
+            _mixer.Start(_cts.Token);
+
             _pipeline = _pipelineFactory();
             _pipeline.PartialUpdated += OnPartial;
             _pipeline.FinalProduced += OnFinalProduced;
@@ -315,7 +341,7 @@ public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptur
             Timeline.BeginSession(); // fresh full-meeting timeline (Milestone 3.1)
             SetStatus("Status.Loading");
 
-            await _pipeline.StartAsync(_capture.CaptureAsync(_cts.Token), SelectedLanguage, _cts.Token);
+            await _pipeline.StartAsync(_mixer.SpeechSource.CaptureAsync(_cts.Token), SelectedLanguage, _cts.Token);
 
             // UI-R4A: snapshot the translation direction now (source = recognition language; target =
             // the configured target). Immutable for the whole meeting, even if the user later changes
@@ -390,13 +416,20 @@ public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptur
         SetStatus("Status.Stopping");
         try
         {
-            // Finalize the MP4 first, then captions + storage.
+            // Finalize the MP4 first (drains the recorder's mixed-audio branch + validates), then stop
+            // the mixer/captions so the last mixed PCM is finalized, then storage. Cancelling _cts stops
+            // the mixer pumps AND the pipeline's ingest of the mixed stream (same as the old loopback).
             await StopRecordingAsync();
 
             _cts?.Cancel();
             if (_pipeline is not null)
             {
                 await _pipeline.StopAsync();
+            }
+
+            if (_mixer is not null)
+            {
+                await _mixer.StopAsync();
             }
 
             if (_recorder.IsRunning)
@@ -439,11 +472,13 @@ public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptur
             _pipeline = null;
         }
 
-        if (_capture is not null)
+        if (_mixer is not null)
         {
-            try { await _capture.DisposeAsync(); } catch (Exception ex) { _logger.LogWarning(ex, "capture dispose"); }
-            _capture = null;
+            try { await _mixer.DisposeAsync(); } catch (Exception ex) { _logger.LogWarning(ex, "mixer dispose"); }
+            _mixer = null;
         }
+
+        _recordingAudioSource = null;
 
         if (_screenRecorder is not null)
         {
@@ -483,7 +518,10 @@ public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptur
                 FFmpegPath = _recordingRuntime.FFmpegPath,
                 FrameRate = _recordingRuntime.FrameRate,
                 Encoder = encoder,
-                IncludeSystemAudio = true
+                IncludeSystemAudio = true,
+                // UI-R5A: feed the recorder the SAME mixed PCM (system + mic) the captions use, instead
+                // of opening a second loopback. Null falls back to the recorder's own loopback (legacy).
+                ExternalAudioSource = _recordingAudioSource
             };
 
             _screenRecorder = _screenRecorderFactory();

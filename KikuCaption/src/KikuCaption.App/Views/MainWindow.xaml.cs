@@ -1,19 +1,21 @@
 using System.Windows;
+using KikuCaption.App.Tray;
 using KikuCaption.App.ViewModels;
-using KikuCaption.App.Views.Pages;
 
 namespace KikuCaption.App.Views;
 
 /// <summary>
-/// Main-window shell. Code-behind is limited to unavoidable window/view behaviours: the
-/// close-while-recording safe-stop guard, closing the overlay, wiring the startup initialization,
-/// and closing the environment dropdown after a menu click. All feature logic lives in view models.
+/// Main-window shell. Code-behind is limited to unavoidable window/view behaviours: the tray
+/// minimize/close hooks (UI-R5B), closing the overlay, wiring startup initialization, and closing the
+/// environment dropdown. It implements <see cref="IMainWindowController"/> so the tray coordinator can
+/// hide/restore it; all session/exit decisions live in <see cref="ISystemTrayService"/>.
 /// </summary>
-public partial class MainWindow : Window
+public partial class MainWindow : Window, IMainWindowController
 {
     private readonly ShellViewModel _shell;
     private readonly SubtitleOverlayWindow _overlay;
-    private bool _safeStopInProgress;
+    private ISystemTrayService? _tray;
+    private bool _legacyStopInProgress;
 
     public MainWindow(ShellViewModel shell, SubtitleOverlayWindow overlay)
     {
@@ -23,30 +25,87 @@ public partial class MainWindow : Window
         DataContext = shell;
 
         Loaded += OnLoaded;
+        StateChanged += OnStateChanged;
         Closing += OnClosing;
         Closed += OnClosed;
     }
 
-    // Closing while recording → confirm, then a safe stop (never a hard kill).
+    /// <summary>Wires the tray coordinator after construction (avoids a DI ctor cycle).</summary>
+    public void AttachTray(ISystemTrayService tray) => _tray = tray;
+
+    // ---- IMainWindowController (called by the tray, on the UI thread) ----
+
+    public void HideToTray()
+    {
+        Hide();
+        ShowInTaskbar = false; // gone from the taskbar; the session keeps running
+    }
+
+    public void RestoreFromTray()
+    {
+        Show();
+        ShowInTaskbar = true;
+        if (WindowState == WindowState.Minimized)
+        {
+            WindowState = WindowState.Normal; // back to the pre-minimize size/position
+        }
+
+        Activate();
+        // Briefly toggle Topmost to pull the window to the foreground, then release it — the window is
+        // never left permanently topmost, and the subtitle overlay's Topmost is untouched.
+        Topmost = true;
+        Topmost = false;
+    }
+
+    // ---- window events ---------------------------------------------------
+
+    private void OnStateChanged(object? sender, EventArgs e)
+    {
+        if (WindowState == WindowState.Minimized)
+        {
+            _tray?.HandleMinimize(); // hides to tray when MinimizeToTray is on; standard minimize otherwise
+        }
+    }
+
     private async void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
-        var realtime = _shell.Home.Realtime;
-        if (_safeStopInProgress || !realtime.IsRunning)
+        if (_tray is null)
         {
+            await LegacyCloseAsync(e); // defensive fallback if the tray was never attached
             return;
         }
 
-        e.Cancel = true; // hold the close until the session stops safely
+        if (_tray.IsExiting)
+        {
+            return; // a real exit is underway (Application.Shutdown) → allow this close
+        }
+
+        // The tray decides: hide-to-tray (CloseToTray) or the real-exit flow (confirm-if-running →
+        // safe stop → ordered shutdown). Hold the close until it has decided.
+        e.Cancel = true;
+        await _tray.HandleWindowCloseAsync();
+    }
+
+    // Pre-R5B behaviour, kept only for the (production-unreachable) no-tray path.
+    private async Task LegacyCloseAsync(System.ComponentModel.CancelEventArgs e)
+    {
+        var realtime = _shell.Home.Realtime;
+        if (_legacyStopInProgress || !realtime.IsRunning)
+        {
+            Application.Current?.Shutdown();
+            return;
+        }
+
+        e.Cancel = true;
         var loc = KikuCaption.App.Localization.LocalizationService.Instance;
-        var choice = MessageBox.Show(
-            loc["Confirm.CloseWhileRecording"],
-            loc["Common.AppName"], MessageBoxButton.YesNo, MessageBoxImage.Warning);
+        var choice = MessageBox.Show(loc["Confirm.CloseWhileRecording"], loc["Common.AppName"],
+            MessageBoxButton.YesNo, MessageBoxImage.Warning);
         if (choice != MessageBoxResult.Yes)
         {
             return;
         }
 
-        _safeStopInProgress = true;
+        _legacyStopInProgress = true;
         try
         {
             if (realtime.StopCommand.CanExecute(null))
@@ -56,7 +115,7 @@ public partial class MainWindow : Window
         }
         catch { /* stop is best-effort; data is already persisted */ }
 
-        Close(); // now allowed (IsRunning is false)
+        Application.Current?.Shutdown();
     }
 
     private void OnClosed(object? sender, EventArgs e)

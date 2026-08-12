@@ -2,6 +2,10 @@ using System.ComponentModel;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using KikuCaption.App.Localization;
+using KikuCaption.App.Services;
+using KikuCaption.App.ViewModels;
+using KikuCaption.Audio.Capture;
+using KikuCaption.Audio.Diagnostics;
 using KikuCaption.Infrastructure.Configuration;
 using KikuCaption.Storage;
 using KikuCaption.Storage.Recovery;
@@ -22,6 +26,9 @@ public partial class HomePageViewModel : ObservableObject
     private readonly StorageOptions _storage;
     private readonly UserSettingsStore _settingsStore;
     private readonly LocalizationService _loc;
+    private readonly IAudioDeviceInfoProvider _devices;
+    private readonly Func<MicrophoneLevelMeter> _meterFactory;
+    private readonly Func<IMeetingLauncher> _launcherFactory;
     private readonly ILogger<HomePageViewModel> _logger;
     private readonly DispatcherTimer _elapsedTimer;
     private DateTime _sessionStartedUtc;
@@ -33,6 +40,9 @@ public partial class HomePageViewModel : ObservableObject
         StorageOptions storage,
         UserSettingsStore settingsStore,
         LocalizationService localization,
+        IAudioDeviceInfoProvider devices,
+        Func<MicrophoneLevelMeter> meterFactory,
+        Func<IMeetingLauncher> launcherFactory,
         ILogger<HomePageViewModel> logger)
     {
         Realtime = realtime;
@@ -41,6 +51,9 @@ public partial class HomePageViewModel : ObservableObject
         _storage = storage;
         _settingsStore = settingsStore;
         _loc = localization;
+        _devices = devices;
+        _meterFactory = meterFactory;
+        _launcherFactory = launcherFactory;
         _logger = logger;
 
         _elapsedTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
@@ -126,6 +139,36 @@ public partial class HomePageViewModel : ObservableObject
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Persisting capture target failed.");
+        }
+    }
+
+    /// <summary>Opens the start-meeting dialog and starts on confirm (UI-R5B: shared with the tray).</summary>
+    public Task StartMeetingAsync() => _launcherFactory().StartFromDialogAsync();
+
+    // ---- UI-R5A audio inputs (start dialog helpers) ----------------------
+
+    /// <summary>Active microphone (input) devices with stable ids, for the start dialog picker.</summary>
+    public IReadOnlyList<AudioCaptureDeviceInfo> GetMicDevices() => _devices.GetCaptureDevices();
+
+    /// <summary>A fresh live input-level meter for the start dialog (the caller disposes it on close).</summary>
+    public MicrophoneLevelMeter CreateLevelMeter() => _meterFactory();
+
+    /// <summary>Persists the confirmed audio inputs (non-secret) so the choice survives a restart.</summary>
+    public void PersistAudioOptions(MeetingAudioOptions options)
+    {
+        try
+        {
+            var (existing, _) = _settingsStore.Load();
+            _settingsStore.Save(existing with
+            {
+                RecordSystemAudio = options.RecordSystemAudio,
+                RecordMicrophone = options.RecordMicrophone,
+                MicrophoneDeviceId = options.MicrophoneDeviceId
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Persisting audio options failed.");
         }
     }
 

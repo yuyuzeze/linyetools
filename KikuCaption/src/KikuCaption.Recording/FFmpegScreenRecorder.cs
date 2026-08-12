@@ -110,11 +110,13 @@ public sealed class FFmpegScreenRecorder : IScreenRecorder
                 pipeName = _sink.PipeName;
                 _timeline = new AudioTimeline();
 
-                // Warm up WASAPI capture BEFORE FFmpeg (feeding the timeline's jitter buffer) so its
+                // Warm up audio capture BEFORE FFmpeg (feeding the timeline's jitter buffer) so its
                 // cold-start latency is over by the recording epoch — real audio then flows immediately.
+                // UI-R5A: prefer the externally-supplied mixed source (system + mic from the session
+                // mixer) when provided; otherwise open a loopback ourselves (legacy behavior).
                 _cts = new CancellationTokenSource();
                 _pumpCts = new CancellationTokenSource();
-                _audio = _audioFactory();
+                _audio = options.ExternalAudioSource ?? _audioFactory();
                 _audioPump = Task.Run(() => AudioPumpAsync(_pumpCts.Token));
             }
 
