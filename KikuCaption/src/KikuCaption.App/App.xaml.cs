@@ -84,7 +84,16 @@ public partial class App : Application
                             Hotwords.Normalize(ctx.Hotwords)); // count/length/total limits enforced here
                     }
 
-                    services.AddSingleton<ISpeechOptionsProvider>(new SpeechOptionsProvider(baseSpeechOptions, contexts));
+                    // UI-R4B: the appsettings Contexts seed two read-only built-in dictionaries in the
+                    // per-user store (%LOCALAPPDATA%). The store is the single source of truth for the
+                    // ACTIVE dictionary per language; the provider snapshots it at each session start.
+                    services.AddSingleton<ISpeechDictionaryStore>(sp => new SpeechDictionaryStore(
+                        SpeechDictionaryStore.DefaultDirectory,
+                        contexts,
+                        sp.GetRequiredService<ILogger<SpeechDictionaryStore>>()));
+
+                    services.AddSingleton<ISpeechOptionsProvider>(sp =>
+                        new SpeechOptionsProvider(baseSpeechOptions, sp.GetRequiredService<ISpeechDictionaryStore>()));
 
                     // Progressive caption options (validated at startup) — all tunables now mapped.
                     var progressive = new ProgressiveCaptionOptions
@@ -164,6 +173,8 @@ public partial class App : Application
                     services.AddSingleton<GeneralSettingsViewModel>();
                     services.AddSingleton<SubtitleSettingsViewModel>();
                     services.AddSingleton<SettingsPageViewModel>();
+                    services.AddSingleton<IDictionaryPrompts, KikuCaption.App.Services.DictionaryPrompts>();
+                    services.AddSingleton<DictionaryPageViewModel>();
                     services.AddSingleton<ShellViewModel>();
                     services.AddSingleton<INavigationService>(sp =>
                     {
@@ -172,9 +183,7 @@ public partial class App : Application
                         nav.Register(PageKey.Environment, () => sp.GetRequiredService<EnvironmentPageViewModel>());
                         nav.Register(PageKey.Audio, () => sp.GetRequiredService<AudioPageViewModel>());
                         nav.Register(PageKey.Settings, () => sp.GetRequiredService<SettingsPageViewModel>());
-                        nav.Register(PageKey.Dictionary, () => new PlaceholderPageViewModel(
-                            "词典",
-                            "专业术语词典（多词典管理、每语言当前词典）将在后续阶段（UI-R4）加入。"));
+                        nav.Register(PageKey.Dictionary, () => sp.GetRequiredService<DictionaryPageViewModel>());
                         return nav;
                     });
 

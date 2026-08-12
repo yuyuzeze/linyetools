@@ -192,6 +192,9 @@
     <DataTemplate DataType="{x:Type vmp:SettingsPageViewModel}">
         <pages:SettingsPage />
     </DataTemplate>
+    <DataTemplate DataType="{x:Type vmp:DictionaryPageViewModel}">
+        <pages:DictionaryPage />
+    </DataTemplate>
     <DataTemplate DataType="{x:Type vmp:PlaceholderPageViewModel}">
         <pages:PlaceholderPage />
     </DataTemplate>
