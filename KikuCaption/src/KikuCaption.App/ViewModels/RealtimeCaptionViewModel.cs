@@ -372,6 +372,8 @@ public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptur
 
             StorageSessionId = session.Id.ToString("N");
             StorageOutputDirectory = session.OutputDirectory;
+            // UI-R5C: the timeline now targets THIS live session (real id + directory) for summaries.
+            Timeline.SetLiveSession(session.Id, session.OutputDirectory, startedAt, SelectedLanguage);
             SavedFinalCount = 0;
             StorageStatus = "录制中（实时保存）";
 

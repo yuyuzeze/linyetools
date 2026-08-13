@@ -1,0 +1,80 @@
+<Window x:Class="KikuCaption.App.Views.MeetingSummaryDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:loc="clr-namespace:KikuCaption.App.Localization"
+        Title="{loc:Loc Summary.Title}" Width="560" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        Background="{StaticResource WindowBrush}" ShowInTaskbar="False">
+    <StackPanel Margin="20">
+        <TextBlock Text="{loc:Loc Summary.Title}" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,10" />
+
+        <!-- Session info -->
+        <TextBlock Text="{loc:Loc Summary.SessionInfo}" FontWeight="SemiBold" Margin="0,0,0,4" />
+        <Grid Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" MinWidth="110" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="{loc:Loc Summary.Date}" Foreground="{StaticResource MutedBrush}" Margin="0,2" />
+            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding SessionDate}" Margin="0,2" />
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="{loc:Loc Summary.Count}" Foreground="{StaticResource MutedBrush}" Margin="0,2" />
+            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding FinalCount}" Margin="0,2" />
+            <TextBlock Grid.Row="2" Grid.Column="0" Text="{loc:Loc Summary.Duration}" Foreground="{StaticResource MutedBrush}" Margin="0,2" />
+            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding DurationText}" Margin="0,2" />
+            <TextBlock Grid.Row="3" Grid.Column="0" Text="{loc:Loc Summary.SourceLang}" Foreground="{StaticResource MutedBrush}" Margin="0,2" />
+            <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding SourceLanguageDisplay}" Margin="0,2" />
+            <TextBlock Grid.Row="4" Grid.Column="0" Text="{loc:Loc Summary.Directory}" Foreground="{StaticResource MutedBrush}" Margin="0,2" />
+            <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding SessionDirectory}" TextTrimming="CharacterEllipsis"
+                       FontFamily="Consolas" FontSize="11" Margin="0,2" ToolTip="{Binding SessionDirectory}" />
+        </Grid>
+
+        <!-- Meeting format -->
+        <TextBlock Text="{loc:Loc Summary.MeetingType}" FontWeight="SemiBold" Margin="0,0,0,4" />
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+            <RadioButton Content="{loc:Loc Summary.Single}" IsChecked="{Binding IsGroup, Converter={StaticResource InverseBool}}" Margin="0,0,20,0" />
+            <RadioButton Content="{loc:Loc Summary.Group}" IsChecked="{Binding IsGroup}" />
+        </StackPanel>
+
+        <!-- Output language -->
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+            <TextBlock Text="{loc:Loc Summary.OutputLanguage}" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,10,0" />
+            <ComboBox Width="160" ItemsSource="{Binding OutputLanguages}" SelectedItem="{Binding OutputLanguage}">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate><TextBlock Text="{loc:LangName}" /></DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+        </StackPanel>
+
+        <!-- When a summary already exists, three explicit, mutually-exclusive choices: overwrite,
+             save a timestamped version (default), or Close (= cancel, no API call). -->
+        <StackPanel Margin="0,0,0,10" Visibility="{Binding SummaryExists, Converter={StaticResource BoolToVisibility}}">
+            <TextBlock Text="{loc:Loc Summary.ExistsPrompt}" Foreground="#B26A00" TextWrapping="Wrap" Margin="0,0,0,4" />
+            <RadioButton Content="{loc:Loc Summary.SaveVersion}" IsChecked="{Binding SaveAsVersion}" Margin="0,1" />
+            <RadioButton Content="{loc:Loc Summary.Overwrite}" IsChecked="{Binding SaveAsVersion, Converter={StaticResource InverseBool}}" Margin="0,1" />
+        </StackPanel>
+
+        <TextBlock Text="{loc:Loc Summary.PrivacyNote}" TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" FontSize="11" Margin="0,0,0,12" />
+
+        <!-- Progress + result -->
+        <TextBlock Text="{Binding StatusText}" Foreground="{StaticResource AccentBrush}" Margin="0,0,0,2"
+                   Visibility="{Binding StatusText, Converter={StaticResource NonEmptyToVisibility}}" />
+        <TextBlock Text="{Binding ErrorText}" TextWrapping="Wrap" Foreground="#C0392B" Margin="0,0,0,2"
+                   Visibility="{Binding ErrorText, Converter={StaticResource NonEmptyToVisibility}}" />
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+            <Button Content="{loc:Loc Summary.OpenResult}" Command="{Binding OpenResultCommand}" Margin="0,0,8,0"
+                    Visibility="{Binding ResultPath, Converter={StaticResource NonEmptyToVisibility}}" />
+            <Button Content="{loc:Loc Summary.ShowInFolder}" Command="{Binding ShowInFolderCommand}" Margin="0,0,8,0"
+                    Visibility="{Binding ResultPath, Converter={StaticResource NonEmptyToVisibility}}" />
+            <Button Content="{loc:Loc Summary.CancelBtn}" Command="{Binding CancelCommand}" MinWidth="80" Margin="0,0,8,0"
+                    Visibility="{Binding IsGenerating, Converter={StaticResource BoolToVisibility}}" />
+            <Button Content="{loc:Loc Summary.GenerateBtn}" Style="{StaticResource PrimaryButton}" MinWidth="100"
+                    Command="{Binding GenerateCommand}" IsEnabled="{Binding CanGenerate}" />
+            <Button Content="{loc:Loc Summary.Close}" MinWidth="80" Margin="8,0,0,0" IsCancel="True" />
+        </StackPanel>
+    </StackPanel>
+</Window>

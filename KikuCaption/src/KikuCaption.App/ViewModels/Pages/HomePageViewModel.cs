@@ -29,6 +29,9 @@ public partial class HomePageViewModel : ObservableObject
     private readonly IAudioDeviceInfoProvider _devices;
     private readonly Func<MicrophoneLevelMeter> _meterFactory;
     private readonly Func<IMeetingLauncher> _launcherFactory;
+    private readonly KikuCaption.App.Services.MeetingSummaryCoordinator _summary;
+    private readonly KikuCaption.Translation.TranslationOptions _translationOptions;
+    private readonly KikuCaption.Summarization.MeetingSummaryOptions _summaryOptions;
     private readonly ILogger<HomePageViewModel> _logger;
     private readonly DispatcherTimer _elapsedTimer;
     private DateTime _sessionStartedUtc;
@@ -43,6 +46,9 @@ public partial class HomePageViewModel : ObservableObject
         IAudioDeviceInfoProvider devices,
         Func<MicrophoneLevelMeter> meterFactory,
         Func<IMeetingLauncher> launcherFactory,
+        KikuCaption.App.Services.MeetingSummaryCoordinator summary,
+        KikuCaption.Translation.TranslationOptions translationOptions,
+        KikuCaption.Summarization.MeetingSummaryOptions summaryOptions,
         ILogger<HomePageViewModel> logger)
     {
         Realtime = realtime;
@@ -54,6 +60,9 @@ public partial class HomePageViewModel : ObservableObject
         _devices = devices;
         _meterFactory = meterFactory;
         _launcherFactory = launcherFactory;
+        _summary = summary;
+        _translationOptions = translationOptions;
+        _summaryOptions = summaryOptions;
         _logger = logger;
 
         _elapsedTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
@@ -145,6 +154,60 @@ public partial class HomePageViewModel : ObservableObject
     /// <summary>Opens the start-meeting dialog and starts on confirm (UI-R5B: shared with the tray).</summary>
     public Task StartMeetingAsync() => _launcherFactory().StartFromDialogAsync();
 
+    // ---- UI-R5C meeting summary (current session) -----------------------
+
+    /// <summary>True when the displayed (stopped/history) session has final captions and is not busy.</summary>
+    public bool CanGenerateSummary
+        => BuildDisplayedContext() is { } c && KikuCaption.App.Services.MeetingSummaryCoordinator.CanGenerate(c.State, c.FinalCount);
+
+    /// <summary>True when a meeting-summary.md already exists for the displayed session.</summary>
+    public bool SummaryFileExists
+        => BuildDisplayedContext() is { } c && _summary.SummaryExists(c.SessionDirectory);
+
+    // The summary always targets the session the timeline is CURRENTLY showing — its real id and
+    // directory, from the actual record. A live session uses its live state; a loaded history session
+    // is idle regardless of any other running meeting, so we never mis-gate on a global "is running".
+    private KikuCaption.App.Services.SummarySessionContext? BuildDisplayedContext()
+    {
+        var d = Realtime.Timeline.DisplayedSession;
+        if (d is null || string.IsNullOrWhiteSpace(d.Directory) || Realtime.Timeline.FinalCount == 0)
+        {
+            return null;
+        }
+
+        var state = d.IsLive ? Realtime.CurrentSessionState : Core.Enums.SessionState.Idle;
+        return new KikuCaption.App.Services.SummarySessionContext(
+            d.SessionId, d.Directory, d.Language, d.Date, state, Realtime.Timeline.FinalCount);
+    }
+
+    /// <summary>Builds the summary dialog view model for the displayed session, or null if none is eligible.</summary>
+    public MeetingSummaryDialogViewModel? CreateSummaryDialogVm()
+        => BuildDisplayedContext() is { } ctx
+            ? new MeetingSummaryDialogViewModel(ctx, _summary, _loc, _settingsStore, _translationOptions, _summaryOptions, _logger)
+            : null;
+
+    public void OpenSummaryFile()
+    {
+        if (BuildDisplayedContext() is { } c)
+        {
+            _summary.OpenSummary(c.SessionDirectory);
+        }
+    }
+
+    public void ShowSummaryFolder()
+    {
+        if (BuildDisplayedContext() is { } c)
+        {
+            _summary.ShowInFolder(c.SessionDirectory);
+        }
+    }
+
+    private void RaiseSummaryState()
+    {
+        OnPropertyChanged(nameof(CanGenerateSummary));
+        OnPropertyChanged(nameof(SummaryFileExists));
+    }
+
     // ---- UI-R5A audio inputs (start dialog helpers) ----------------------
 
     /// <summary>Active microphone (input) devices with stable ids, for the start dialog picker.</summary>
@@ -207,6 +270,7 @@ public partial class HomePageViewModel : ObservableObject
 
             OnPropertyChanged(nameof(HasNoSession));
             RaiseTranslationDisplay(); // running↔idle changes which target is shown
+            RaiseSummaryState();       // stopped session → summary becomes available
         }
         else if (e.PropertyName is nameof(RealtimeCaptionViewModel.SelectedLanguage)
                  or nameof(RealtimeCaptionViewModel.SessionTargetLanguage))
@@ -220,6 +284,11 @@ public partial class HomePageViewModel : ObservableObject
         if (e.PropertyName == nameof(MeetingTimelineViewModel.FinalCount))
         {
             OnPropertyChanged(nameof(HasNoSession));
+            RaiseSummaryState();
+        }
+        else if (e.PropertyName == nameof(MeetingTimelineViewModel.DisplayedSession))
+        {
+            RaiseSummaryState(); // history session loaded/cleared → summary target changed
         }
     }
 

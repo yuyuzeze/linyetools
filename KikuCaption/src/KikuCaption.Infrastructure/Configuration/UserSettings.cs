@@ -28,6 +28,10 @@ public sealed record UserSettings
     public bool MinimizeToTray { get; init; } = true;
     public bool CloseToTray { get; init; }
 
+    // UI-R5C meeting-summary output language. Null = never chosen (follow the UI language); once the
+    // user picks one in the dialog it is persisted here (zh/ja/en) and no longer follows the UI.
+    public string? SummaryOutputLanguage { get; init; }
+
     public bool TranslationEnabled { get; init; }
 
     // NOTE: the Endpoint is intentionally NOT persisted here — it can embed a credential (e.g. a

@@ -29,6 +29,7 @@
     <ProjectReference Include="..\KikuCaption.Storage\KikuCaption.Storage.csproj" />
     <ProjectReference Include="..\KikuCaption.Recording\KikuCaption.Recording.csproj" />
     <ProjectReference Include="..\KikuCaption.Translation\KikuCaption.Translation.csproj" />
+    <ProjectReference Include="..\KikuCaption.Summarization\KikuCaption.Summarization.csproj" />
   </ItemGroup>
 
   <ItemGroup>

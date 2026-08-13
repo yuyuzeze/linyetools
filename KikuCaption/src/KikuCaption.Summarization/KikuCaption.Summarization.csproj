@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- UI-R5C: meeting-summary module. Reads a snapshot of confirmed final captions and calls the
+       company OpenAI-compatible API (Map/Reduce) to produce a structured document rendered to local
+       Markdown. Depends on Core (models/enums) and Translation (API config, DPAPI secret store, error
+       classifier + backoff) only — no WPF, no Storage, no SQLite — so it stays independently testable. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <RootNamespace>KikuCaption.Summarization</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\KikuCaption.Core\KikuCaption.Core.csproj" />
+    <ProjectReference Include="..\KikuCaption.Translation\KikuCaption.Translation.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Http" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+  </ItemGroup>
+
+</Project>

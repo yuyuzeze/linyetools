@@ -8,6 +8,12 @@ using KikuCaption.Core.Enums;
 namespace KikuCaption.App.ViewModels;
 
 /// <summary>
+/// Identity of whatever session the timeline is currently showing (UI-R5C): the live current session
+/// or a loaded history session. Both id AND directory come from the actual record — never guessed.
+/// </summary>
+public sealed record DisplayedSessionInfo(Guid SessionId, string Directory, DateTimeOffset Date, string Language, bool IsLive);
+
+/// <summary>
 /// The full-meeting subtitle timeline (Milestone 3.1). Holds <b>every</b> final of the current
 /// session — earliest at the top, newest appended at the bottom — and is never trimmed to a
 /// "recent N lines" window. Partials never enter the timeline; they only update a single bottom
@@ -48,6 +54,10 @@ public partial class MeetingTimelineViewModel : ObservableObject
     [ObservableProperty]
     private string _historyStatus = string.Empty;
 
+    /// <summary>The session the timeline currently shows (live or history), or null when empty (UI-R5C).</summary>
+    [ObservableProperty]
+    private DisplayedSessionInfo? _displayedSession;
+
     public MeetingTimelineViewModel(ITranscriptStore store)
     {
         _store = store;
@@ -78,8 +88,16 @@ public partial class MeetingTimelineViewModel : ObservableObject
         NewCount = 0;
         IsAutoScroll = true;
         HistoryStatus = string.Empty;
+        DisplayedSession = null; // set precisely by SetLiveSession once the session/directory exist
         OnPropertyChanged(nameof(FinalCount));
     }
+
+    /// <summary>
+    /// Records the live session's real id + directory once it has been created (UI-R5C). This is the
+    /// summary target for the current session — never guessed from "most recent".
+    /// </summary>
+    public void SetLiveSession(Guid sessionId, string directory, DateTimeOffset date, string language)
+        => DisplayedSession = new DisplayedSessionInfo(sessionId, directory, date, language, IsLive: true);
 
     /// <summary>
     /// Appends a live final produced by the recognition pipeline. The display sequence is the
@@ -166,6 +184,7 @@ public partial class MeetingTimelineViewModel : ObservableObject
         PartialText = string.Empty;
         NewCount = 0;
         IsAutoScroll = true;
+        DisplayedSession = null; // nothing shown → no summary target
         HistoryStatus = "已清空显示（数据库与字幕文件未删除）。";
         OnPropertyChanged(nameof(FinalCount));
     }
@@ -182,6 +201,17 @@ public partial class MeetingTimelineViewModel : ObservableObject
         {
             var stored = await _store.GetSegmentsAsync(sessionId, cancellationToken).ConfigureAwait(true);
             LoadHistory(stored);
+
+            // Record the ACTUAL loaded session's id + directory (from SQLite) as the summary target —
+            // a history session, so its state is idle regardless of any other running meeting (UI-R5C).
+            var session = await _store.GetSessionAsync(sessionId, cancellationToken).ConfigureAwait(true);
+            if (session is not null)
+            {
+                DisplayedSession = new DisplayedSessionInfo(
+                    session.Session.Id, session.Session.OutputDirectory,
+                    session.Session.StartedAt, session.Session.RecognitionLanguage, IsLive: false);
+            }
+
             HistoryStatus = $"已从数据库加载 {Entries.Count} 条 final 字幕（会话 {sessionId:N}）。";
             return Entries.Count;
         }

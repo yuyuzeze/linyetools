@@ -190,6 +190,16 @@
                                             IsEnabled="{Binding IsLoadingHistory, Converter={StaticResource InverseBool}}" />
                                     <Button Content="{loc:Loc Timeline.ClearDisplay}" HorizontalContentAlignment="Left" Style="{StaticResource NavButton}"
                                             Click="TimelineMenuItem_Click" Command="{Binding ClearDisplayCommand}" />
+                                    <Separator Margin="4,4" />
+                                    <!-- UI-R5C: bound to the page view model (not the timeline) via the ancestor UserControl. -->
+                                    <Button Content="{loc:Loc Summary.Generate}" HorizontalContentAlignment="Left" Style="{StaticResource NavButton}"
+                                            Click="GenerateSummary_Click"
+                                            IsEnabled="{Binding DataContext.CanGenerateSummary, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                                    <Button Content="{loc:Loc Summary.Open}" HorizontalContentAlignment="Left" Style="{StaticResource NavButton}"
+                                            Click="OpenSummary_Click"
+                                            IsEnabled="{Binding DataContext.SummaryFileExists, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                                    <Button Content="{loc:Loc Summary.ShowInFolder}" HorizontalContentAlignment="Left" Style="{StaticResource NavButton}"
+                                            Click="ShowSummaryFolder_Click" />
                                 </StackPanel>
                             </Border>
                         </Popup>

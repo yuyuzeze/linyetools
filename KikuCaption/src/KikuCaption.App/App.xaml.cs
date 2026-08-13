@@ -22,6 +22,7 @@ using KikuCaption.Storage;
 using KikuCaption.Storage.DependencyInjection;
 using KikuCaption.Translation;
 using KikuCaption.Translation.DependencyInjection;
+using KikuCaption.Summarization.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -143,6 +144,10 @@ public partial class App : Application
                         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                         "KikuCaption", "secrets");
                     services.AddKikuCaptionTranslation(translationOptions, secretsDir);
+
+                    // UI-R5C: meeting summaries reuse the translation API config + DPAPI key + HttpClient.
+                    services.AddKikuCaptionSummarization();
+                    services.AddSingleton<KikuCaption.App.Services.MeetingSummaryCoordinator>();
 
                     // Milestone 7: preflight + user settings store (non-sensitive prefs).
                     services.AddSingleton<KikuCaption.App.Services.PreflightService>();

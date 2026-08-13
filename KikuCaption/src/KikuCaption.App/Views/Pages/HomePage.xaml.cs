@@ -32,4 +32,29 @@ public partial class HomePage : UserControl
     }
 
     private void TimelineMenuItem_Click(object sender, RoutedEventArgs e) => TimelineMenuToggle.IsChecked = false;
+
+    // UI-R5C: open the generate-summary dialog for the current session (built from an immutable snapshot).
+    private void GenerateSummary_Click(object sender, RoutedEventArgs e)
+    {
+        TimelineMenuToggle.IsChecked = false;
+        var vm = ViewModel?.CreateSummaryDialogVm();
+        if (vm is null)
+        {
+            return;
+        }
+
+        new MeetingSummaryDialog(vm) { Owner = Window.GetWindow(this) }.ShowDialog();
+    }
+
+    private void OpenSummary_Click(object sender, RoutedEventArgs e)
+    {
+        TimelineMenuToggle.IsChecked = false;
+        ViewModel?.OpenSummaryFile();
+    }
+
+    private void ShowSummaryFolder_Click(object sender, RoutedEventArgs e)
+    {
+        TimelineMenuToggle.IsChecked = false;
+        ViewModel?.ShowSummaryFolder();
+    }
 }
