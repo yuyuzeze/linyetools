@@ -28,6 +28,7 @@ public sealed class MeetingPlaybackWindowManager
     public async Task<string?> OpenAsync(Guid sessionId, Window? owner, CancellationToken cancellationToken)
     {
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(true);
+        var stage = "load_session";
         try
         {
             if (_window is { IsLoaded: true } && _sessionId == sessionId)
@@ -42,9 +43,13 @@ public sealed class MeetingPlaybackWindowManager
             _sessionId = null;
 
             var session = await _coordinator.LoadAsync(sessionId, cancellationToken).ConfigureAwait(true);
+            _logger.LogInformation(
+                "Playback session {SessionId} resolved ({CaptionCount} captions, {MediaBytes} media bytes).",
+                sessionId, session.Captions.Count, new FileInfo(session.MediaPath).Length);
             // Keep playback independent from the main window. If the main window is
             // minimized/hidden to the tray, an owned window would disappear while
             // LibVLC continued playing audio in the background.
+            stage = "create_window";
             var window = new MeetingPlaybackWindow(session);
             window.Closed += (_, _) =>
             {
@@ -52,7 +57,9 @@ public sealed class MeetingPlaybackWindowManager
             };
             _window = window;
             _sessionId = sessionId;
+            stage = "show_window";
             window.Show();
+            stage = "completed";
             return null;
         }
         catch (FileNotFoundException)
@@ -67,7 +74,11 @@ public sealed class MeetingPlaybackWindowManager
         }
         catch (Exception ex)
         {
-            _logger.LogWarning("Opening playback failed for session {SessionId} ({ErrorType}).", sessionId, ex.GetType().Name);
+            // Do not log media paths or caption text. The exception message and stack
+            // identify the failing playback stage without exposing meeting content.
+            _logger.LogWarning(ex,
+                "Opening playback failed for session {SessionId} at stage {PlaybackStage} ({ErrorType}).",
+                sessionId, stage, ex.GetType().Name);
             return _localization["Playback.OpenFailed"];
         }
         finally { _gate.Release(); }

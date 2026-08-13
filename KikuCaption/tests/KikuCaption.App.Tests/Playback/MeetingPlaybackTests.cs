@@ -15,6 +15,7 @@ public sealed class MeetingPlaybackTests
     public void LibVlcNativeRuntime_LoadsWithoutInstalledVlc()
     {
         LibVlcRuntimeLocator.Initialize();
+        LibVlcRuntimeLocator.Initialize();
         using var engine = new LibVLC("--no-video-title-show");
         Assert.NotNull(engine);
     }

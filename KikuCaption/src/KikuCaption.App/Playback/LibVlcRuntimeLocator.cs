@@ -12,6 +12,9 @@ public sealed class PlaybackEngineUnavailableException : Exception
 /// <summary>Resolves the architecture-specific native LibVLC shipped by VideoLAN.LibVLC.Windows.</summary>
 public static class LibVlcRuntimeLocator
 {
+    private static readonly object InitializationGate = new();
+    private static string? _initializedDirectory;
+
     public static string Resolve(string? baseDirectory = null)
     {
         var architecture = RuntimeInformation.ProcessArchitecture switch
@@ -34,11 +37,27 @@ public static class LibVlcRuntimeLocator
 
     public static void Initialize(string? baseDirectory = null)
     {
-        try { LibVLCSharp.Shared.Core.Initialize(Resolve(baseDirectory)); }
-        catch (PlaybackEngineUnavailableException) { throw; }
-        catch (Exception ex)
+        var directory = Resolve(baseDirectory);
+        lock (InitializationGate)
         {
-            throw new PlaybackEngineUnavailableException("The bundled LibVLC runtime could not be loaded.", ex);
+            if (_initializedDirectory is not null)
+            {
+                if (string.Equals(_initializedDirectory, directory, StringComparison.OrdinalIgnoreCase)) return;
+                throw new PlaybackEngineUnavailableException(
+                    "LibVLC was already initialized from a different runtime directory.");
+            }
+
+            try
+            {
+                LibVLCSharp.Shared.Core.Initialize(directory);
+                _initializedDirectory = directory;
+            }
+            catch (PlaybackEngineUnavailableException) { throw; }
+            catch (Exception ex)
+            {
+                throw new PlaybackEngineUnavailableException(
+                    "The bundled LibVLC runtime could not be loaded.", ex);
+            }
         }
     }
 }
