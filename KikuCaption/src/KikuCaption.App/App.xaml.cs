@@ -150,6 +150,7 @@ public partial class App : Application
                     services.AddKikuCaptionSummarization();
                     services.AddSingleton<KikuCaption.App.Services.MeetingSummaryCoordinator>();
                     services.AddSingleton<MeetingPlaybackCoordinator>();
+                    services.AddSingleton<MeetingPlaybackWindowManager>();
 
                     // Milestone 7: preflight + user settings store (non-sensitive prefs).
                     services.AddSingleton<KikuCaption.App.Services.PreflightService>();

@@ -70,8 +70,12 @@ public partial class HomePage : UserControl
 
         try
         {
-            var session = await ViewModel.LoadPlaybackAsync(id.Value);
-            new MeetingPlaybackWindow(session) { Owner = Window.GetWindow(this) }.Show();
+            var error = await ViewModel.OpenPlaybackAsync(id.Value, Window.GetWindow(this));
+            if (error is not null)
+            {
+                MessageBox.Show(error, Localization.LocalizationService.Instance["Playback.Title"],
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
         }
         catch
         {

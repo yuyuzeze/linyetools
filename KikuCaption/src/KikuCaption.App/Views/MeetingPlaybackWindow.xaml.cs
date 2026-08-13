@@ -23,7 +23,7 @@ public partial class MeetingPlaybackWindow : Window
         _viewModel = new MeetingPlaybackViewModel(session);
         DataContext = _viewModel;
 
-        LibVLCSharp.Shared.Core.Initialize();
+        LibVlcRuntimeLocator.Initialize();
         _libVlc = new LibVLC("--no-video-title-show");
         _player = new MediaPlayer(_libVlc);
         _media = new Media(_libVlc, new Uri(session.MediaPath));

@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Windows.Threading;
+using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using KikuCaption.App.Localization;
@@ -38,7 +39,7 @@ public partial class HomePageViewModel : ObservableObject
     private readonly KikuCaption.Summarization.MeetingSummaryOptions _summaryOptions;
     private readonly ILogger<HomePageViewModel> _logger;
     private readonly ITranscriptStore _store;
-    private readonly MeetingPlaybackCoordinator _playback;
+    private readonly MeetingPlaybackWindowManager _playback;
     private readonly DispatcherTimer _elapsedTimer;
     private DateTime _sessionStartedUtc;
 
@@ -56,7 +57,7 @@ public partial class HomePageViewModel : ObservableObject
         KikuCaption.Translation.TranslationOptions translationOptions,
         KikuCaption.Summarization.MeetingSummaryOptions summaryOptions,
         ITranscriptStore store,
-        MeetingPlaybackCoordinator playback,
+        MeetingPlaybackWindowManager playback,
         ILogger<HomePageViewModel> logger)
     {
         Realtime = realtime;
@@ -188,8 +189,8 @@ public partial class HomePageViewModel : ObservableObject
     public bool CanOpenDisplayedPlayback
         => Realtime.Timeline.DisplayedSession is { RecordingPath: not null } && !Realtime.IsRunning;
 
-    public Task<MeetingPlaybackSession> LoadPlaybackAsync(Guid sessionId)
-        => _playback.LoadAsync(sessionId, CancellationToken.None);
+    public Task<string?> OpenPlaybackAsync(Guid sessionId, Window? owner)
+        => _playback.OpenAsync(sessionId, owner, CancellationToken.None);
 
     [ObservableProperty]
     private string _elapsedText = "00:00";
