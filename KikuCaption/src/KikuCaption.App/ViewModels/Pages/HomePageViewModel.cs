@@ -368,6 +368,11 @@ public partial class HomePageViewModel : ObservableObject
 
     private void OnTranslationChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(TranslationViewModel.Enabled))
+        {
+            _ = ApplyLiveTranslationToggleAsync(Translation.Enabled);
+        }
+
         if (e.PropertyName is nameof(TranslationViewModel.Enabled)
             or nameof(TranslationViewModel.IsConfigured)
             or nameof(TranslationViewModel.DirectionText)
@@ -375,6 +380,18 @@ public partial class HomePageViewModel : ObservableObject
         {
             OnPropertyChanged(nameof(TranslationNotConfiguredHint));
             RaiseTranslationDisplay();
+        }
+    }
+
+    private async Task ApplyLiveTranslationToggleAsync(bool enabled)
+    {
+        try
+        {
+            await Realtime.SetLiveTranslationEnabledAsync(enabled);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to apply the live translation toggle.");
         }
     }
 

@@ -250,6 +250,28 @@ public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptur
     /// <summary>The running session's snapshot target language, or null when idle (UI-R4A).</summary>
     public string? SessionTargetLanguage => _sessionTranslation?.TargetLanguage;
 
+    /// <summary>
+    /// Applies the home-page checkbox to the current running session immediately. Direction, model
+    /// and prompt version remain the session snapshot; only the live enabled flag changes.
+    /// </summary>
+    public Task SetLiveTranslationEnabledAsync(bool enabled)
+    {
+        _translationOptions.Enabled = enabled;
+        if (_sessionTranslation is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        _sessionTranslation = _sessionTranslation with { Enabled = enabled };
+        OnPropertyChanged(nameof(SessionTargetLanguage));
+        if (!IsRunning || !_recorder.IsRunning)
+        {
+            return Task.CompletedTask;
+        }
+
+        return _translation.SetSessionEnabledAsync(_recorder.SessionId, enabled, CancellationToken.None);
+    }
+
     // Status/recorder text are stored as resource keys so they re-localize on a language switch.
     private void SetStatus(string key)
     {

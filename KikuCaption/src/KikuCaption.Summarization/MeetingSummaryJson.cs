@@ -75,6 +75,20 @@ public static class MeetingSummaryJson
         return JsonSerializer.Serialize(array);
     }
 
+    /// <summary>Safe fallback for compatible gateways that return prose despite the JSON instruction.</summary>
+    public static MeetingSummarySections FromPlainText(string content)
+    {
+        var text = StripFence(content).Trim();
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            throw new MeetingSummaryException(
+                KikuCaption.Core.Enums.TranslationErrorCode.InvalidResponse,
+                "Summary response was empty.");
+        }
+
+        return new MeetingSummarySections { Overview = Cap(text) };
+    }
+
     private static string StripFence(string s)
     {
         var t = s.Trim();

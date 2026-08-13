@@ -46,11 +46,13 @@ public class MeetingSummaryCoordinatorTests
             => throw new NotSupportedException();
     }
 
-    private static StoredSegment Final(long seq, string text)
+    private static StoredSegment Final(long seq, string text, string? translation = null)
         => new(new TranscriptSegment
         {
             Id = Guid.NewGuid(), SessionId = Guid.Empty, StartTime = TimeSpan.FromSeconds(seq), EndTime = TimeSpan.FromSeconds(seq + 1),
-            Language = "ja", Text = text, Status = TranscriptStatus.Final, CreatedAt = DateTimeOffset.Now
+            Language = "ja", Text = text, Translation = translation,
+            Status = translation is null ? TranscriptStatus.Final : TranscriptStatus.Translated,
+            CreatedAt = DateTimeOffset.Now
         }, seq);
 
     private static StoredSegment Partial(long seq, string text)
@@ -90,7 +92,11 @@ public class MeetingSummaryCoordinatorTests
     {
         var store = new FakeStore
         {
-            Segments = new[] { Final(2, "final-2"), Partial(3, "PARTIAL-TEXT"), Final(1, "final-1") }
+            Segments = new[]
+            {
+                Final(2, "final-2"), Partial(3, "PARTIAL-TEXT"),
+                Final(1, "final-1", "TRANSLATED-TEXT-MUST-NOT-BE-SENT")
+            }
         };
         var req = await Coordinator(store).BuildRequestAsync(
             Context(SessionState.Completed, 2), MeetingType.SinglePresenter, "zh", "model-x", CancellationToken.None);
@@ -98,6 +104,7 @@ public class MeetingSummaryCoordinatorTests
         Assert.Equal(2, req.Segments.Count); // partial excluded
         Assert.Equal(new[] { "final-1", "final-2" }, req.Segments.Select(s => s.Text)); // ordered by sequence
         Assert.DoesNotContain(req.Segments, s => s.Text.Contains("PARTIAL"));
+        Assert.DoesNotContain(req.Segments, s => s.Text.Contains("TRANSLATED"));
         Assert.Equal("model-x", req.Model);
         Assert.Equal(MeetingSummaryPrompt.Version, req.PromptVersion);
     }

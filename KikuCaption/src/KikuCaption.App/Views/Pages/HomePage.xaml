@@ -231,7 +231,7 @@
                         </StackPanel>
 
                         <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0">
-                            <Button FontFamily="Segoe MDL2 Assets" Content="&#xE721;" Padding="10,6"
+                            <Button Content="{loc:Loc Search.Open}" Padding="10,6"
                                     Click="SearchTimeline_Click" ToolTip="{loc:Loc Search.Open}"
                                     AutomationProperties.Name="{loc:Loc Search.Open}" />
                             <Button Content="{loc:Loc Summary.Generate}" Style="{StaticResource PrimaryButton}" Padding="12,6"

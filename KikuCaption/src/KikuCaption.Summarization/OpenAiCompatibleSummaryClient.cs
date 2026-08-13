@@ -60,7 +60,7 @@ public sealed class OpenAiCompatibleSummaryClient : IMeetingSummaryClient
         _logger.LogInformation("Summary Map: model={Model} promptV={V} chunk={Idx} chars={Chars}.",
             request.Model, request.PromptVersion, chunk.Index, chunk.CharCount);
         var system = MeetingSummaryPrompt.BuildMapSystem(request.MeetingType, request.OutputLanguage);
-        return SendWithRepairAsync(request, system, chunk.Text, maxTokens: 1200, cancellationToken);
+        return SendSingleAsync(request, system, chunk.Text, maxTokens: 2000, cancellationToken);
     }
 
     public Task<MeetingSummarySections> ReduceAsync(MeetingSummaryRequest request, IReadOnlyList<MeetingSummarySections> parts, CancellationToken cancellationToken)
@@ -70,7 +70,7 @@ public sealed class OpenAiCompatibleSummaryClient : IMeetingSummaryClient
         _logger.LogInformation("Summary Reduce: model={Model} promptV={V} parts={Parts} chars={Chars}.",
             request.Model, request.PromptVersion, parts.Count, user.Length);
         var system = MeetingSummaryPrompt.BuildReduceSystem(request.MeetingType, request.OutputLanguage);
-        return SendWithRepairAsync(request, system, user, maxTokens: 1600, cancellationToken);
+        return SendSingleAsync(request, system, user, maxTokens: 1600, cancellationToken);
     }
 
     private void ValidateConfig(MeetingSummaryRequest request)
@@ -94,7 +94,7 @@ public sealed class OpenAiCompatibleSummaryClient : IMeetingSummaryClient
     }
 
     // Send, parse, and on a non-JSON response attempt exactly ONE controlled format repair.
-    private async Task<MeetingSummarySections> SendWithRepairAsync(MeetingSummaryRequest request, string system, string user, int maxTokens, CancellationToken ct)
+    private async Task<MeetingSummarySections> SendSingleAsync(MeetingSummaryRequest request, string system, string user, int maxTokens, CancellationToken ct)
     {
         var content = await SendWithRetryAsync(request, system, user, maxTokens, ct).ConfigureAwait(false);
         if (MeetingSummaryJson.TryParse(content, out var sections))
@@ -102,15 +102,8 @@ public sealed class OpenAiCompatibleSummaryClient : IMeetingSummaryClient
             return sections;
         }
 
-        _logger.LogWarning("Summary response was not valid JSON; attempting one format repair.");
-        var repairSystem = MeetingSummaryPrompt.BuildRepairSystem(request.OutputLanguage);
-        var repaired = await SendWithRetryAsync(request, repairSystem, content, maxTokens, ct).ConfigureAwait(false);
-        if (MeetingSummaryJson.TryParse(repaired, out sections))
-        {
-            return sections;
-        }
-
-        throw new MeetingSummaryException(TranslationErrorCode.InvalidResponse, "摘要响应无法解析为有效 JSON（已尝试一次修复）。");
+        _logger.LogWarning("Summary response was not structured JSON; using bounded plain text as overview without a repair request.");
+        return MeetingSummaryJson.FromPlainText(content);
     }
 
     // Retry loop for transient errors only (network/timeout/429/5xx), with backoff + Retry-After.

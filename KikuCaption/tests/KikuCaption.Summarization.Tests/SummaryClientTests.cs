@@ -47,7 +47,7 @@ public class SummaryClientTests
         Assert.Contains("\"model\":\"summary-model\"", body);
         Assert.Contains("\"role\":\"system\"", body);
         Assert.Contains("\"role\":\"user\"", body);
-        Assert.Contains("\"max_tokens\":1200", body);
+        Assert.Contains("\"max_tokens\":2000", body);
         Assert.Contains("確認済みの字幕テキスト", body); // the confirmed caption
         Assert.DoesNotContain("partial", body, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(".mp4", body, StringComparison.OrdinalIgnoreCase);
@@ -104,25 +104,22 @@ public class SummaryClientTests
     }
 
     [Fact] // scenario 26: a non-JSON response triggers exactly one format repair, then parses
-    public async Task NonJson_TriggersOneRepair()
+    public async Task NonJson_UsesPlainTextWithoutRepair()
     {
         var handler = new FakeHttpMessageHandler()
-            .EnqueueChat("Sure! Here is the summary in prose.")
-            .EnqueueChat("{\"overview\":\"repaired\"}");
+            .EnqueueChat("Sure! Here is the summary in prose.");
         var sections = await Client(handler).MapAsync(Request(), Chunk("t"), CancellationToken.None);
-        Assert.Equal("repaired", sections.Overview);
-        Assert.Equal(2, handler.CallCount);
+        Assert.Equal("Sure! Here is the summary in prose.", sections.Overview);
+        Assert.Equal(1, handler.CallCount);
     }
 
     [Fact] // scenario 27: if repair still fails, it fails safely (no infinite retry)
-    public async Task RepairFails_ThrowsInvalidResponse()
+    public async Task EmptyResponse_ThrowsInvalidResponseWithoutRepair()
     {
-        var handler = new FakeHttpMessageHandler()
-            .EnqueueChat("not json")
-            .EnqueueChat("still not json");
+        var handler = new FakeHttpMessageHandler().EnqueueChat("   ");
         var ex = await Assert.ThrowsAsync<MeetingSummaryException>(() => Client(handler).MapAsync(Request(), Chunk("t"), CancellationToken.None));
         Assert.Equal(TranslationErrorCode.InvalidResponse, ex.Code);
-        Assert.Equal(2, handler.CallCount);
+        Assert.Equal(1, handler.CallCount);
     }
 
     [Fact] // scenario 28: an over-large response body is rejected

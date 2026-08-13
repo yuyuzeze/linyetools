@@ -50,12 +50,10 @@ public class MeetingSummaryServiceTests : IDisposable
         };
 
     [Fact] // full pipeline: 2 chunks → 2 Map + 1 Reduce → Markdown written to the session directory
-    public async Task EndToEnd_MapReduce_WritesMarkdown()
+    public async Task EndToEnd_SingleRequest_WritesMarkdown()
     {
         var handler = new FakeHttpMessageHandler()
-            .EnqueueChat("{\"overview\":\"chunk1\",\"topics\":[\"t1\"]}")   // map 1
-            .EnqueueChat("{\"overview\":\"chunk2\",\"topics\":[\"t2\"]}")   // map 2
-            .EnqueueChat("{\"overview\":\"merged\",\"topics\":[\"t1\",\"t2\"],\"keyPoints\":[\"kp\"]}"); // reduce
+            .EnqueueChat("{\"overview\":\"merged\",\"topics\":[\"t1\",\"t2\"],\"keyPoints\":[\"kp\"]}");
 
         var opts = new MeetingSummaryOptions { ChunkBudgetChars = 500 }; // forces multiple chunks
         var svc = Service(handler, opts);
@@ -80,8 +78,7 @@ public class MeetingSummaryServiceTests : IDisposable
         Assert.All(handler.RequestBodies, b => Assert.Contains("\"model\":\"summary-model\"", b));
 
         // The last request (Reduce) merged the two Map outputs.
-        Assert.Contains("chunk1", handler.RequestBodies[^1]);
-        Assert.Contains("chunk2", handler.RequestBodies[^1]);
+        Assert.Equal(1, handler.CallCount);
         Assert.Contains(MeetingSummaryPhase.Completed, progress);
     }
 
@@ -95,7 +92,7 @@ public class MeetingSummaryServiceTests : IDisposable
     }
 
     [Fact] // scenario 22: many chunks reduce hierarchically (>1 reduce level), never one giant call
-    public async Task ManyChunks_ReduceHierarchically()
+    public async Task ManySegments_UseOneRequest()
     {
         var handler = new FakeHttpMessageHandler();
         for (int i = 0; i < 40; i++) handler.EnqueueChat("{\"overview\":\"o\"}"); // plenty for map+reduce
@@ -106,7 +103,7 @@ public class MeetingSummaryServiceTests : IDisposable
 
         Assert.True(File.Exists(result.OutputPath));
         // 60 segments / ~500-char budget → ≥2 chunks; group size 2 → multiple reduce levels → >chunks calls.
-        Assert.True(handler.CallCount > 2);
+        Assert.Equal(1, handler.CallCount);
     }
 
     [Fact] // scenario 38/39: cancelling mid-run writes nothing and leaves no summary

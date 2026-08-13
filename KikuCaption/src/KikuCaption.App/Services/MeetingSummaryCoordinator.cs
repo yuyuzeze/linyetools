@@ -52,7 +52,7 @@ public sealed class MeetingSummaryCoordinator
     {
         var stored = await _store.GetSegmentsAsync(sessionId, cancellationToken).ConfigureAwait(false);
         var segs = stored
-            .Where(s => s.Segment.Status == TranscriptStatus.Final)
+            .Where(s => IsConfirmedOriginal(s.Segment.Status))
             .OrderBy(s => s.SequenceNumber)
             .Select(s => new MeetingSummarySegment(s.SequenceNumber, s.Segment.StartTime, s.Segment.EndTime, s.Segment.Text))
             .ToList();
@@ -85,7 +85,9 @@ public sealed class MeetingSummaryCoordinator
 
         var stored = await _store.GetSegmentsAsync(context.SessionId, cancellationToken).ConfigureAwait(false);
         var segments = stored
-            .Where(s => s.Segment.Status == TranscriptStatus.Final)      // final original captions ONLY
+            // Translated/TranslationFailed are terminal states of an original final caption. Include
+            // their original Text, never their Translation property.
+            .Where(s => IsConfirmedOriginal(s.Segment.Status))
             .OrderBy(s => s.SequenceNumber)
             .Select(s => new MeetingSummarySegment(s.SequenceNumber, s.Segment.StartTime, s.Segment.EndTime, s.Segment.Text))
             .ToList();
@@ -151,6 +153,9 @@ public sealed class MeetingSummaryCoordinator
         try { Process.Start(psi); }
         catch (Exception ex) { _logger.LogWarning(ex, "Show-in-folder failed."); }
     }
+
+    private static bool IsConfirmedOriginal(TranscriptStatus status)
+        => status is TranscriptStatus.Final or TranscriptStatus.Translated or TranscriptStatus.TranslationFailed;
 
     // Confine to the session directory (reuses the exporter's traversal guard).
     private static string SafePath(string sessionDirectory, string fileName)

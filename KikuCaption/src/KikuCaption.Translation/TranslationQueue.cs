@@ -25,6 +25,8 @@ public sealed class TranslationQueue : ITranslationQueue, IAsyncDisposable
 
     private readonly Channel<Guid> _signals;
     private readonly ConcurrentDictionary<Guid, byte> _inFlight = new();
+    private readonly ConcurrentDictionary<Guid, byte> _disabledSessions = new();
+    private readonly ConcurrentDictionary<Guid, CancellationTokenSource> _sessionCancellation = new();
     private readonly TimeSpan _pollInterval;
     private readonly TimeSpan _retryBaseDelay;
 
@@ -87,6 +89,11 @@ public sealed class TranslationQueue : ITranslationQueue, IAsyncDisposable
 
     public async ValueTask EnqueueAsync(TranscriptSegment finalSegment, SessionTranslationOptions session, CancellationToken cancellationToken)
     {
+        if (_disabledSessions.ContainsKey(finalSegment.SessionId))
+        {
+            return;
+        }
+
         if (!TranslationTrigger.ShouldEnqueue(finalSegment, session))
         {
             return;
@@ -151,6 +158,10 @@ public sealed class TranslationQueue : ITranslationQueue, IAsyncDisposable
                 var now = DateTimeOffset.UtcNow;
                 foreach (var job in jobs)
                 {
+                    if (_disabledSessions.ContainsKey(job.SessionId))
+                    {
+                        continue;
+                    }
                     if (job.NextAttemptAt is { } na && na > now)
                     {
                         continue; // RetryScheduled, not due yet
@@ -221,12 +232,22 @@ public sealed class TranslationQueue : ITranslationQueue, IAsyncDisposable
             return; // already terminal
         }
 
+        if (_disabledSessions.ContainsKey(job.SessionId))
+        {
+            await MarkCancelledAsync(job).ConfigureAwait(false);
+            return;
+        }
+
+        var sessionCts = _sessionCancellation.GetOrAdd(job.SessionId, _ => new CancellationTokenSource());
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(token, sessionCts.Token);
+        var jobToken = linkedCts.Token;
+
         if (job.NextAttemptAt is { } na && na > DateTimeOffset.UtcNow)
         {
             return; // not due; the pump will re-signal when it is
         }
 
-        var segment = await _store.GetSegmentAsync(segmentId, token).ConfigureAwait(false);
+        var segment = await _store.GetSegmentAsync(segmentId, jobToken).ConfigureAwait(false);
         if (segment is null)
         {
             await UpdateAsync(job with { State = TranslationJobState.FailedPermanent, LastErrorCode = TranslationErrorCode.InvalidConfig.ToString() }, TranslationErrorCode.InvalidConfig, null).ConfigureAwait(false);
@@ -241,7 +262,7 @@ public sealed class TranslationQueue : ITranslationQueue, IAsyncDisposable
 
         // Mark InProgress and surface "translating".
         job = job with { State = TranslationJobState.InProgress, UpdatedAt = DateTimeOffset.UtcNow };
-        await _store.UpdateTranslationJobAsync(job, token).ConfigureAwait(false);
+        await _store.UpdateTranslationJobAsync(job, jobToken).ConfigureAwait(false);
         OutcomeChanged?.Invoke(this, new TranslationOutcome(segmentId, TranslationJobState.InProgress, null, TranslationErrorCode.None));
 
         try
@@ -258,14 +279,24 @@ public sealed class TranslationQueue : ITranslationQueue, IAsyncDisposable
             }
 
             var request = new TranslationRequest(segment.Text, job.SourceLanguage, job.TargetLanguage, model, job.PromptVersion);
-            var translation = await _translator.TranslateAsync(request, token).ConfigureAwait(false);
+            var translation = await _translator.TranslateAsync(request, jobToken).ConfigureAwait(false);
 
-            await _store.SetSegmentTranslationAsync(segmentId, translation, TranscriptStatus.Translated, token).ConfigureAwait(false);
+            if (_disabledSessions.ContainsKey(job.SessionId))
+            {
+                await MarkCancelledAsync(job).ConfigureAwait(false);
+                return;
+            }
+
+            await _store.SetSegmentTranslationAsync(segmentId, translation, TranscriptStatus.Translated, jobToken).ConfigureAwait(false);
             await UpdateAsync(job with { State = TranslationJobState.Succeeded, LastErrorCode = null }, TranslationErrorCode.None, translation).ConfigureAwait(false);
         }
         catch (TranslationException tex)
         {
-            await HandleFailureAsync(job, segmentId, tex.Code, tex.RetryAfter, token).ConfigureAwait(false);
+            await HandleFailureAsync(job, segmentId, tex.Code, tex.RetryAfter, jobToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (_disabledSessions.ContainsKey(job.SessionId))
+        {
+            await MarkCancelledAsync(job).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
@@ -275,6 +306,54 @@ public sealed class TranslationQueue : ITranslationQueue, IAsyncDisposable
                 CancellationToken.None).ConfigureAwait(false);
             OutcomeChanged?.Invoke(this, new TranslationOutcome(segmentId, TranslationJobState.Pending, null, TranslationErrorCode.None));
         }
+    }
+
+    /// <summary>
+    /// Enables or disables translation for a running session. Disabling cancels in-flight HTTP,
+    /// marks durable pending jobs cancelled, and prevents races from enqueueing more work.
+    /// Re-enabling affects only future final captions.
+    /// </summary>
+    public async Task SetSessionEnabledAsync(Guid sessionId, bool enabled, CancellationToken cancellationToken)
+    {
+        if (enabled)
+        {
+            _disabledSessions.TryRemove(sessionId, out _);
+            if (_sessionCancellation.TryRemove(sessionId, out var old))
+            {
+                old.Dispose();
+            }
+            _sessionCancellation[sessionId] = new CancellationTokenSource();
+            _logger.LogInformation("Translation enabled for running session {Session}.", sessionId);
+            return;
+        }
+
+        _disabledSessions[sessionId] = 0;
+        var cts = _sessionCancellation.GetOrAdd(sessionId, _ => new CancellationTokenSource());
+        try { cts.Cancel(); } catch (ObjectDisposedException) { }
+
+        var jobs = await _store.GetJobsForSessionAsync(sessionId, cancellationToken).ConfigureAwait(false);
+        foreach (var job in jobs.Where(j => j.State is TranslationJobState.Pending
+                     or TranslationJobState.InProgress or TranslationJobState.RetryScheduled))
+        {
+            await MarkCancelledAsync(job).ConfigureAwait(false);
+        }
+        _logger.LogInformation("Translation disabled for running session {Session}; active jobs cancelled={Count}.",
+            sessionId, jobs.Count(j => j.State is TranslationJobState.Pending
+                or TranslationJobState.InProgress or TranslationJobState.RetryScheduled));
+    }
+
+    private async Task MarkCancelledAsync(TranslationJob job)
+    {
+        var cancelled = job with
+        {
+            State = TranslationJobState.Cancelled,
+            NextAttemptAt = null,
+            LastErrorCode = TranslationErrorCode.Cancelled.ToString(),
+            UpdatedAt = DateTimeOffset.UtcNow
+        };
+        await _store.UpdateTranslationJobAsync(cancelled, CancellationToken.None).ConfigureAwait(false);
+        OutcomeChanged?.Invoke(this,
+            new TranslationOutcome(job.SegmentId, TranslationJobState.Cancelled, null, TranslationErrorCode.Cancelled));
     }
 
     private async Task HandleFailureAsync(TranslationJob job, Guid segmentId, TranslationErrorCode code, TimeSpan? retryAfter, CancellationToken token)
@@ -334,6 +413,11 @@ public sealed class TranslationQueue : ITranslationQueue, IAsyncDisposable
         catch (Exception ex) { _logger.LogDebug(ex, "Translation queue shutdown."); }
         finally
         {
+            foreach (var cts in _sessionCancellation.Values)
+            {
+                cts.Dispose();
+            }
+            _sessionCancellation.Clear();
             _stopCts?.Dispose();
         }
     }

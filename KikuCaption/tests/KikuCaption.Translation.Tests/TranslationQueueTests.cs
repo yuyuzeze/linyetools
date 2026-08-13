@@ -296,6 +296,43 @@ public sealed class TranslationQueueTests : IAsyncDisposable
         Assert.Equal("停止テスト", (await ReloadAsync(seg.Id))!.Text); // original intact
     }
 
+    [Fact]
+    public async Task LiveDisable_CancelsInFlight_AndReenableTranslatesFutureOnly()
+    {
+        var first = await SeedFinalAsync("first", seq: 1);
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var translator = new ScriptedTranslator(async (text, ct) =>
+        {
+            if (text == "first")
+            {
+                started.TrySetResult();
+                await Task.Delay(TimeSpan.FromSeconds(30), ct);
+            }
+            return "translated:" + text;
+        });
+        await using var queue = NewQueue(translator, Opts());
+        await queue.StartAsync(CancellationToken.None);
+        await queue.EnqueueAsync(first, Snap(), CancellationToken.None);
+        await started.Task;
+
+        await queue.SetSessionEnabledAsync(_sessionId, false, CancellationToken.None);
+        Assert.True(await WaitUntilAsync(async () =>
+            (await JobAsync(first.Id))?.State == TranslationJobState.Cancelled));
+        Assert.Null((await ReloadAsync(first.Id))!.Translation);
+
+        var whileOff = await SeedFinalAsync("off", seq: 2);
+        await queue.EnqueueAsync(whileOff, Snap(), CancellationToken.None);
+        Assert.Null(await JobAsync(whileOff.Id));
+
+        await queue.SetSessionEnabledAsync(_sessionId, true, CancellationToken.None);
+        var future = await SeedFinalAsync("future", seq: 3);
+        await queue.EnqueueAsync(future, Snap(), CancellationToken.None);
+        Assert.True(await WaitUntilAsync(async () =>
+            (await ReloadAsync(future.Id))?.Translation == "translated:future"));
+        Assert.Null((await ReloadAsync(first.Id))!.Translation);
+        Assert.Null((await ReloadAsync(whileOff.Id))!.Translation);
+    }
+
     public async ValueTask DisposeAsync()
     {
         await _repo.DisposeAsync();

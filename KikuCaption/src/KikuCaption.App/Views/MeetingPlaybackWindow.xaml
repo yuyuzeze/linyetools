@@ -69,7 +69,7 @@
                         <TextBlock Text="{loc:Loc Playback.Captions}" FontWeight="SemiBold" FontSize="15" />
                         <TextBlock Text="{loc:Loc Playback.CaptionHint}" Foreground="{StaticResource MutedBrush}" FontSize="11" />
                     </StackPanel>
-                    <Button Grid.Column="1" FontFamily="Segoe MDL2 Assets" Content="&#xE721;" Padding="10,5"
+                    <Button Grid.Column="1" Content="{loc:Loc Search.Open}" Padding="10,5"
                             Click="SearchPlayback_Click" ToolTip="{loc:Loc Search.Open}"
                             AutomationProperties.Name="{loc:Loc Search.Open}" />
                 </Grid>
