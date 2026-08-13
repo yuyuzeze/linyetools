@@ -16,6 +16,8 @@ public partial class MeetingPlaybackWindow : Window
     private readonly MediaPlayer _player;
     private readonly Media _media;
     private readonly DispatcherTimer _timer;
+    private bool _playbackStarted;
+    private bool _disposed;
 
     public MeetingPlaybackWindow(MeetingPlaybackSession session)
     {
@@ -36,7 +38,17 @@ public partial class MeetingPlaybackWindow : Window
         _player.Paused += (_, _) => Dispatcher.Invoke(() => SetPlaying(false));
         _player.Stopped += (_, _) => Dispatcher.Invoke(() => SetPlaying(false));
         _player.EndReached += (_, _) => Dispatcher.Invoke(() => SetPlaying(false));
+        ContentRendered += PlaybackWindow_ContentRendered;
         Closed += (_, _) => DisposePlayer();
+    }
+
+    private void PlaybackWindow_ContentRendered(object? sender, EventArgs e)
+    {
+        if (_playbackStarted || _disposed) return;
+
+        // LibVLC needs VideoView's native window handle before playback starts.
+        // Starting in the constructor can produce audio without a visible video surface.
+        _playbackStarted = true;
         _player.Play(_media);
         _timer.Start();
     }
@@ -94,6 +106,8 @@ public partial class MeetingPlaybackWindow : Window
 
     private void DisposePlayer()
     {
+        if (_disposed) return;
+        _disposed = true;
         _timer.Stop();
         VideoView.MediaPlayer = null;
         _player.Stop();

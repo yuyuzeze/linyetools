@@ -4,7 +4,8 @@
         xmlns:vlc="clr-namespace:LibVLCSharp.WPF;assembly=LibVLCSharp.WPF"
         xmlns:loc="clr-namespace:KikuCaption.App.Localization"
         Title="{loc:Loc Playback.Title}" Width="1180" Height="760" MinWidth="820" MinHeight="520"
-        WindowStartupLocation="CenterOwner" Background="{StaticResource WindowBrush}">
+        WindowStartupLocation="CenterScreen" ShowInTaskbar="True"
+        Background="{StaticResource WindowBrush}">
     <Grid Margin="14">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="3*" MinWidth="420" />

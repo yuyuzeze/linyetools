@@ -42,7 +42,10 @@ public sealed class MeetingPlaybackWindowManager
             _sessionId = null;
 
             var session = await _coordinator.LoadAsync(sessionId, cancellationToken).ConfigureAwait(true);
-            var window = new MeetingPlaybackWindow(session) { Owner = owner };
+            // Keep playback independent from the main window. If the main window is
+            // minimized/hidden to the tray, an owned window would disappear while
+            // LibVLC continued playing audio in the background.
+            var window = new MeetingPlaybackWindow(session);
             window.Closed += (_, _) =>
             {
                 if (ReferenceEquals(_window, window)) { _window = null; _sessionId = null; }

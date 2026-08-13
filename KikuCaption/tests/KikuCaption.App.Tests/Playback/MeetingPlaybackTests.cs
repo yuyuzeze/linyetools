@@ -2,6 +2,7 @@ using System.IO;
 using KikuCaption.App.Playback;
 using KikuCaption.Core.Enums;
 using KikuCaption.Core.Models;
+using KikuCaption.Storage;
 using KikuCaption.Storage.Sqlite;
 using LibVLCSharp.Shared;
 using Xunit;
@@ -84,6 +85,45 @@ public sealed class MeetingPlaybackTests
         };
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             new MeetingPlaybackCoordinator(store).LoadAsync(id, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Coordinator_RecoversRecordingAfterOutputRootWasMoved()
+    {
+        var currentRoot = Path.Combine(Path.GetTempPath(), "kiku_playback_moved", Guid.NewGuid().ToString("N"));
+        var id = Guid.NewGuid();
+        var startedAt = DateTimeOffset.Now;
+        var session = new MeetingSession
+        {
+            Id = id,
+            StartedAt = startedAt,
+            RecognitionLanguage = "ja",
+            OutputDirectory = @"C:\old-user\old-repository\Meetings\old-session",
+            RecordingPath = @"C:\old-user\old-repository\Meetings\old-session\meeting.mp4"
+        };
+        var relocatedDirectory = SessionPaths.BuildSessionDirectory(currentRoot, session);
+        Directory.CreateDirectory(relocatedDirectory);
+        var relocatedMedia = Path.Combine(relocatedDirectory, "meeting.mp4");
+        await File.WriteAllBytesAsync(relocatedMedia, new byte[] { 0 });
+
+        try
+        {
+            var store = new TestTranscriptStore
+            {
+                Session = new StoredSession(session, "Completed", 0),
+                Segments = Array.Empty<StoredSegment>()
+            };
+            var options = new StorageOptions { OutputDirectory = currentRoot };
+
+            var result = await new MeetingPlaybackCoordinator(store, options)
+                .LoadAsync(id, CancellationToken.None);
+
+            Assert.Equal(Path.GetFullPath(relocatedMedia), result.MediaPath);
+        }
+        finally
+        {
+            if (Directory.Exists(currentRoot)) Directory.Delete(currentRoot, true);
+        }
     }
 
     private static MeetingPlaybackSession Session(IEnumerable<TranscriptSegment> segments)
