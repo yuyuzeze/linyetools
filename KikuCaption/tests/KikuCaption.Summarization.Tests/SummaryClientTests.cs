@@ -47,10 +47,28 @@ public class SummaryClientTests
         Assert.Contains("\"model\":\"summary-model\"", body);
         Assert.Contains("\"role\":\"system\"", body);
         Assert.Contains("\"role\":\"user\"", body);
+        Assert.Contains("\"max_tokens\":1200", body);
         Assert.Contains("確認済みの字幕テキスト", body); // the confirmed caption
         Assert.DoesNotContain("partial", body, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(".mp4", body, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(".wav", body, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task BadRequest_ExposesOnlySanitizedProviderCodes()
+    {
+        var handler = new FakeHttpMessageHandler().Enqueue(_ => new HttpResponseMessage(HttpStatusCode.BadRequest)
+        {
+            Content = new StringContent("""{"error":{"code":"context_length_exceeded","type":"invalid_request_error","param":"messages","message":"sensitive provider text"}}""")
+        });
+
+        var ex = await Assert.ThrowsAsync<MeetingSummaryException>(() =>
+            Client(handler).MapAsync(Request(), Chunk("t"), CancellationToken.None));
+
+        Assert.Equal(TranslationErrorCode.BadRequest, ex.Code);
+        Assert.Equal("code=context_length_exceeded,type=invalid_request_error,param=messages", ex.SafeDetail);
+        Assert.DoesNotContain("sensitive", ex.SafeDetail, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(1, handler.CallCount);
     }
 
     [Fact] // scenario 34: 401 is not retried

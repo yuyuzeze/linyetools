@@ -59,17 +59,23 @@ public sealed class PostMeetingCorrectionTests
         var recognizer = new Recognizer();
         var provider = new SpeechOptionsProvider(new SpeechOptions
         {
-            Language = "ja", Model = "small", Device = "cpu", ComputeType = "int8", BeamSize = 2
+            Language = "ja", Model = "small", Device = "cpu", ComputeType = "int8", BeamSize = 2,
+            ModelCacheDirectory = root
         });
+        var localMedium = Path.Combine(root, "faster-whisper-medium");
+        Directory.CreateDirectory(localMedium);
+        foreach (var file in new[] { "config.json", "model.bin", "tokenizer.json", "vocabulary.txt" })
+            await File.WriteAllTextAsync(Path.Combine(localMedium, file), "x");
+        var locator = new CorrectionModelLocator(provider, minimumModelBytes: 1);
         await using var service = new PostMeetingCorrectionService(
-            () => recognizer, provider, new Extractor(), NullLogger<PostMeetingCorrectionService>.Instance);
+            () => recognizer, provider, new Extractor(), locator, NullLogger<PostMeetingCorrectionService>.Instance);
 
         try
         {
             var result = await service.RunAsync(new PostMeetingCorrectionRequest(
                 Guid.NewGuid(), media, root, "ja"));
 
-            Assert.Equal("medium", recognizer.Options?.Model);
+            Assert.Equal(localMedium, recognizer.Options?.Model);
             Assert.Equal("int8", recognizer.Options?.ComputeType);
             Assert.Equal("cpu", recognizer.Options?.Device);
             Assert.Equal("REALTIME", await File.ReadAllTextAsync(realtime));

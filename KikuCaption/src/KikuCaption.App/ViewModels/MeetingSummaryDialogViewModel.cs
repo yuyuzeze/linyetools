@@ -74,7 +74,9 @@ public sealed partial class MeetingSummaryDialogViewModel : ObservableObject
     // ---- session info ---------------------------------------------------
 
     public string SessionDate => _context.SessionDate.LocalDateTime.ToString("yyyy-MM-dd HH:mm");
-    [ObservableProperty] private int _finalCount;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanGenerate))]
+    private int _finalCount;
     [ObservableProperty] private string _durationText = "…";
     public string SourceLanguageDisplay => _loc["Lang." + _context.SourceLanguage];
     public string SessionDirectory => _context.SessionDirectory;
@@ -123,7 +125,7 @@ public sealed partial class MeetingSummaryDialogViewModel : ObservableObject
     [ObservableProperty] private string? _errorText;
     [ObservableProperty] private string? _resultPath;
 
-    public bool CanGenerate => !IsGenerating && MeetingSummaryCoordinator.CanGenerate(_context.State, _context.FinalCount);
+    public bool CanGenerate => !IsGenerating && MeetingSummaryCoordinator.CanGenerate(_context.State, FinalCount);
 
     public string PrivacyNote => _loc["Summary.PrivacyNote"];
 
@@ -161,7 +163,8 @@ public sealed partial class MeetingSummaryDialogViewModel : ObservableObject
 
         try
         {
-            var request = await _coordinator.BuildRequestAsync(_context, MeetingType, outputLanguage, _model, _cts.Token).ConfigureAwait(true);
+            var request = await _coordinator.BuildRequestAsync(
+                _context with { FinalCount = FinalCount }, MeetingType, outputLanguage, _model, _cts.Token).ConfigureAwait(true);
             var result = await _coordinator.GenerateAsync(request, fileName, progress, _cts.Token).ConfigureAwait(true);
             ResultPath = result.OutputPath;
             SummaryExists = true;
@@ -174,7 +177,8 @@ public sealed partial class MeetingSummaryDialogViewModel : ObservableObject
         catch (MeetingSummaryException ex)
         {
             _logger.LogWarning("Summary failed: {Code}.", ex.Code); // code only — never captions/prompt/key
-            ErrorText = _loc["Summary.Error.Failed"] + " (" + ex.Code + ")";
+            ErrorText = _loc["Summary.Error.Failed"] + " (" + ex.Code
+                + (string.IsNullOrWhiteSpace(ex.SafeDetail) ? "" : ": " + ex.SafeDetail) + ")";
             StatusText = _loc["Summary.Phase.Failed"];
         }
         catch (Exception ex)

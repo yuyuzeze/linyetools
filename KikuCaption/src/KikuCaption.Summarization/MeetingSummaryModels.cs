@@ -105,15 +105,19 @@ public sealed record MeetingSummaryResult(MeetingSummaryDocument Document, strin
 /// <summary>A summary failure carrying a de-identified, retry-aware code (reuses the translation codes).</summary>
 public sealed class MeetingSummaryException : Exception
 {
-    public MeetingSummaryException(TranslationErrorCode code, string message, TimeSpan? retryAfter = null, Exception? inner = null)
+    public MeetingSummaryException(TranslationErrorCode code, string message, TimeSpan? retryAfter = null,
+        Exception? inner = null, string? safeDetail = null)
         : base(message, inner)
     {
         Code = code;
         RetryAfter = retryAfter;
+        SafeDetail = safeDetail;
     }
 
     public TranslationErrorCode Code { get; }
     public TimeSpan? RetryAfter { get; }
+    /// <summary>Sanitized service error code/type/parameter only; never prompt, captions, or keys.</summary>
+    public string? SafeDetail { get; }
 }
 
 /// <summary>
@@ -129,7 +133,7 @@ public sealed class MeetingSummaryOptions
     public int MaxRetries { get; set; } = 3;
 
     /// <summary>Approx. max characters of caption text per Map chunk (bounded 500..20000).</summary>
-    public int ChunkBudgetChars { get; set; } = 6000;
+    public int ChunkBudgetChars { get; set; } = 2500;
 
     /// <summary>Max intermediate results merged per Reduce pass; more → hierarchical Reduce (bounded 2..50).</summary>
     public int ReduceGroupSize { get; set; } = 8;

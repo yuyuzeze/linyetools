@@ -82,9 +82,17 @@
                                   Content="{loc:Loc General.MinimizeToTray}" IsChecked="{Binding MinimizeToTray}" />
                         <CheckBox Margin="0,6,0,0"
                                   Content="{loc:Loc General.CloseToTray}" IsChecked="{Binding CloseToTray}" />
-                        <CheckBox Margin="0,14,0,0"
-                                  Content="{loc:Loc General.AutoCorrectAfterMeeting}"
-                                  IsChecked="{Binding AutoCorrectAfterMeeting}" />
+                        <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                            <CheckBox Content="{loc:Loc General.AutoCorrectAfterMeeting}"
+                                      IsChecked="{Binding AutoCorrectAfterMeeting}"
+                                      IsEnabled="{Binding IsCorrectionModelAvailable}" />
+                            <Border Margin="7,0,0,0" Width="18" Height="18" CornerRadius="9"
+                                    BorderBrush="{StaticResource MutedBrush}" BorderThickness="1"
+                                    ToolTip="{Binding CorrectionModelHint}">
+                                <TextBlock Text="?" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Foreground="{StaticResource MutedBrush}" FontWeight="SemiBold" />
+                            </Border>
+                        </StackPanel>
                         <TextBlock Text="{loc:Loc General.AutoCorrectHint}" TextWrapping="Wrap" Margin="24,3,0,0"
                                    Foreground="{StaticResource MutedBrush}" FontSize="11" />
 

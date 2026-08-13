@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using KikuCaption.App.Localization;
 using KikuCaption.Infrastructure.Configuration;
+using KikuCaption.App.Services;
 using Microsoft.Extensions.Logging;
 
 namespace KikuCaption.App.ViewModels.Pages;
@@ -20,12 +21,15 @@ public sealed partial class GeneralSettingsViewModel : ObservableObject
     private readonly UserSettingsStore _store;
     private readonly LocalizationService _localization;
     private readonly ILogger<GeneralSettingsViewModel> _logger;
+    private readonly CorrectionModelLocator _correctionModel;
     private bool _loading;
 
-    public GeneralSettingsViewModel(UserSettingsStore store, LocalizationService localization, ILogger<GeneralSettingsViewModel> logger)
+    public GeneralSettingsViewModel(UserSettingsStore store, LocalizationService localization,
+        CorrectionModelLocator correctionModel, ILogger<GeneralSettingsViewModel> logger)
     {
         _store = store;
         _localization = localization;
+        _correctionModel = correctionModel;
         _logger = logger;
         LoadFromStore();
     }
@@ -50,6 +54,8 @@ public sealed partial class GeneralSettingsViewModel : ObservableObject
     [ObservableProperty] private bool _minimizeToTray = true;
     [ObservableProperty] private bool _closeToTray;
     [ObservableProperty] private bool _autoCorrectAfterMeeting = true;
+    [ObservableProperty] private bool _isCorrectionModelAvailable;
+    [ObservableProperty] private string _correctionModelHint = string.Empty;
     [ObservableProperty] private string _statusText = string.Empty;
 
     // UI language applies live and persists immediately (discrete choice, safe to write once).
@@ -63,6 +69,12 @@ public sealed partial class GeneralSettingsViewModel : ObservableObject
         _localization.SetLanguage(value);
         try { SettingsPersistence.PersistUiLanguage(_store, value); }
         catch (Exception ex) { _logger.LogWarning(ex, "Persisting UI language failed."); }
+    }
+
+    partial void OnAutoCorrectAfterMeetingChanged(bool value)
+    {
+        if (value && !IsCorrectionModelAvailable)
+            AutoCorrectAfterMeeting = false;
     }
 
     [RelayCommand]
@@ -128,7 +140,18 @@ public sealed partial class GeneralSettingsViewModel : ObservableObject
         LogRetentionDays = s.LogRetentionDays;
         MinimizeToTray = s.MinimizeToTray;
         CloseToTray = s.CloseToTray;
-        AutoCorrectAfterMeeting = s.AutoCorrectAfterMeeting;
+        RefreshCorrectionAvailability();
+        AutoCorrectAfterMeeting = s.AutoCorrectAfterMeeting && IsCorrectionModelAvailable;
         _loading = false;
+    }
+
+    private void RefreshCorrectionAvailability()
+    {
+        var result = _correctionModel.Check();
+        IsCorrectionModelAvailable = result.IsAvailable;
+        CorrectionModelHint = result.IsAvailable
+            ? _localization["General.AutoCorrectModelReady"]
+            : string.Format(_localization["General.AutoCorrectModelMissing"],
+                result.CacheRoot ?? _localization["Summary.Unknown"]);
     }
 }

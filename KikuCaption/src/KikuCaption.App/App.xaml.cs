@@ -152,6 +152,7 @@ public partial class App : Application
                     services.AddSingleton<MeetingPlaybackCoordinator>();
                     services.AddSingleton<MeetingPlaybackWindowManager>();
                     services.AddSingleton<KikuCaption.App.Services.IMeetingAudioExtractor, KikuCaption.App.Services.FfmpegMeetingAudioExtractor>();
+                    services.AddSingleton<KikuCaption.App.Services.CorrectionModelLocator>();
                     services.AddSingleton<KikuCaption.App.Services.PostMeetingCorrectionService>();
 
                     // Milestone 7: preflight + user settings store (non-sensitive prefs).

@@ -144,7 +144,7 @@ public class MeetingSummaryFixesTests
     {
         var s = new UserSettings { SummaryOutputLanguage = "en" };
         Assert.Equal("en", s.SummaryOutputLanguage);
-        Assert.Empty(typeof(UserSettings).GetProperties().Where(p =>
-            p.Name.Contains("ApiKey", StringComparison.OrdinalIgnoreCase) || p.Name.Contains("Secret", StringComparison.OrdinalIgnoreCase)));
+        Assert.DoesNotContain(typeof(UserSettings).GetProperties(), p =>
+            p.Name.Contains("ApiKey", StringComparison.OrdinalIgnoreCase) || p.Name.Contains("Secret", StringComparison.OrdinalIgnoreCase));
     }
 }

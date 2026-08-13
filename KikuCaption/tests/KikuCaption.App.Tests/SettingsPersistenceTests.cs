@@ -1,8 +1,10 @@
 using System.IO;
 using System.Linq;
 using KikuCaption.App.Localization;
+using KikuCaption.App.Services;
 using KikuCaption.App.ViewModels;
 using KikuCaption.App.ViewModels.Pages;
+using KikuCaption.Core.Models;
 using KikuCaption.Infrastructure.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
@@ -130,7 +132,7 @@ public class SettingsPersistenceTests : IDisposable
     public void GeneralSettings_UiLanguage_AppliesAndPersists()
     {
         var loc = new LocalizationService();
-        var vm = new GeneralSettingsViewModel(_store, loc, NullLogger<GeneralSettingsViewModel>.Instance);
+        var vm = GeneralVm(loc);
 
         vm.UiLanguage = LocalizedStrings.EnUS;
 
@@ -141,14 +143,12 @@ public class SettingsPersistenceTests : IDisposable
     [Fact] // general settings save writes the non-secret fields
     public void GeneralSettings_Save_PersistsFields()
     {
-        var vm = new GeneralSettingsViewModel(_store, new LocalizationService(), NullLogger<GeneralSettingsViewModel>.Instance)
-        {
-            DefaultRecognitionLanguage = "zh",
-            LoadRecentOnStartup = true,
-            DefaultRecordingTarget = "window",
-            LogRetentionDays = 30,
-            AutoCorrectAfterMeeting = false
-        };
+        var vm = GeneralVm(new LocalizationService());
+        vm.DefaultRecognitionLanguage = "zh";
+        vm.LoadRecentOnStartup = true;
+        vm.DefaultRecordingTarget = "window";
+        vm.LogRetentionDays = 30;
+        vm.AutoCorrectAfterMeeting = false;
 
         vm.SaveCommand.Execute(null);
 
@@ -158,5 +158,15 @@ public class SettingsPersistenceTests : IDisposable
         Assert.Equal("window", s.CaptureType);
         Assert.Equal(30, s.LogRetentionDays);
         Assert.False(s.AutoCorrectAfterMeeting);
+    }
+
+    private GeneralSettingsViewModel GeneralVm(LocalizationService loc)
+    {
+        var provider = new SpeechOptionsProvider(new SpeechOptions
+        {
+            Model = "small", Language = "ja", ModelCacheDirectory = _dir
+        });
+        var locator = new CorrectionModelLocator(provider, minimumModelBytes: 1);
+        return new GeneralSettingsViewModel(_store, loc, locator, NullLogger<GeneralSettingsViewModel>.Instance);
     }
 }

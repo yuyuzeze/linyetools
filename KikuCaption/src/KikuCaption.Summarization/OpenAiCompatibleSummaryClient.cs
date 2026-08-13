@@ -60,7 +60,7 @@ public sealed class OpenAiCompatibleSummaryClient : IMeetingSummaryClient
         _logger.LogInformation("Summary Map: model={Model} promptV={V} chunk={Idx} chars={Chars}.",
             request.Model, request.PromptVersion, chunk.Index, chunk.CharCount);
         var system = MeetingSummaryPrompt.BuildMapSystem(request.MeetingType, request.OutputLanguage);
-        return SendWithRepairAsync(request, system, chunk.Text, maxTokens: 2048, cancellationToken);
+        return SendWithRepairAsync(request, system, chunk.Text, maxTokens: 1200, cancellationToken);
     }
 
     public Task<MeetingSummarySections> ReduceAsync(MeetingSummaryRequest request, IReadOnlyList<MeetingSummarySections> parts, CancellationToken cancellationToken)
@@ -70,7 +70,7 @@ public sealed class OpenAiCompatibleSummaryClient : IMeetingSummaryClient
         _logger.LogInformation("Summary Reduce: model={Model} promptV={V} parts={Parts} chars={Chars}.",
             request.Model, request.PromptVersion, parts.Count, user.Length);
         var system = MeetingSummaryPrompt.BuildReduceSystem(request.MeetingType, request.OutputLanguage);
-        return SendWithRepairAsync(request, system, user, maxTokens: 4096, cancellationToken);
+        return SendWithRepairAsync(request, system, user, maxTokens: 1600, cancellationToken);
     }
 
     private void ValidateConfig(MeetingSummaryRequest request)
@@ -178,8 +178,12 @@ public sealed class OpenAiCompatibleSummaryClient : IMeetingSummaryClient
             {
                 var code = TranslationErrorClassifier.FromStatus(response.StatusCode);
                 TimeSpan? retryAfter = code == TranslationErrorCode.RateLimited ? ParseRetryAfter(response) : null;
-                _logger.LogWarning("Summary API returned {Status} ({Code}).", (int)response.StatusCode, code);
-                throw new MeetingSummaryException(code, $"摘要服务返回 HTTP {(int)response.StatusCode}。", retryAfter);
+                var errorBody = await ReadCappedAsync(response, ct).ConfigureAwait(false);
+                var safeDetail = ExtractSafeErrorDetail(errorBody);
+                _logger.LogWarning("Summary API returned {Status} ({Code}) detail={Detail}.",
+                    (int)response.StatusCode, code, safeDetail ?? "n/a");
+                throw new MeetingSummaryException(code, $"摘要服务返回 HTTP {(int)response.StatusCode}。",
+                    retryAfter, safeDetail: safeDetail);
             }
 
             var body = await ReadCappedAsync(response, ct).ConfigureAwait(false);
@@ -312,5 +316,26 @@ public sealed class OpenAiCompatibleSummaryClient : IMeetingSummaryClient
             return wait > TimeSpan.Zero ? wait : TimeSpan.Zero;
         }
         return null;
+    }
+
+    internal static string? ExtractSafeErrorDetail(string body)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            if (!doc.RootElement.TryGetProperty("error", out var error) || error.ValueKind != JsonValueKind.Object)
+                return null;
+            var parts = new List<string>();
+            foreach (var name in new[] { "code", "type", "param" })
+            {
+                if (error.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String)
+                {
+                    var clean = new string((value.GetString() ?? "").Where(c => char.IsLetterOrDigit(c) || c is '.' or '_' or '-').Take(80).ToArray());
+                    if (clean.Length > 0) parts.Add(name + "=" + clean);
+                }
+            }
+            return parts.Count == 0 ? null : string.Join(",", parts);
+        }
+        catch (JsonException) { return null; }
     }
 }

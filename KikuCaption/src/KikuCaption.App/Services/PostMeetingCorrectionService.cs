@@ -99,6 +99,7 @@ public sealed class PostMeetingCorrectionService : IAsyncDisposable
     private readonly Func<ISpeechRecognizer> _recognizerFactory;
     private readonly ISpeechOptionsProvider _speechOptionsProvider;
     private readonly IMeetingAudioExtractor _extractor;
+    private readonly CorrectionModelLocator _modelLocator;
     private readonly ILogger<PostMeetingCorrectionService> _logger;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private CancellationTokenSource? _activeCts;
@@ -107,15 +108,19 @@ public sealed class PostMeetingCorrectionService : IAsyncDisposable
         Func<ISpeechRecognizer> recognizerFactory,
         ISpeechOptionsProvider speechOptionsProvider,
         IMeetingAudioExtractor extractor,
+        CorrectionModelLocator modelLocator,
         ILogger<PostMeetingCorrectionService> logger)
     {
         _recognizerFactory = recognizerFactory;
         _speechOptionsProvider = speechOptionsProvider;
         _extractor = extractor;
+        _modelLocator = modelLocator;
         _logger = logger;
     }
 
     public void CancelCurrent() => _activeCts?.Cancel();
+
+    public CorrectionModelAvailability ModelAvailability => _modelLocator.Check();
 
     public async Task<PostMeetingCorrectionResult> RunAsync(
         PostMeetingCorrectionRequest request,
@@ -127,13 +132,19 @@ public sealed class PostMeetingCorrectionService : IAsyncDisposable
         var tempWav = Path.Combine(request.OutputDirectory, $".correction-{request.SessionId:N}.wav");
         try
         {
+            var availability = _modelLocator.Check();
+            if (!availability.IsAvailable || string.IsNullOrWhiteSpace(availability.ModelPath))
+                throw new InvalidOperationException("The local faster-whisper medium model is not installed or is incomplete.");
+
             Directory.CreateDirectory(request.OutputDirectory);
             await _extractor.ExtractAsync(request.MediaPath, tempWav, linked.Token).ConfigureAwait(false);
 
             var baseOptions = _speechOptionsProvider.ForLanguage(request.Language);
             var options = baseOptions with
             {
-                Model = "medium",
+                // Pass the complete local snapshot/directory itself. faster-whisper then loads it
+                // directly and never attempts a Hugging Face download through the company proxy.
+                Model = availability.ModelPath,
                 Device = "cpu",
                 ComputeType = "int8",
                 BeamSize = Math.Max(2, baseOptions.BeamSize),

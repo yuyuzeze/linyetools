@@ -62,6 +62,8 @@ public static class LocalizedStrings
         ["General.CloseToTray"] = "关闭主窗口时隐藏到系统托盘",
         ["General.AutoCorrectAfterMeeting"] = "会议停止后自动生成校正版字幕（medium/int8）",
         ["General.AutoCorrectHint"] = "关闭后只保留实时字幕；更改从下一次会议开始生效。",
+        ["General.AutoCorrectModelReady"] = "本地 medium 模型完整可用；校正过程不会下载模型。",
+        ["General.AutoCorrectModelMissing"] = "无法启用：本地 medium 模型缺失或不完整。请将浏览器下载的完整模型放到：{0}\\faster-whisper-medium（需要 config.json、model.bin、tokenizer.json、vocabulary.txt；model.bin 约 1.53 GB）。",
         // UI-R5C meeting summaries
         ["Summary.Generate"] = "生成会议要点",
         ["Summary.Open"] = "打开会议要点",
@@ -506,6 +508,8 @@ public static class LocalizedStrings
         ["General.CloseToTray"] = "Hide to the system tray when the main window is closed",
         ["General.AutoCorrectAfterMeeting"] = "Automatically create corrected captions after a meeting (medium/int8)",
         ["General.AutoCorrectHint"] = "When disabled, only realtime captions are kept. Applies to the next meeting.",
+        ["General.AutoCorrectModelReady"] = "The complete local medium model is available; correction will not download a model.",
+        ["General.AutoCorrectModelMissing"] = "Unavailable: the local medium model is missing or incomplete. Put the complete browser download in {0}\\faster-whisper-medium (config.json, model.bin, tokenizer.json and vocabulary.txt; model.bin is about 1.53 GB).",
         // UI-R5C meeting summaries
         ["Summary.Generate"] = "Generate meeting summary",
         ["Summary.Open"] = "Open meeting summary",
@@ -931,6 +935,8 @@ public static class LocalizedStrings
         ["General.CloseToTray"] = "メインウィンドウを閉じたときにシステムトレイへ隠す",
         ["General.AutoCorrectAfterMeeting"] = "会議停止後に校正版字幕を自動作成する（medium/int8）",
         ["General.AutoCorrectHint"] = "オフの場合はリアルタイム字幕だけを残します。次回の会議から有効になります。",
+        ["General.AutoCorrectModelReady"] = "ローカルの medium モデルは完全で利用できます。校正時にモデルをダウンロードしません。",
+        ["General.AutoCorrectModelMissing"] = "利用できません：ローカルの medium モデルがないか不完全です。ブラウザーでダウンロードした完全なモデルを {0}\\faster-whisper-medium に配置してください（config.json、model.bin、tokenizer.json、vocabulary.txt。model.bin は約 1.53 GB）。",
         // UI-R5C meeting summaries
         ["Summary.Generate"] = "会議まとめを生成",
         ["Summary.Open"] = "会議まとめを開く",
