@@ -18,7 +18,7 @@
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
-            <TextBlock Text="{Binding TitleText}" FontSize="17" FontWeight="SemiBold" Margin="0,0,0,8" />
+            <TextBlock Text="{Binding TitleText, Mode=OneWay}" FontSize="17" FontWeight="SemiBold" Margin="0,0,0,8" />
             <Border Grid.Row="1" Background="Black" CornerRadius="7" ClipToBounds="True">
                 <vlc:VideoView x:Name="VideoView" />
             </Border>
@@ -34,7 +34,7 @@
                             MinWidth="86" Click="PlayPause_Click" />
                     <Button Grid.Column="1" Content="{loc:Loc Playback.Stop}" Margin="7,0,0,0" Click="Stop_Click" />
                     <TextBlock Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Center">
-                        <Run Text="{Binding PositionText}" /><Run Text=" / " /><Run Text="{Binding DurationText}" />
+                        <Run Text="{Binding PositionText, Mode=OneWay}" /><Run Text=" / " /><Run Text="{Binding DurationText, Mode=OneWay}" />
                     </TextBlock>
                     <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
                         <TextBlock Text="{loc:Loc Playback.Speed}" VerticalAlignment="Center" Margin="0,0,6,0" />
@@ -73,9 +73,9 @@
                             <Border x:Name="Card" Padding="10,7" Margin="6,2" CornerRadius="6" Background="#F8F8F8"
                                     MouseLeftButtonUp="Caption_MouseLeftButtonUp" Cursor="Hand">
                                 <StackPanel>
-                                    <TextBlock Text="{Binding TimeText}" FontSize="11" Foreground="{StaticResource AccentBrush}" />
-                                    <TextBlock Text="{Binding Text}" TextWrapping="Wrap" Margin="0,2,0,0" />
-                                    <TextBlock Text="{Binding Translation}" TextWrapping="Wrap" Margin="0,3,0,0"
+                                    <TextBlock Text="{Binding TimeText, Mode=OneWay}" FontSize="11" Foreground="{StaticResource AccentBrush}" />
+                                    <TextBlock Text="{Binding Text, Mode=OneWay}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                                    <TextBlock Text="{Binding Translation, Mode=OneWay}" TextWrapping="Wrap" Margin="0,3,0,0"
                                                Foreground="{StaticResource AccentBrush}"
                                                Visibility="{Binding HasTranslation, Converter={StaticResource BoolToVisibility}}" />
                                 </StackPanel>

@@ -1,4 +1,5 @@
 using System.IO;
+using System.Xml.Linq;
 using KikuCaption.App.Playback;
 using KikuCaption.Core.Enums;
 using KikuCaption.Core.Models;
@@ -11,6 +12,22 @@ namespace KikuCaption.App.Tests.Playback;
 
 public sealed class MeetingPlaybackTests
 {
+    [Fact]
+    public void PlaybackWindow_ReadOnlyTextBindings_AreOneWay()
+    {
+        var projectDirectory = FindProjectDirectory();
+        var xaml = XDocument.Load(Path.Combine(projectDirectory, "Views", "MeetingPlaybackWindow.xaml"));
+        var bindings = xaml.Descendants()
+            .Attributes("Text")
+            .Select(x => x.Value)
+            .Where(x => x.Contains("Binding PositionText", StringComparison.Ordinal) ||
+                        x.Contains("Binding DurationText", StringComparison.Ordinal))
+            .ToArray();
+
+        Assert.Equal(2, bindings.Length);
+        Assert.All(bindings, binding => Assert.Contains("Mode=OneWay", binding, StringComparison.Ordinal));
+    }
+
     [Fact]
     public void LibVlcNativeRuntime_LoadsWithoutInstalledVlc()
     {
@@ -141,4 +158,16 @@ public sealed class MeetingPlaybackTests
         Language = "ja", Text = $"caption-{n}", Status = TranscriptStatus.Final,
         CreatedAt = DateTimeOffset.Now
     };
+
+    private static string FindProjectDirectory()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            var candidate = Path.Combine(directory.FullName, "src", "KikuCaption.App");
+            if (File.Exists(Path.Combine(candidate, "KikuCaption.App.csproj"))) return candidate;
+            directory = directory.Parent;
+        }
+        throw new DirectoryNotFoundException("KikuCaption.App project directory was not found.");
+    }
 }
