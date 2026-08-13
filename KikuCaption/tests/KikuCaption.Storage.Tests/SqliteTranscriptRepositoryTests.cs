@@ -141,4 +141,22 @@ public class SqliteTranscriptRepositoryTests
 
         try { Directory.Delete(dir, true); } catch { }
     }
+
+    [Fact]
+    public async Task RecentSessions_AreNewestFirst_AndLimited()
+    {
+        await using var ctx = new StorageTestContext();
+        var now = DateTimeOffset.Now;
+        var oldest = ctx.NewSession() with { StartedAt = now.AddHours(-2) };
+        var middle = ctx.NewSession() with { StartedAt = now.AddHours(-1) };
+        var newest = ctx.NewSession() with { StartedAt = now };
+
+        await ctx.Repository.CreateSessionAsync(oldest, CancellationToken.None);
+        await ctx.Repository.CreateSessionAsync(newest, CancellationToken.None);
+        await ctx.Repository.CreateSessionAsync(middle, CancellationToken.None);
+
+        var recent = await ctx.Repository.GetRecentSessionsAsync(2, CancellationToken.None);
+
+        Assert.Equal(new[] { newest.Id, middle.Id }, recent.Select(x => x.Session.Id));
+    }
 }

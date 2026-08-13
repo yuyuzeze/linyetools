@@ -18,6 +18,9 @@ public interface ITranscriptStore : ITranscriptRepository, ITranslationJobStore
     /// <summary>The most recently started session, if any (for reopening a meeting's timeline).</summary>
     Task<StoredSession?> GetMostRecentSessionAsync(CancellationToken cancellationToken);
 
+    /// <summary>Most recently started sessions, newest first, for the home-page history browser.</summary>
+    Task<IReadOnlyList<StoredSession>> GetRecentSessionsAsync(int limit, CancellationToken cancellationToken);
+
     /// <summary>Final segments ordered by stable sequence number.</summary>
     Task<IReadOnlyList<StoredSegment>> GetSegmentsAsync(Guid sessionId, CancellationToken cancellationToken);
 

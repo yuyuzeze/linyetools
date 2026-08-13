@@ -98,6 +98,17 @@ internal sealed class InMemoryStore : ITranscriptStore
         return Task.FromResult<StoredSession?>(latest);
     }
 
+    public Task<IReadOnlyList<StoredSession>> GetRecentSessionsAsync(int limit, CancellationToken cancellationToken)
+    {
+        IReadOnlyList<StoredSession> result = _sessions.Values
+            .OrderByDescending(x => x.Session.StartedAt)
+            .Take(Math.Clamp(limit, 1, 100))
+            .Select(x => new StoredSession(x.Session with { EndedAt = x.Ended }, x.State,
+                _segments.TryGetValue(x.Session.Id, out var l) ? l.Count : 0))
+            .ToList();
+        return Task.FromResult(result);
+    }
+
     public Task<IReadOnlyList<StoredSegment>> GetSegmentsAsync(Guid sessionId, CancellationToken cancellationToken)
     {
         if (!_segments.TryGetValue(sessionId, out var list))

@@ -275,6 +275,37 @@ public sealed class SqliteTranscriptRepository : ITranscriptStore, IAsyncDisposa
         }
     }
 
+    public async Task<IReadOnlyList<StoredSession>> GetRecentSessionsAsync(int limit, CancellationToken cancellationToken)
+    {
+        await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+        limit = Math.Clamp(limit, 1, 100);
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            using var command = _connection!.CreateCommand();
+            command.CommandText = """
+                SELECT Id, StartedAt, EndedAt, RecognitionLanguage, OutputDirectory, RecordingPath, State,
+                       TranslationEnabled, TranslationSource, TranslationTarget, TranslationModel,
+                       (SELECT COUNT(*) FROM TranscriptSegment WHERE SessionId = MeetingSession.Id) AS SegCount
+                FROM MeetingSession ORDER BY StartedAt DESC LIMIT @limit;
+                """;
+            command.Parameters.AddWithValue("@limit", limit);
+
+            var sessions = new List<StoredSession>();
+            using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                sessions.Add(ReadSession(reader));
+            }
+
+            return sessions;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     public async Task<IReadOnlyList<StoredSegment>> GetSegmentsAsync(Guid sessionId, CancellationToken cancellationToken)
     {
         await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
