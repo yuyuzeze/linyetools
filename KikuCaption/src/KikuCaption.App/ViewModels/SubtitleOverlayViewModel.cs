@@ -48,7 +48,7 @@ public partial class SubtitleOverlayViewModel : ObservableObject
     {
         FontSize = settings.FontSize;
         BackgroundOpacity = settings.Opacity;
-        MaxLines = Math.Clamp(settings.MaxLines, 2, 5);
+        MaxLines = Math.Clamp(settings.MaxLines, 1, 5);
         ClickThrough = settings.ClickThrough;
     }
 
@@ -57,7 +57,7 @@ public partial class SubtitleOverlayViewModel : ObservableObject
     {
         FontSize = s.SubtitleFontSize;
         BackgroundOpacity = s.SubtitleOpacity;
-        MaxLines = Math.Clamp(s.SubtitleMaxLines, 2, 5);
+        MaxLines = Math.Clamp(s.SubtitleMaxLines, 1, 5);
         ClickThrough = s.ClickThrough;
         FontFamily = string.IsNullOrWhiteSpace(s.SubtitleFontFamily) ? FontFamily : s.SubtitleFontFamily;
         Topmost = s.SubtitleTopmost;

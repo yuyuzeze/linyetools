@@ -367,6 +367,40 @@ public sealed class SqliteTranscriptRepository : ITranscriptStore, IAsyncDisposa
         }
     }
 
+    public async Task DeleteSessionAsync(Guid sessionId, CancellationToken cancellationToken)
+    {
+        await EnsureInitializedAsync(cancellationToken).ConfigureAwait(false);
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await using var transaction = await _connection!.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+            foreach (var sql in new[]
+                     {
+                         "DELETE FROM TranslationJob WHERE SessionId = @id;",
+                         "DELETE FROM TranscriptSegment WHERE SessionId = @id;",
+                         "DELETE FROM MeetingSession WHERE Id = @id;"
+                     })
+            {
+                using var command = _connection.CreateCommand();
+                command.Transaction = (SqliteTransaction)transaction;
+                command.CommandText = sql;
+                command.Parameters.AddWithValue("@id", sessionId.ToString("N"));
+                await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+            _logger.LogInformation("Deleted meeting session {SessionId} and its dependent database rows.", sessionId);
+        }
+        catch (SqliteException ex)
+        {
+            throw new StorageException("delete_session_failed", "删除会议数据库记录失败，未提交部分删除。", ex);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     // ----- Translation jobs (Milestone 6) -----
 
     private const string JobColumns =

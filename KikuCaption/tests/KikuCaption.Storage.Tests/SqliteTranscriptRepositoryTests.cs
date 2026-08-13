@@ -159,4 +159,27 @@ public class SqliteTranscriptRepositoryTests
 
         Assert.Equal(new[] { newest.Id, middle.Id }, recent.Select(x => x.Session.Id));
     }
+
+    [Fact]
+    public async Task DeleteSession_RemovesSessionSegmentsAndTranslationJobs()
+    {
+        await using var ctx = new StorageTestContext();
+        var session = ctx.NewSession();
+        var segment = StorageTestContext.Final(session.Id, "delete me");
+        await ctx.Repository.CreateSessionAsync(session, CancellationToken.None);
+        await ctx.Repository.UpsertSegmentAsync(segment, CancellationToken.None);
+        await ctx.Repository.CreateTranslationJobAsync(new KikuCaption.Core.Models.TranslationJob
+        {
+            Id = Guid.NewGuid(), SessionId = session.Id, SegmentId = segment.Id,
+            State = KikuCaption.Core.Enums.TranslationJobState.Pending,
+            SourceLanguage = "ja", TargetLanguage = "zh", PromptVersion = 1, Model = "m",
+            CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow
+        }, CancellationToken.None);
+
+        await ctx.Repository.DeleteSessionAsync(session.Id, CancellationToken.None);
+
+        Assert.Null(await ctx.Repository.GetSessionAsync(session.Id, CancellationToken.None));
+        Assert.Empty(await ctx.Repository.GetSegmentsAsync(session.Id, CancellationToken.None));
+        Assert.Empty(await ctx.Repository.GetJobsForSessionAsync(session.Id, CancellationToken.None));
+    }
 }

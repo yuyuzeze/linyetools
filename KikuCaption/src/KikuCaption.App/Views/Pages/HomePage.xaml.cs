@@ -75,6 +75,29 @@ public partial class HomePage : UserControl
         ViewModel?.ShowSummaryFolder();
     }
 
+    private async void DeleteSession_Click(object sender, RoutedEventArgs e)
+    {
+        TimelineMenuToggle.IsChecked = false;
+        if (ViewModel is null || !ViewModel.CanDeleteDisplayedSession) return;
+
+        var loc = Localization.LocalizationService.Instance;
+        if (MessageBox.Show(loc["History.DeleteConfirm"], loc["History.DeleteTitle"],
+                MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        try
+        {
+            await ViewModel.DeleteDisplayedSessionAsync();
+        }
+        catch
+        {
+            MessageBox.Show(loc["History.DeleteFailed"], loc["History.DeleteTitle"],
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
     private async void OpenPlayback_Click(object sender, RoutedEventArgs e)
     {
         TimelineMenuToggle.IsChecked = false;

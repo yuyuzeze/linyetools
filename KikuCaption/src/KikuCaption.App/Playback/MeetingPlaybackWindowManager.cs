@@ -24,6 +24,14 @@ public sealed class MeetingPlaybackWindowManager
         _logger = logger;
     }
 
+    public void Close(Guid sessionId)
+    {
+        if (_sessionId == sessionId && _window is { IsLoaded: true })
+        {
+            _window.Close();
+        }
+    }
+
     /// <returns>Null on success; otherwise a localized, non-sensitive error message.</returns>
     public async Task<string?> OpenAsync(Guid sessionId, Window? owner, CancellationToken cancellationToken)
     {

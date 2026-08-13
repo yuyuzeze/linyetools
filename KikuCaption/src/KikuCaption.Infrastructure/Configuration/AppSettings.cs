@@ -21,8 +21,6 @@ public sealed class SpeechSettings
     public string ComputeType { get; set; } = "int8";
     public string Language { get; set; } = "ja";
     public int BeamSize { get; set; } = 2;
-    public double WindowSeconds { get; set; } = 6;
-    public double OverlapSeconds { get; set; } = 2;
 
     // Progressive-captioning tunables (mapped through to the pipeline).
     public int SilenceFinalMs { get; set; } = 700;
@@ -35,7 +33,6 @@ public sealed class SpeechSettings
     /// utterance" buffering; the experimental sliding-window path is known to lose audio and is
     /// rejected at startup validation if this is true. See ProgressiveCaptionOptions.
     /// </summary>
-    public bool UseExperimentalSlidingWindow { get; set; } = false;
 
     /// <summary>
     /// Per-language decoding context. Keyed by language ("ja" / "zh"); each provides an initial

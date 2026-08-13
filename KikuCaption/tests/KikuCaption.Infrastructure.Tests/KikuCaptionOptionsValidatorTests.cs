@@ -28,18 +28,6 @@ public class KikuCaptionOptionsValidatorTests
     }
 
     [Fact]
-    public void OverlapNotLessThanWindow_Fails()
-    {
-        var options = new KikuCaptionOptions();
-        options.Speech.WindowSeconds = 3;
-        options.Speech.OverlapSeconds = 3;
-
-        var result = _validator.Validate(null, options);
-
-        Assert.True(result.Failed);
-    }
-
-    [Fact]
     public void TranslationEnabledWithoutEndpoint_Fails()
     {
         var options = new KikuCaptionOptions();

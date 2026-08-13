@@ -22,7 +22,20 @@ public sealed partial class GeneralSettingsViewModel : ObservableObject
     private readonly LocalizationService _localization;
     private readonly ILogger<GeneralSettingsViewModel> _logger;
     private readonly CorrectionModelLocator _correctionModel;
+    private readonly SpeechPrewarmCoordinator? _prewarm;
     private bool _loading;
+
+    public GeneralSettingsViewModel(UserSettingsStore store, LocalizationService localization,
+        CorrectionModelLocator correctionModel, SpeechPrewarmCoordinator prewarm,
+        ILogger<GeneralSettingsViewModel> logger)
+    {
+        _store = store;
+        _localization = localization;
+        _correctionModel = correctionModel;
+        _prewarm = prewarm;
+        _logger = logger;
+        LoadFromStore();
+    }
 
     public GeneralSettingsViewModel(UserSettingsStore store, LocalizationService localization,
         CorrectionModelLocator correctionModel, ILogger<GeneralSettingsViewModel> logger)
@@ -54,6 +67,7 @@ public sealed partial class GeneralSettingsViewModel : ObservableObject
     [ObservableProperty] private bool _minimizeToTray = true;
     [ObservableProperty] private bool _closeToTray;
     [ObservableProperty] private bool _autoCorrectAfterMeeting = true;
+    [ObservableProperty] private bool _prewarmWhisperInBackground;
     [ObservableProperty] private bool _isCorrectionModelAvailable;
     [ObservableProperty] private string _correctionModelHint = string.Empty;
     [ObservableProperty] private string _statusText = string.Empty;
@@ -77,6 +91,11 @@ public sealed partial class GeneralSettingsViewModel : ObservableObject
             AutoCorrectAfterMeeting = false;
     }
 
+    partial void OnPrewarmWhisperInBackgroundChanged(bool value)
+    {
+        if (!_loading && _prewarm is not null) _ = _prewarm.ApplyAsync(value, DefaultRecognitionLanguage);
+    }
+
     [RelayCommand]
     private void Save()
     {
@@ -95,6 +114,7 @@ public sealed partial class GeneralSettingsViewModel : ObservableObject
                 MinimizeToTray = MinimizeToTray,
                 CloseToTray = CloseToTray,
                 AutoCorrectAfterMeeting = AutoCorrectAfterMeeting
+                ,PrewarmWhisperInBackground = PrewarmWhisperInBackground
             });
             StatusText = _localization["Settings.Saved"];
         }
@@ -119,6 +139,7 @@ public sealed partial class GeneralSettingsViewModel : ObservableObject
         MinimizeToTray = d.MinimizeToTray;
         CloseToTray = d.CloseToTray;
         AutoCorrectAfterMeeting = d.AutoCorrectAfterMeeting;
+        PrewarmWhisperInBackground = d.PrewarmWhisperInBackground;
         _loading = false;
         // Language reset applies live + persists via the changed handler.
         UiLanguage = d.UiLanguage;
@@ -142,6 +163,7 @@ public sealed partial class GeneralSettingsViewModel : ObservableObject
         CloseToTray = s.CloseToTray;
         RefreshCorrectionAvailability();
         AutoCorrectAfterMeeting = s.AutoCorrectAfterMeeting && IsCorrectionModelAvailable;
+        PrewarmWhisperInBackground = s.PrewarmWhisperInBackground;
         _loading = false;
     }
 

@@ -28,6 +28,7 @@ public static class StorageServiceCollectionExtensions
 
         services.AddSingleton<SessionRecorder>();
         services.AddSingleton<SessionRecoveryService>();
+        services.AddSingleton<MeetingSessionDeletionService>();
         return services;
     }
 }

@@ -8,7 +8,7 @@ using KikuCaption.Core.Exceptions;
 namespace KikuCaption.Storage.Tests;
 
 /// <summary>In-memory <see cref="ITranscriptStore"/> for fast, deterministic recorder tests.</summary>
-internal sealed class InMemoryStore : ITranscriptStore
+internal sealed class InMemoryStore : TranscriptStoreAdapter
 {
     private readonly ConcurrentDictionary<Guid, (MeetingSession Session, string State, DateTimeOffset? Ended)> _sessions = new();
     private readonly ConcurrentDictionary<Guid, List<(TranscriptSegment Seg, long Seq)>> _segments = new();
@@ -17,16 +17,16 @@ internal sealed class InMemoryStore : ITranscriptStore
     public int UpsertDelayMs { get; set; }
     public bool FailOnUpsert { get; set; }
 
-    public Task InitializeAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    public override Task InitializeAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
-    public Task CreateSessionAsync(MeetingSession session, CancellationToken cancellationToken)
+    public override Task CreateSessionAsync(MeetingSession session, CancellationToken cancellationToken)
     {
         _sessions.TryAdd(session.Id, (session, SessionStates.Running, session.EndedAt));
         _segments.TryAdd(session.Id, new List<(TranscriptSegment, long)>());
         return Task.CompletedTask;
     }
 
-    public async Task UpsertSegmentAsync(TranscriptSegment segment, CancellationToken cancellationToken)
+    public override async Task UpsertSegmentAsync(TranscriptSegment segment, CancellationToken cancellationToken)
     {
         if (UpsertDelayMs > 0)
         {
@@ -53,10 +53,10 @@ internal sealed class InMemoryStore : ITranscriptStore
         }
     }
 
-    public Task CompleteSessionAsync(Guid sessionId, DateTimeOffset endedAt, CancellationToken cancellationToken)
+    public override Task CompleteSessionAsync(Guid sessionId, DateTimeOffset endedAt, CancellationToken cancellationToken)
         => SetSessionStateAsync(sessionId, SessionStates.Completed, endedAt, cancellationToken);
 
-    public Task SetSessionStateAsync(Guid sessionId, string state, DateTimeOffset? endedAt, CancellationToken cancellationToken)
+    public override Task SetSessionStateAsync(Guid sessionId, string state, DateTimeOffset? endedAt, CancellationToken cancellationToken)
     {
         if (_sessions.TryGetValue(sessionId, out var current))
         {
@@ -66,7 +66,7 @@ internal sealed class InMemoryStore : ITranscriptStore
         return Task.CompletedTask;
     }
 
-    public Task SetRecordingPathAsync(Guid sessionId, string recordingPath, CancellationToken cancellationToken)
+    public override Task SetRecordingPathAsync(Guid sessionId, string recordingPath, CancellationToken cancellationToken)
     {
         if (_sessions.TryGetValue(sessionId, out var current))
         {
@@ -76,7 +76,7 @@ internal sealed class InMemoryStore : ITranscriptStore
         return Task.CompletedTask;
     }
 
-    public Task<StoredSession?> GetSessionAsync(Guid sessionId, CancellationToken cancellationToken)
+    public override Task<StoredSession?> GetSessionAsync(Guid sessionId, CancellationToken cancellationToken)
     {
         if (!_sessions.TryGetValue(sessionId, out var current))
         {
@@ -88,7 +88,7 @@ internal sealed class InMemoryStore : ITranscriptStore
         return Task.FromResult<StoredSession?>(new StoredSession(session, current.State, count));
     }
 
-    public Task<StoredSession?> GetMostRecentSessionAsync(CancellationToken cancellationToken)
+    public override Task<StoredSession?> GetMostRecentSessionAsync(CancellationToken cancellationToken)
     {
         var latest = _sessions.Values
             .OrderByDescending(x => x.Session.StartedAt)
@@ -98,7 +98,7 @@ internal sealed class InMemoryStore : ITranscriptStore
         return Task.FromResult<StoredSession?>(latest);
     }
 
-    public Task<IReadOnlyList<StoredSession>> GetRecentSessionsAsync(int limit, CancellationToken cancellationToken)
+    public override Task<IReadOnlyList<StoredSession>> GetRecentSessionsAsync(int limit, CancellationToken cancellationToken)
     {
         IReadOnlyList<StoredSession> result = _sessions.Values
             .OrderByDescending(x => x.Session.StartedAt)
@@ -109,7 +109,7 @@ internal sealed class InMemoryStore : ITranscriptStore
         return Task.FromResult(result);
     }
 
-    public Task<IReadOnlyList<StoredSegment>> GetSegmentsAsync(Guid sessionId, CancellationToken cancellationToken)
+    public override Task<IReadOnlyList<StoredSegment>> GetSegmentsAsync(Guid sessionId, CancellationToken cancellationToken)
     {
         if (!_segments.TryGetValue(sessionId, out var list))
         {
@@ -124,7 +124,7 @@ internal sealed class InMemoryStore : ITranscriptStore
         }
     }
 
-    public Task<IReadOnlyList<StoredSession>> GetIncompleteSessionsAsync(CancellationToken cancellationToken)
+    public override Task<IReadOnlyList<StoredSession>> GetIncompleteSessionsAsync(CancellationToken cancellationToken)
     {
         IReadOnlyList<StoredSession> result = _sessions.Values
             .Where(x => x.State != SessionStates.Completed && x.State != SessionStates.Recovered)
@@ -134,9 +134,20 @@ internal sealed class InMemoryStore : ITranscriptStore
         return Task.FromResult(result);
     }
 
+    public override Task DeleteSessionAsync(Guid sessionId, CancellationToken cancellationToken)
+    {
+        _sessions.TryRemove(sessionId, out _);
+        _segments.TryRemove(sessionId, out _);
+        foreach (var job in _jobs.Where(x => x.Value.SessionId == sessionId).Select(x => x.Key).ToArray())
+        {
+            _jobs.TryRemove(job, out _);
+        }
+        return Task.CompletedTask;
+    }
+
     // ----- Translation jobs (Milestone 6) -----
 
-    public Task<TranscriptSegment?> GetSegmentAsync(Guid segmentId, CancellationToken cancellationToken)
+    public override Task<TranscriptSegment?> GetSegmentAsync(Guid segmentId, CancellationToken cancellationToken)
     {
         foreach (var list in _segments.Values)
         {
@@ -153,7 +164,7 @@ internal sealed class InMemoryStore : ITranscriptStore
         return Task.FromResult<TranscriptSegment?>(null);
     }
 
-    public Task CreateTranslationJobAsync(TranslationJob job, CancellationToken cancellationToken)
+    public override Task CreateTranslationJobAsync(TranslationJob job, CancellationToken cancellationToken)
     {
         bool activeExists = _jobs.Values.Any(j => j.SegmentId == job.SegmentId && IsActive(j.State));
         if (activeExists)
@@ -165,16 +176,16 @@ internal sealed class InMemoryStore : ITranscriptStore
         return Task.CompletedTask;
     }
 
-    public Task UpdateTranslationJobAsync(TranslationJob job, CancellationToken cancellationToken)
+    public override Task UpdateTranslationJobAsync(TranslationJob job, CancellationToken cancellationToken)
     {
         _jobs[job.Id] = job;
         return Task.CompletedTask;
     }
 
-    public Task<TranslationJob?> GetActiveJobForSegmentAsync(Guid segmentId, CancellationToken cancellationToken)
+    public override Task<TranslationJob?> GetActiveJobForSegmentAsync(Guid segmentId, CancellationToken cancellationToken)
         => Task.FromResult(_jobs.Values.FirstOrDefault(j => j.SegmentId == segmentId && IsActive(j.State)));
 
-    public Task<IReadOnlyList<TranslationJob>> GetResumableJobsAsync(CancellationToken cancellationToken)
+    public override Task<IReadOnlyList<TranslationJob>> GetResumableJobsAsync(CancellationToken cancellationToken)
     {
         IReadOnlyList<TranslationJob> result = _jobs.Values
             .Where(j => j.State is TranslationJobState.Pending or TranslationJobState.RetryScheduled)
@@ -182,7 +193,7 @@ internal sealed class InMemoryStore : ITranscriptStore
         return Task.FromResult(result);
     }
 
-    public Task<int> RecoverInProgressJobsAsync(CancellationToken cancellationToken)
+    public override Task<int> RecoverInProgressJobsAsync(CancellationToken cancellationToken)
     {
         int count = 0;
         foreach (var j in _jobs.Values.Where(j => j.State == TranslationJobState.InProgress).ToList())
@@ -194,14 +205,14 @@ internal sealed class InMemoryStore : ITranscriptStore
         return Task.FromResult(count);
     }
 
-    public Task<IReadOnlyList<TranslationJob>> GetJobsForSessionAsync(Guid sessionId, CancellationToken cancellationToken)
+    public override Task<IReadOnlyList<TranslationJob>> GetJobsForSessionAsync(Guid sessionId, CancellationToken cancellationToken)
     {
         IReadOnlyList<TranslationJob> result = _jobs.Values
             .Where(j => j.SessionId == sessionId).OrderBy(j => j.CreatedAt).ToList();
         return Task.FromResult(result);
     }
 
-    public Task SetSegmentTranslationAsync(Guid segmentId, string? translation, TranscriptStatus status, CancellationToken cancellationToken)
+    public override Task SetSegmentTranslationAsync(Guid segmentId, string? translation, TranscriptStatus status, CancellationToken cancellationToken)
     {
         foreach (var list in _segments.Values)
         {

@@ -13,33 +13,6 @@ namespace KikuCaption.App.Tests;
 /// <summary>UI-R5C: App coordinator gating, final-only snapshot, and safe open/folder.</summary>
 public class MeetingSummaryCoordinatorTests
 {
-    // A transcript store that only answers GetSegmentsAsync (the sole method the coordinator uses).
-    private sealed class FakeStore : ITranscriptStore
-    {
-        public IReadOnlyList<StoredSegment> Segments = System.Array.Empty<StoredSegment>();
-        public Task<IReadOnlyList<StoredSegment>> GetSegmentsAsync(Guid s, CancellationToken c) => Task.FromResult(Segments);
-
-        public Task InitializeAsync(CancellationToken c) => Task.CompletedTask;
-        public Task<StoredSession?> GetSessionAsync(Guid s, CancellationToken c) => Task.FromResult<StoredSession?>(null);
-        public Task<StoredSession?> GetMostRecentSessionAsync(CancellationToken c) => Task.FromResult<StoredSession?>(null);
-        public Task<IReadOnlyList<StoredSession>> GetRecentSessionsAsync(int limit, CancellationToken c)
-            => Task.FromResult<IReadOnlyList<StoredSession>>(Array.Empty<StoredSession>());
-        public Task<IReadOnlyList<StoredSession>> GetIncompleteSessionsAsync(CancellationToken c) => throw new NotSupportedException();
-        public Task SetSessionStateAsync(Guid s, string st, DateTimeOffset? e, CancellationToken c) => throw new NotSupportedException();
-        public Task SetRecordingPathAsync(Guid s, string p, CancellationToken c) => throw new NotSupportedException();
-        public Task CreateSessionAsync(MeetingSession s, CancellationToken c) => throw new NotSupportedException();
-        public Task UpsertSegmentAsync(TranscriptSegment s, CancellationToken c) => throw new NotSupportedException();
-        public Task CompleteSessionAsync(Guid s, DateTimeOffset e, CancellationToken c) => throw new NotSupportedException();
-        public Task<TranscriptSegment?> GetSegmentAsync(Guid s, CancellationToken c) => throw new NotSupportedException();
-        public Task CreateTranslationJobAsync(TranslationJob j, CancellationToken c) => throw new NotSupportedException();
-        public Task UpdateTranslationJobAsync(TranslationJob j, CancellationToken c) => throw new NotSupportedException();
-        public Task<TranslationJob?> GetActiveJobForSegmentAsync(Guid s, CancellationToken c) => throw new NotSupportedException();
-        public Task<IReadOnlyList<TranslationJob>> GetResumableJobsAsync(CancellationToken c) => throw new NotSupportedException();
-        public Task<int> RecoverInProgressJobsAsync(CancellationToken c) => throw new NotSupportedException();
-        public Task<IReadOnlyList<TranslationJob>> GetJobsForSessionAsync(Guid s, CancellationToken c) => throw new NotSupportedException();
-        public Task SetSegmentTranslationAsync(Guid s, string? t, TranscriptStatus st, CancellationToken c) => throw new NotSupportedException();
-    }
-
     private sealed class FakeService : IMeetingSummaryService
     {
         public Task<MeetingSummaryResult> GenerateAsync(MeetingSummaryRequest r, string f, IProgress<MeetingSummaryProgress>? p, CancellationToken c)
@@ -62,7 +35,7 @@ public class MeetingSummaryCoordinatorTests
             Language = "ja", Text = text, Status = TranscriptStatus.Partial, CreatedAt = DateTimeOffset.Now
         }, seq);
 
-    private static MeetingSummaryCoordinator Coordinator(FakeStore store)
+    private static MeetingSummaryCoordinator Coordinator(TestTranscriptStore store)
         => new(store, new FakeService(), new MarkdownMeetingSummaryExporter(), NullLogger<MeetingSummaryCoordinator>.Instance);
 
     private static SummarySessionContext Context(SessionState state, int count, string dir = @"C:\s\1")
@@ -90,7 +63,7 @@ public class MeetingSummaryCoordinatorTests
     [Fact] // scenario 6/7/18: the snapshot uses ONLY final captions, in sequence order (no partials)
     public async Task BuildRequest_UsesFinalOnly_Ordered()
     {
-        var store = new FakeStore
+        var store = new TestTranscriptStore
         {
             Segments = new[]
             {
@@ -112,7 +85,7 @@ public class MeetingSummaryCoordinatorTests
     [Fact] // building a request for a running session is rejected
     public async Task BuildRequest_Running_Throws()
     {
-        var store = new FakeStore { Segments = new[] { Final(1, "x") } };
+        var store = new TestTranscriptStore { Segments = new[] { Final(1, "x") } };
         await Assert.ThrowsAsync<MeetingSummaryException>(() =>
             Coordinator(store).BuildRequestAsync(Context(SessionState.Running, 1), MeetingType.SinglePresenter, "zh", "m", CancellationToken.None));
     }
@@ -122,7 +95,7 @@ public class MeetingSummaryCoordinatorTests
     {
         var dir = Path.Combine(Path.GetTempPath(), "kiku_sum_open", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
-        try { Assert.False(Coordinator(new FakeStore()).OpenSummary(dir)); }
+        try { Assert.False(Coordinator(new TestTranscriptStore()).OpenSummary(dir)); }
         finally { Directory.Delete(dir, true); }
     }
 }

@@ -36,6 +36,10 @@ public sealed record UserSettings
     // with corrected-transcript.*; disabling it leaves the realtime transcript untouched.
     public bool AutoCorrectAfterMeeting { get; init; } = true;
 
+    // Optional startup optimization. False by default because the resident model/worker keeps
+    // several hundred MB of memory allocated while no meeting is running.
+    public bool PrewarmWhisperInBackground { get; init; }
+
     public bool TranslationEnabled { get; init; }
 
     // NOTE: the Endpoint is intentionally NOT persisted here — it can embed a credential (e.g. a

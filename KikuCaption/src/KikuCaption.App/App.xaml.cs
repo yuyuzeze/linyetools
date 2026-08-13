@@ -100,22 +100,18 @@ public partial class App : Application
                     // Progressive caption options (validated at startup) — all tunables now mapped.
                     var progressive = new ProgressiveCaptionOptions
                     {
-                        WindowSeconds = speechSettings.WindowSeconds,
-                        OverlapSeconds = speechSettings.OverlapSeconds,
                         SilenceFinalMs = speechSettings.SilenceFinalMs,
                         StableRepeatCount = speechSettings.StableRepeatCount,
                         MaxSentenceSeconds = speechSettings.MaxSentenceSeconds,
                         MaxWaitSeconds = speechSettings.MaxWaitSeconds,
-                        MaxLines = Math.Clamp(subtitleSettings.MaxLines, 2, 5),
-                        // Hotfix safety switch: Validate() below refuses true (data-loss risk).
-                        UseExperimentalSlidingWindow = speechSettings.UseExperimentalSlidingWindow
+                        MaxLines = Math.Clamp(subtitleSettings.MaxLines, 1, 5)
                     };
                     progressive.Validate();
                     services.AddSingleton(progressive);
                     services.AddSingleton(subtitleSettings);
 
                     services.AddTransient(sp => new RealtimeCaptionPipeline(
-                        () => sp.GetRequiredService<ISpeechRecognizer>(),
+                        sp.GetRequiredService<SpeechRecognizerPrewarmer>(),
                         sp.GetRequiredService<ProgressiveCaptionOptions>(),
                         sp.GetRequiredService<ISpeechOptionsProvider>(),
                         sp.GetRequiredService<ILogger<RealtimeCaptionPipeline>>()));
@@ -153,6 +149,7 @@ public partial class App : Application
                     services.AddSingleton<MeetingPlaybackWindowManager>();
                     services.AddSingleton<KikuCaption.App.Services.IMeetingAudioExtractor, KikuCaption.App.Services.FfmpegMeetingAudioExtractor>();
                     services.AddSingleton<KikuCaption.App.Services.CorrectionModelLocator>();
+                    services.AddSingleton<KikuCaption.App.Services.SpeechPrewarmCoordinator>();
                     services.AddSingleton<KikuCaption.App.Services.PostMeetingCorrectionService>();
 
                     // Milestone 7: preflight + user settings store (non-sensitive prefs).
@@ -245,6 +242,11 @@ public partial class App : Application
             // Milestone 7: clean over-retention rolling logs at startup (never touches meeting data).
             var logDir = Path.Combine(AppContext.BaseDirectory, "logs");
             var (userSettings, _) = _host.Services.GetRequiredService<UserSettingsStore>().Load();
+            if (userSettings.PrewarmWhisperInBackground)
+            {
+                _ = _host.Services.GetRequiredService<KikuCaption.App.Services.SpeechPrewarmCoordinator>()
+                    .ApplyAsync(true, userSettings.RecognitionLanguage);
+            }
             var retentionDays = userSettings.LogRetentionDays > 0
                 ? userSettings.LogRetentionDays
                 : _host.Services.GetRequiredService<IConfiguration>().GetValue<int?>("Storage:LogRetentionDays") ?? 14;
@@ -297,6 +299,7 @@ public partial class App : Application
             // jobs durable in SQLite for the next run.
             try { await _host.Services.GetRequiredService<TranslationQueue>().DisposeAsync(); } catch { /* ignore */ }
             try { await _host.Services.GetRequiredService<KikuCaption.App.Services.PostMeetingCorrectionService>().DisposeAsync(); } catch { /* ignore */ }
+            try { await _host.Services.GetRequiredService<SpeechRecognizerPrewarmer>().DisposeAsync(); } catch { /* ignore */ }
             await _host.StopAsync();
             _host.Dispose();
         }

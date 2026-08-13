@@ -9,7 +9,7 @@
 2. 安装 **Python 3.13.x**（勾选「Add to PATH」）。
 3. 在解压目录打开 PowerShell，运行一次性环境安装：
    ```powershell
-   ./scripts/setup-python.ps1
+   ./setup-python.ps1
    ```
    它创建 venv 并安装锁定依赖（不含模型）。
 4. **FFmpeg**：包内 `tools/ffmpeg` 若已含 `ffmpeg.exe`/`ffprobe.exe` 即可；否则在 `appsettings.json` 设置

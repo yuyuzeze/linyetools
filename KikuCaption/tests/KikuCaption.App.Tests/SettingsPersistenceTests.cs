@@ -149,6 +149,7 @@ public class SettingsPersistenceTests : IDisposable
         vm.DefaultRecordingTarget = "window";
         vm.LogRetentionDays = 30;
         vm.AutoCorrectAfterMeeting = false;
+        vm.PrewarmWhisperInBackground = true;
 
         vm.SaveCommand.Execute(null);
 
@@ -158,6 +159,7 @@ public class SettingsPersistenceTests : IDisposable
         Assert.Equal("window", s.CaptureType);
         Assert.Equal(30, s.LogRetentionDays);
         Assert.False(s.AutoCorrectAfterMeeting);
+        Assert.True(s.PrewarmWhisperInBackground);
     }
 
     private GeneralSettingsViewModel GeneralVm(LocalizationService loc)

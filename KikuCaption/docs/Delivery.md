@@ -4,7 +4,7 @@
 
 | 方案 | 说明 | 取舍 |
 |---|---|---|
-| **A（本项目采用）** | 自包含 .NET 应用 + 脚本化本机 Python（`scripts/setup-python.ps1`），模型首次运行下载 | 包体小、可靠、许可清晰；需用户一次性建 venv + 首次联网下模型 |
+| **A（本项目采用）** | 自包含 .NET 应用 + 发布包根目录的 `setup-python.ps1`，模型首次运行下载 | 包体小、可靠、许可清晰；需用户解压后执行一次脚本创建 venv |
 | B | 项目自带完整 Python 运行时与依赖的便携版 | 更接近开箱即用；包体大；需处理 Python/CTranslate2/onnxruntime/PyAV 的原生加载与许可；**须在干净机验证** |
 
 **采用 A 的理由**：在本开发环境无法可靠验证 B 的「自带 Python 运行时 + CTranslate2/onnxruntime/PyAV 原生库离线加载」

@@ -18,6 +18,7 @@ public static class SpeechServiceCollectionExtensions
         services.AddTransient<IWhisperWorker, ProcessWhisperWorker>();
         services.AddTransient<ISpeechRecognizer, PythonSpeechRecognizer>();
         services.AddSingleton<Func<ISpeechRecognizer>>(sp => () => sp.GetRequiredService<ISpeechRecognizer>());
+        services.AddSingleton<SpeechRecognizerPrewarmer>();
         return services;
     }
 }

@@ -40,6 +40,7 @@ public partial class HomePageViewModel : ObservableObject
     private readonly ILogger<HomePageViewModel> _logger;
     private readonly ITranscriptStore _store;
     private readonly MeetingPlaybackWindowManager _playback;
+    private readonly MeetingSessionDeletionService _deletion;
     private readonly DispatcherTimer _elapsedTimer;
     private DateTime _sessionStartedUtc;
 
@@ -58,6 +59,7 @@ public partial class HomePageViewModel : ObservableObject
         KikuCaption.Summarization.MeetingSummaryOptions summaryOptions,
         ITranscriptStore store,
         MeetingPlaybackWindowManager playback,
+        MeetingSessionDeletionService deletion,
         ILogger<HomePageViewModel> logger)
     {
         Realtime = realtime;
@@ -74,6 +76,7 @@ public partial class HomePageViewModel : ObservableObject
         _summaryOptions = summaryOptions;
         _store = store;
         _playback = playback;
+        _deletion = deletion;
         _logger = logger;
 
         _elapsedTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
@@ -236,6 +239,25 @@ public partial class HomePageViewModel : ObservableObject
     public bool SummaryFileExists
         => BuildDisplayedContext() is { } c && _summary.SummaryExists(c.SessionDirectory);
 
+    public bool CanDeleteDisplayedSession
+        => !Realtime.IsRunning && Realtime.Timeline.DisplayedSession is not null;
+
+    public async Task DeleteDisplayedSessionAsync()
+    {
+        var displayed = Realtime.Timeline.DisplayedSession;
+        if (displayed is null || Realtime.IsRunning)
+        {
+            return;
+        }
+
+        _playback.Close(displayed.SessionId);
+        await _deletion.DeleteAsync(displayed.SessionId, CancellationToken.None).ConfigureAwait(true);
+        Realtime.Timeline.ClearDisplayCommand.Execute(null);
+        await LoadRecentMeetingsAsync().ConfigureAwait(true);
+        RaiseSummaryState();
+        OnPropertyChanged(nameof(CanDeleteDisplayedSession));
+    }
+
     // The summary always targets the session the timeline is CURRENTLY showing — its real id and
     // directory, from the actual record. A live session uses its live state; a loaded history session
     // is idle regardless of any other running meeting, so we never mis-gate on a global "is running".
@@ -278,6 +300,7 @@ public partial class HomePageViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(CanGenerateSummary));
         OnPropertyChanged(nameof(SummaryFileExists));
+        OnPropertyChanged(nameof(CanDeleteDisplayedSession));
     }
 
     // ---- UI-R5A audio inputs (start dialog helpers) ----------------------

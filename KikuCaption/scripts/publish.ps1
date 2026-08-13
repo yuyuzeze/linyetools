@@ -4,9 +4,9 @@
   scripted Python). Produces a portable folder + zip + SHA-256, excluding all user/secret/dev data.
 
 .NOTES
-  Approach A does NOT bundle the Python runtime or the Whisper model. The published app expects a
-  Python venv (see scripts/setup-python.ps1 / docs/UserGuide.md) and downloads the small model on
-  first run. FFmpeg is included from tools/ffmpeg if present, else the user configures a path.
+  Approach A does NOT bundle the Python runtime or the Whisper model. The published app includes a
+  root-level setup-python.ps1 that creates its local venv after extraction. FFmpeg is included from
+  tools/ffmpeg if present, else the user configures a path.
 #>
 param(
   [string]$Configuration = "Release",
@@ -43,6 +43,7 @@ if (Test-Path (Join-Path $ffmpeg "ffmpeg.exe")) {
 # Docs + notices + Python scripts for the user.
 Copy-Item (Join-Path $repo "README.md") $stage -Force
 Copy-Item (Join-Path $repo "THIRD_PARTY_NOTICES.md") $stage -Force -ErrorAction SilentlyContinue
+Copy-Item (Join-Path $repo "scripts/setup-python.ps1") (Join-Path $stage "setup-python.ps1") -Force
 New-Item -ItemType Directory -Force -Path (Join-Path $stage "docs") | Out-Null
 Copy-Item (Join-Path $repo "docs/UserGuide.md") (Join-Path $stage "docs") -Force -ErrorAction SilentlyContinue
 Copy-Item (Join-Path $repo "docs/Delivery.md")  (Join-Path $stage "docs") -Force -ErrorAction SilentlyContinue

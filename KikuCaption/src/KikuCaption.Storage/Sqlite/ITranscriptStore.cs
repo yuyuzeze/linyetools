@@ -27,6 +27,9 @@ public interface ITranscriptStore : ITranscriptRepository, ITranslationJobStore
     /// <summary>Sessions that were never completed (candidates for recovery).</summary>
     Task<IReadOnlyList<StoredSession>> GetIncompleteSessionsAsync(CancellationToken cancellationToken);
 
+    /// <summary>Deletes one session and all dependent transcript/translation rows atomically.</summary>
+    Task DeleteSessionAsync(Guid sessionId, CancellationToken cancellationToken);
+
     Task SetSessionStateAsync(Guid sessionId, string state, DateTimeOffset? endedAt, CancellationToken cancellationToken);
 
     /// <summary>Records the path of the session's MP4 (Milestone 5).</summary>

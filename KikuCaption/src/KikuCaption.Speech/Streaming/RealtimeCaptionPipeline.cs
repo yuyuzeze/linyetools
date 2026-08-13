@@ -7,6 +7,7 @@ using KikuCaption.Core.Interfaces;
 using KikuCaption.Core.Models;
 using KikuCaption.Speech.Protocol;
 using KikuCaption.Speech.Stabilization;
+using KikuCaption.Speech.Worker;
 using Microsoft.Extensions.Logging;
 
 namespace KikuCaption.Speech.Streaming;
@@ -23,12 +24,8 @@ namespace KikuCaption.Speech.Streaming;
 /// audio appended to the buffer while inference was running (a concurrent <see cref="IngestAsync"/>
 /// append) is never touched by that removal and carries over as the start of the next utterance.
 /// This guarantees <c>AudioDiscardedUncommittedSeconds</c> (see <see cref="CaptionMetrics"/>) stays
-/// 0 on this path. A previous "real sliding window" implementation truncated inference input to the
-/// last <c>WindowSeconds</c> and deleted buffer bytes by a fixed overlap byte-count unrelated to how
-/// much text had actually stabilized — under fast, continuous speech this silently and irrecoverably
-/// discarded several seconds of un-final audio. That path is now gated behind
-/// <see cref="ProgressiveCaptionOptions.UseExperimentalSlidingWindow"/>, which
-/// <see cref="ProgressiveCaptionOptions.Validate"/> refuses to accept as true.</para>
+/// 0 on this path. The former experimental sliding-window implementation was removed because it
+/// could discard un-finalized audio during fast, continuous speech.</para>
 ///
 /// One transcription runs at a time (sequential cycle loop), so the worker's timing is never
 /// broken by concurrent requests; when inference falls behind real time, cycles simply space out
@@ -42,6 +39,7 @@ public sealed class RealtimeCaptionPipeline : IAsyncDisposable
     private const int BytesPerSecond = 16000 * 2;
 
     private readonly Func<ISpeechRecognizer> _recognizerFactory;
+    private readonly SpeechRecognizerPrewarmer? _prewarmer;
     private readonly ProgressiveCaptionOptions _options;
     private readonly ISpeechOptionsProvider _speechOptionsProvider;
     private readonly ILogger<RealtimeCaptionPipeline> _logger;
@@ -118,18 +116,20 @@ public sealed class RealtimeCaptionPipeline : IAsyncDisposable
         ISpeechOptionsProvider speechOptionsProvider,
         ILogger<RealtimeCaptionPipeline> logger)
     {
-        if (options.UseExperimentalSlidingWindow)
-        {
-            // Defense in depth: Validate() (called at DI startup) already rejects this, but a
-            // pipeline can in principle be constructed with an options instance that skipped it.
-            throw new NotSupportedException(
-                "UseExperimentalSlidingWindow=true 已知会丢失音频，禁止用于构造 RealtimeCaptionPipeline。");
-        }
-
         _recognizerFactory = recognizerFactory;
         _options = options;
         _speechOptionsProvider = speechOptionsProvider;
         _logger = logger;
+    }
+
+    public RealtimeCaptionPipeline(
+        SpeechRecognizerPrewarmer prewarmer,
+        ProgressiveCaptionOptions options,
+        ISpeechOptionsProvider speechOptionsProvider,
+        ILogger<RealtimeCaptionPipeline> logger)
+        : this(() => throw new InvalidOperationException("No direct recognizer factory."), options, speechOptionsProvider, logger)
+    {
+        _prewarmer = prewarmer;
     }
 
     public event EventHandler<CaptionPartialEventArgs>? PartialUpdated;
@@ -184,10 +184,14 @@ public sealed class RealtimeCaptionPipeline : IAsyncDisposable
 
         try
         {
-            _recognizer = _recognizerFactory();
+            var speechOptions = _speechOptionsProvider.ForLanguage(language);
+            _recognizer = _prewarmer is null
+                ? _recognizerFactory()
+                : await _prewarmer.AcquireAsync(speechOptions, cancellationToken).ConfigureAwait(false);
             // Full config (model/device/compute/beam/cache) plus ONLY this language's prompt/hotwords —
             // a zh session never receives the Japanese context and vice versa.
-            await _recognizer.InitializeAsync(_speechOptionsProvider.ForLanguage(language), cancellationToken).ConfigureAwait(false);
+            if (_prewarmer is null)
+                await _recognizer.InitializeAsync(speechOptions, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception)
         {

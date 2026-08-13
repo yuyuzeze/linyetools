@@ -96,6 +96,17 @@
                         <TextBlock Text="{loc:Loc General.AutoCorrectHint}" TextWrapping="Wrap" Margin="24,3,0,0"
                                    Foreground="{StaticResource MutedBrush}" FontSize="11" />
 
+                        <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                            <CheckBox Content="{loc:Loc General.PrewarmWhisper}"
+                                      IsChecked="{Binding PrewarmWhisperInBackground}" />
+                            <Border Margin="7,0,0,0" Width="18" Height="18" CornerRadius="9"
+                                    BorderBrush="{StaticResource MutedBrush}" BorderThickness="1"
+                                    ToolTip="{loc:Loc General.PrewarmWhisperHint}">
+                                <TextBlock Text="?" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Foreground="{StaticResource MutedBrush}" FontWeight="SemiBold" />
+                            </Border>
+                        </StackPanel>
+
                         <TextBlock Text="{loc:Loc Settings.NextMeetingHint}" TextWrapping="Wrap" Margin="0,12,0,0"
                                    Foreground="{StaticResource MutedBrush}" FontSize="12" />
 
@@ -135,7 +146,7 @@
                                 </Grid.RowDefinitions>
 
                                 <TextBlock Grid.Row="0" Grid.Column="0" Text="{loc:Loc Subtitle.FontSize}" VerticalAlignment="Center" Margin="0,6" />
-                                <Slider Grid.Row="0" Grid.Column="1" Minimum="14" Maximum="48" Margin="0,6" VerticalAlignment="Center"
+                                <Slider Grid.Row="0" Grid.Column="1" Minimum="10" Maximum="48" Margin="0,6" VerticalAlignment="Center"
                                         Value="{Binding Overlay.FontSize}" />
 
                                 <TextBlock Grid.Row="1" Grid.Column="0" Text="{loc:Loc Subtitle.FontFamily}" VerticalAlignment="Center" Margin="0,6" />
@@ -146,7 +157,7 @@
                                         Value="{Binding Overlay.BackgroundOpacity}" />
 
                                 <TextBlock Grid.Row="3" Grid.Column="0" Text="{loc:Loc Subtitle.MaxLines}" VerticalAlignment="Center" Margin="0,6" />
-                                <Slider Grid.Row="3" Grid.Column="1" Minimum="2" Maximum="5" TickFrequency="1" IsSnapToTickEnabled="True" Margin="0,6" VerticalAlignment="Center"
+                                <Slider Grid.Row="3" Grid.Column="1" Minimum="1" Maximum="5" TickFrequency="1" IsSnapToTickEnabled="True" Margin="0,6" VerticalAlignment="Center"
                                         Value="{Binding Overlay.MaxLines}" />
 
                                 <TextBlock Grid.Row="4" Grid.Column="0" Text="{loc:Loc Subtitle.PartialOpacity}" VerticalAlignment="Center" Margin="0,6" />

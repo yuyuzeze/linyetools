@@ -281,6 +281,10 @@
                                     <Button Content="{loc:Loc Summary.Open}" HorizontalContentAlignment="Left" Style="{StaticResource NavButton}"
                                             Click="OpenSummary_Click"
                                             IsEnabled="{Binding DataContext.SummaryFileExists, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                                    <Separator Margin="4,4" />
+                                    <Button Content="{loc:Loc History.Delete}" HorizontalContentAlignment="Left" Style="{StaticResource NavButton}"
+                                            Foreground="{StaticResource DangerBrush}" Click="DeleteSession_Click"
+                                            IsEnabled="{Binding DataContext.CanDeleteDisplayedSession, RelativeSource={RelativeSource AncestorType=UserControl}}" />
                                     <Button Content="{loc:Loc Summary.ShowInFolder}" HorizontalContentAlignment="Left" Style="{StaticResource NavButton}"
                                             Click="ShowSummaryFolder_Click" />
                                 </StackPanel>

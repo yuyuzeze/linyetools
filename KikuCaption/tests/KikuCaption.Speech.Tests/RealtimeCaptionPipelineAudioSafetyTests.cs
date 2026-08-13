@@ -481,7 +481,7 @@ public class RealtimeCaptionPipelineAudioSafetyTests
         var recognizer = new TimedTokenRecognizer(tokens, blockSeconds: 2.0);
         var options = new ProgressiveCaptionOptions
         {
-            PartialIntervalMs = 60, WindowSeconds = 2, OverlapSeconds = 1,
+            PartialIntervalMs = 60,
             SilenceFinalMs = 700, MaxSentenceSeconds = 12, MaxWaitSeconds = 20
         };
         await using var pipeline = Create(recognizer, options);
@@ -513,7 +513,7 @@ public class RealtimeCaptionPipelineAudioSafetyTests
         var recognizer = new TimedTokenRecognizer(tokens, blockSeconds: speechSeconds + pauseSeconds);
         var options = new ProgressiveCaptionOptions
         {
-            PartialIntervalMs = 60, WindowSeconds = 2, OverlapSeconds = 1,
+            PartialIntervalMs = 60,
             SilenceFinalMs = 700, MaxSentenceSeconds = 12, MaxWaitSeconds = 20
         };
         await using var pipeline = Create(recognizer, options);
@@ -559,7 +559,7 @@ public class RealtimeCaptionPipelineAudioSafetyTests
         var recognizer = new UnstablePrefixRecognizer();
         var options = new ProgressiveCaptionOptions
         {
-            PartialIntervalMs = 60, WindowSeconds = 2, OverlapSeconds = 1,
+            PartialIntervalMs = 60,
             SilenceFinalMs = 700, MaxSentenceSeconds = 3, MaxWaitSeconds = 5, RecentCandidates = 2
         };
         await using var pipeline = Create(recognizer, options);
@@ -589,7 +589,7 @@ public class RealtimeCaptionPipelineAudioSafetyTests
         });
         var options = new ProgressiveCaptionOptions
         {
-            PartialIntervalMs = 50, WindowSeconds = 2, OverlapSeconds = 1,
+            PartialIntervalMs = 50,
             SilenceFinalMs = 700, MaxSentenceSeconds = 7, MaxWaitSeconds = 10
         };
         await using var pipeline = Create(recognizer, options);
@@ -631,7 +631,7 @@ public class RealtimeCaptionPipelineAudioSafetyTests
         var recognizer = new TimedTokenRecognizer(tokens, blockSeconds: 2.0);
         var options = new ProgressiveCaptionOptions
         {
-            PartialIntervalMs = 50, WindowSeconds = 2, OverlapSeconds = 1,
+            PartialIntervalMs = 50,
             SilenceFinalMs = 700, MaxSentenceSeconds = 12, MaxWaitSeconds = 20
         };
         await using var pipeline = Create(recognizer, options);
@@ -676,7 +676,7 @@ public class RealtimeCaptionPipelineAudioSafetyTests
         var recognizer = new FixedTextRecognizer("まだ途中の文"); // no sentence-ending punctuation
         var options = new ProgressiveCaptionOptions
         {
-            PartialIntervalMs = 60, WindowSeconds = 2, OverlapSeconds = 1,
+            PartialIntervalMs = 60,
             SilenceFinalMs = 700, MaxSentenceSeconds = 30, MaxWaitSeconds = 60 // won't trigger on their own
         };
         await using var pipeline = Create(recognizer, options);
@@ -704,7 +704,7 @@ public class RealtimeCaptionPipelineAudioSafetyTests
         var recognizer = new FixedTextRecognizer(hallucinatedPhrase);
         var options = new ProgressiveCaptionOptions
         {
-            PartialIntervalMs = 60, WindowSeconds = 2, OverlapSeconds = 1,
+            PartialIntervalMs = 60,
             SilenceFinalMs = 700, MaxSentenceSeconds = 8, MaxWaitSeconds = 10
         };
         await using var pipeline = Create(recognizer, options);
@@ -724,7 +724,7 @@ public class RealtimeCaptionPipelineAudioSafetyTests
         var recognizer = new FixedTextRecognizer("本当の発言です。");
         var options = new ProgressiveCaptionOptions
         {
-            PartialIntervalMs = 60, WindowSeconds = 2, OverlapSeconds = 1,
+            PartialIntervalMs = 60,
             SilenceFinalMs = 700, MaxSentenceSeconds = 6, MaxWaitSeconds = 10
         };
         await using var pipeline = Create(recognizer, options);
@@ -746,7 +746,7 @@ public class RealtimeCaptionPipelineAudioSafetyTests
         var recognizer = new FixedTextRecognizer(""); // FixedTextRecognizer with empty text never yields an update
         var options = new ProgressiveCaptionOptions
         {
-            PartialIntervalMs = 60, WindowSeconds = 2, OverlapSeconds = 1,
+            PartialIntervalMs = 60,
             SilenceFinalMs = 700, MaxSentenceSeconds = 4, MaxWaitSeconds = 6
         };
         await using var pipeline = Create(recognizer, options);
@@ -765,7 +765,7 @@ public class RealtimeCaptionPipelineAudioSafetyTests
         var recognizer = new FixedTextRecognizer(""); // always empty candidate: mimics true silence
         var options = new ProgressiveCaptionOptions
         {
-            PartialIntervalMs = 20, WindowSeconds = 2, OverlapSeconds = 1,
+            PartialIntervalMs = 20,
             SilenceFinalMs = 700, MaxSentenceSeconds = 5, MaxWaitSeconds = 10
         };
         await using var pipeline = Create(recognizer, options);
@@ -836,7 +836,7 @@ public class RealtimeCaptionPipelineAudioSafetyTests
         var recognizer = new TimedTokenRecognizer(new[] { "X", "Y" }, blockSeconds: 2.0);
         var options = new ProgressiveCaptionOptions
         {
-            PartialIntervalMs = 50, WindowSeconds = 2, OverlapSeconds = 1,
+            PartialIntervalMs = 50,
             SilenceFinalMs = 700, MaxSentenceSeconds = 30, MaxWaitSeconds = 60 // won't auto-trigger
         };
         await using var pipeline = Create(recognizer, options);
@@ -878,7 +878,7 @@ public class RealtimeCaptionPipelineAudioSafetyTests
         });
         var options = new ProgressiveCaptionOptions
         {
-            PartialIntervalMs = 50, WindowSeconds = 2, OverlapSeconds = 1,
+            PartialIntervalMs = 50,
             SilenceFinalMs = 700, MaxSentenceSeconds = 2, MaxWaitSeconds = 5
         };
         await using var pipeline = Create(recognizer, options);
@@ -919,7 +919,7 @@ public class RealtimeCaptionPipelineAudioSafetyTests
         });
         var options = new ProgressiveCaptionOptions
         {
-            PartialIntervalMs = 50, WindowSeconds = 2, OverlapSeconds = 1,
+            PartialIntervalMs = 50,
             SilenceFinalMs = 700, MaxSentenceSeconds = 2, MaxWaitSeconds = 3
         };
         await using var pipeline = Create(recognizer, options);

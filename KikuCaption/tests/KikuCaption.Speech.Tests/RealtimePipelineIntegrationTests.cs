@@ -26,8 +26,6 @@ public class RealtimePipelineIntegrationTests
     private static ProgressiveCaptionOptions Options() => new()
     {
         PartialIntervalMs = 700,
-        WindowSeconds = 4,
-        OverlapSeconds = 1.5,
         RecentCandidates = 2,
         SilenceFinalMs = 600,
         MaxSentenceSeconds = 12,

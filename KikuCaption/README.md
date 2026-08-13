@@ -1,254 +1,222 @@
 # KikuCaption
 
-KikuCaption 是一个面向 Microsoft Teams 会议的个人 Windows 桌面工具：本机录屏 + 系统声音捕获、
-本地 faster-whisper 日/中实时字幕、以及（可选）把日语 final 字幕发送到公司内部 Azure OpenAI 兼容
-API 翻译为中文。完整需求见根目录 [`PROJECT.md`](PROJECT.md)（项目最高优先级规范）。
+KikuCaption 是一款面向 Windows 11 的本地会议录制与实时字幕工具，主要用于 Microsoft Teams、线上培训、技术说明会和本地媒体回放。
 
-> 当前进度：**Milestone 7 — 集成、稳定性与交付**（已完成，PROJECT.md 规定的最后一个 Milestone）。在 M0–M6 + M3.1
-> 之上新增：统一会话生命周期状态机（预检→创建→各子系统→安全停止，失败回滚、子系统故障隔离、幂等停止）、启动预检
-> （通过/警告/阻断）、可复现资源采样（修复 CPU 采样）、日志轮转+启动清理、敏感信息自动扫描、用户设置持久化（不存密钥）、
-> 关闭确认与安全停止、**自包含发布包 + 第三方许可清单 + SHA-256**。
-> 交付/安装/卸载见 [`docs/UserGuide.md`](docs/UserGuide.md) 与 [`docs/Delivery.md`](docs/Delivery.md)；许可见
-> [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。
->
-> 保留状态：M5 录屏内容同步 ≤500ms、音频轨总时长可能比视频短约 1.9s（保留 Named Pipe，未切 WAV+remux）；M6 真实公司
-> API 未验证（fake 端到端通过）。真实 60 分钟 Teams 端到端、真实公司 API、干净机/断网离线试用为**未验证**，步骤见
-> [`docs/Verification.md`](docs/Verification.md)。
+它可以同时录制屏幕、系统声音和麦克风，在本机使用 faster-whisper 生成日语或中文字幕，并可通过公司提供的 OpenAI 兼容 API 翻译字幕、整理会议要点。
 
-## 目录结构（当前已建立部分）
+## 主要功能
+
+- 录制整个屏幕或指定窗口，保存为 MP4。
+- 同时采集系统声音和麦克风；自己的发言也可进入录音与实时字幕。
+- 使用本地 faster-whisper 进行日语、中文实时识别，音频不会发送到语音识别云服务。
+- 显示渐进式字幕、置顶字幕浮窗和从第一条到最后一条的完整会议时间线。
+- 将最终字幕实时保存到 SQLite，并导出 JSON、TXT 和 SRT；程序异常退出后可恢复。
+- 可选调用公司 OpenAI 兼容 API，将最终字幕翻译为中文、日文或英文。
+- 支持专业术语词典，为不同识别语言保存和切换 Initial Prompt 与 Hotwords。
+- 会议结束后可使用本地 `medium/int8` 模型生成校正版字幕。
+- 可根据最终原文字幕生成会议要点 Markdown；不会发送录音或视频。
+- 内置会议回放，点击字幕可跳转到对应时间，并可调整字幕时间偏移。
+- 支持字幕搜索、历史会议浏览及删除整个会议记录。
+- 最小化到系统托盘，可从托盘开始/停止会议、显示浮窗或打开设置。
+- 界面支持简体中文、English 和日本語。
+
+## 运行环境
+
+- Windows 11 x64
+- 建议 16 GB 内存
+- 64 位 Python 3.12 或 3.13
+- 无独立显卡也可以运行；默认使用 CPU `int8`
+- 实时模型：faster-whisper `small`
+- 可选校正模型：faster-whisper `medium`
+
+模型加载后，Python Worker 通常会占用数百 MB 内存。启用“后台预热”可以缩短第一次开始识别的等待时间，但会提前占用约 350–600 MB；取消设置或退出程序时会释放。
+
+## 安装发布版
+
+1. 解压 `KikuCaption-<版本>-win-x64.zip` 到桌面、文档等当前用户可写目录。
+2. 安装 64 位 Python 3.12 或 3.13，并确保可以在 PowerShell 中执行 `python --version`。
+3. 在解压后的 KikuCaption 根目录打开 PowerShell，执行一次：
+
+   ```powershell
+   .\setup-python.ps1
+   ```
+
+4. 脚本将在发布目录中创建：
+
+   ```text
+   python\whisper_worker\.venv
+   ```
+
+   并安装 faster-whisper、CTranslate2 等锁定依赖。
+5. 启动 `KikuCaption.exe`，等待自动环境检查完成。
+
+如果 PowerShell 阻止本地脚本，可仅对本次进程执行：
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass
+.\setup-python.ps1
+```
+
+`.NET` 已包含在自包含发布版内，不需要另外安装 SDK。FFmpeg 随正式发布包放在 `tools\ffmpeg`；若使用自行构建的包，则需要在设置中指定 FFmpeg。
+
+## 模型目录
+
+默认模型缓存根目录为：
 
 ```text
-KikuCaption/
-├─ KikuCaption.sln
-├─ Directory.Build.props / Directory.Packages.props / global.json
-├─ src/
-│  ├─ KikuCaption.Core/           # 领域模型、枚举、接口（不依赖 WPF/NAudio/FFmpeg/SQLite/HTTP）
-│  ├─ KikuCaption.Infrastructure/ # 配置校验、Serilog 日志、环境检查器、进程调用
-│  └─ KikuCaption.App/            # WPF 主程序（Generic Host + DI + MVVM）
-├─ tests/
-│  ├─ KikuCaption.Core.Tests/
-│  └─ KikuCaption.Infrastructure.Tests/
-├─ tools/ffmpeg/                  # 后续里程碑放置 ffmpeg.exe
-└─ docs/                          # Architecture / Protocol / Verification
+models\whisper
 ```
 
-> `src/KikuCaption.Audio` 已在 Milestone 1 建立。`Recording|Speech|Translation|Storage` 与
-> `python/whisper_worker` 将在其对应 Milestone 建立，避免现在用空项目填充（PROJECT.md 18.1、18.4）。
+实时识别需要可用的 `small` CTranslate2/faster-whisper 模型。启用“停止后自动校正”前，还需要完整的 `medium` CTranslate2 模型；程序会在设置中检查模型是否存在，模型缺失时不会启用自动校正。
 
-## 系统音频捕获（Milestone 1）
+仅放入模型文件不能替代 Python Worker 环境；环境检查中“Whisper 模型”和“faster-whisper Worker”是两个独立项目。
 
-在主窗口的「系统音频捕获（Milestone 1 验证）」区：
+## 第一次使用
 
-1. 点击 **开始捕获…**，在弹出的保存对话框中选择 WAV 输出位置（默认建议为
-   `<输出目录>/_audio_tests/system-audio_<时间戳>.wav`，不会覆盖已有文件）。
-2. 播放要录制的系统声音（例如 Teams 测试通话或本地音乐）。
-3. 点击 **停止** 结束并完成 WAV 文件。状态区显示已用时长、已写入音频大小和保存路径。
+1. 打开右上角的环境状态，确认以下关键项目正常：
+   - faster-whisper Worker
+   - Whisper 模型
+   - 音频输出设备
+   - FFmpeg / FFprobe
+   - 输出目录和可用磁盘空间
+2. 在“设置 → 常用”选择界面语言、默认识别语言和会议输出目录。
+3. 在“设置 → 字幕”调整浮窗字号、字体、透明度和行数。
+4. 如需提高专业术语命中率，在“词典”复制内置词典，加入业务术语并设为当前词典。
+5. 如需翻译或会议要点，在“设置 → 翻译”填写公司 API 的 Endpoint、Model、认证方式并安全保存 API Key，然后测试连接。
 
-输出 WAV 固定为 **16000 Hz、单声道、16-bit PCM**。捕获、格式转换与文件写入均在后台完成，
-不阻塞界面；音频设备断开或捕获失败会显示明确错误并安全停止，已写入的数据仍保留。
+## 录制会议
 
-## 本地语音识别（Milestone 2）
+1. 在首页选择识别语言。
+2. 按需启用翻译。来源语言跟随识别语言，目标语言在设置中指定。
+3. 点击“开始会议”。
+4. 选择录制整个屏幕或指定窗口，并选择是否采集系统声音和麦克风。
+5. 开始后，右侧显示完整会议字幕；字幕浮窗可以独立显示、置顶或鼠标穿透。
+6. 点击“停止”安全结束录屏、完成字幕写入并导出文件。
 
-### 建立 Python 环境（一次性）
+会议运行时可最小化到任务栏通知区域，识别、录制、翻译和字幕保存不会停止。
 
-Python **3.13.9** 已验证兼容（见 `docs/Verification.md`）。在仓库根目录：
+## 历史、搜索与回放
 
-```bash
-python -m venv python/whisper_worker/.venv
-python/whisper_worker/.venv/Scripts/python -m pip install -r python/whisper_worker/requirements.txt
-# 运行 worker 单元测试（可选）：
-python/whisper_worker/.venv/Scripts/python -m pip install -r python/whisper_worker/requirements-dev.txt
-cd python/whisper_worker && ../.venv/Scripts/python -m pytest tests/
-```
+- 首页左侧显示历史会议，选择后可加载其完整字幕。
+- 点击“回放”在应用内打开 MP4；点击字幕可跳到对应时间。
+- 使用“搜索”查找原文或译文，并跳转到相应字幕和回放位置。
+- 若字幕与视频存在固定偏移，可在回放窗口调整字幕时间偏移。
+- 删除会议前会显示确认框；确认后会删除数据库记录以及该会议的整个输出文件夹，此操作不可撤销。
 
-依赖版本锁定在 `python/whisper_worker/requirements.txt`（顶层）和 `requirements-lock.txt`（全量冻结）。
+## 校正版字幕
 
-### 模型首次下载与位置
+实时字幕优先保证及时显示。对于语速较快或连续讲话的会议，可在停止后使用 `medium/int8` 对完整录音重新识别，生成校正版字幕。
 
-`small` 模型在**首次识别时自动下载**到模型缓存目录，默认 `<repo>/models/whisper`
-（可用 `appsettings.json` 的 `Speech:ModelCacheDirectory` 或 worker 的 `--download-root` 配置）。
-只使用 `small` 一个模型（约 486 MB）。**离线再次运行**：模型已缓存后无需联网，直接识别即可。
+- 可在设置中选择是否停止后自动校正。
+- 校正运行在本机，耗时高于实时识别。
+- 校正失败不会删除实时字幕或录屏。
+- 使用前请确认 `medium` 模型已经完整下载到程序配置的模型缓存目录。
 
-### 在应用内识别 WAV（选择 ja / zh）
+## 翻译与会议要点
 
-主窗口「本地语音识别（Milestone 2 验证）」区：选择识别语言 **日本語(ja)** 或 **中文(zh)**，
-点击 **识别 WAV 文件…** 选择一个 WAV，即可看到带时间戳的识别结果。首次会加载模型（约 1–2 秒，
-未缓存模型时更久）。模型加载、音频编码与协议读取都在后台，不阻塞 UI。
+翻译功能只发送最终确认的原文字幕，不发送音频、视频或 partial 字幕。取消首页的翻译勾选后，后续字幕将停止创建新的翻译任务。
 
-### 实时音频（可选）
+会议停止后或打开历史会议时，可以生成会议要点：
 
-`ISpeechRecognizer.RecognizeAsync` 接受 `IAsyncEnumerable<AudioChunk>`，可直接接 Milestone 1 的
-`IAudioCaptureService`（16k/mono/int16 实时 PCM）。M2 的最小验证入口以 WAV 为主；实时端到端串联在后续 Milestone。
+- 单人讲解：整理内容概要、主要主题、关键知识点、流程、结论和注意事项。
+- 多人讨论：整理会议概述、讨论主题、主要观点、决定事项、待办事项、未解决问题和风险。
+- 当前版本不进行说话人识别或角色推断。
+- 输入仅使用最终原文字幕，不包含翻译文本、录音或视频。
+- 结果以 `meeting-summary.md` 保存到对应会议目录。
 
-### 确认没有孤儿进程
+API Key 使用 Windows DPAPI 按当前用户加密保存，不写入 `appsettings.json`、SQLite、会议文件或日志。
 
-Worker 子进程被分配到 Windows Job Object（kill-on-close），并在关闭时优雅退出、超时才强杀。
-关闭应用或结束识别后可检查：
+## 会议输出
 
-```bash
-tasklist | findstr /I python
-```
+每场会议使用独立目录，通常包含：
 
-正常情况下不应残留属于本应用的 python 进程。
-
-### 测量 RTF / 内存 / 磁盘
-
-- 真实模型的加载时间、RTF、进程内存与磁盘占用见 `docs/Verification.md`（含可复现命令）。
-- 真实模型端到端 C# 集成测试（默认关闭）：
-
-```bash
-set KIKU_REALMODEL=1
-dotnet test tests/KikuCaption.Speech.Tests/KikuCaption.Speech.Tests.csproj --filter Category=RealModel -v detailed
-```
-
-### 常见错误排查
-
-| 现象 | 处理 |
-|---|---|
-| “找不到 Python 可执行文件/Worker 脚本” | 确认已建 venv，或在 `appsettings.json` 配置 `Speech:PythonExecutable`/`WorkerScript` |
-| 首次识别很慢 | 正在下载 `small` 模型；完成后会缓存，二次很快 |
-| “识别语言必须为 ja 或 zh” | 只支持明确选择 ja/zh，无 Auto |
-| Worker 初始化超时 | 提高 `SpeechOptions.InitializeTimeout`，或检查依赖是否安装成功 |
-| 识别中断但应用未崩溃 | Worker 错误被隔离；查看日志与 UI 提示，重试即可 |
-
-## 实时字幕与字幕浮窗（Milestone 3）
-
-### 启动 / 停止实时字幕
-
-主窗口「实时字幕与字幕浮窗（Milestone 3）」区：
-
-1. 选择语言 **ja / zh**。
-2. 点击 **开始实时字幕**：程序加载模型（首次约 1–2 秒），开始捕获系统声音并显示渐进字幕。
-3. 讲话/播放时先出现 **partial（淡色）**，停顿或句末稳定后转为 **final（亮色）**。
-4. 点击 **停止** 结束；pending 文本会被 flush 为 final。
-
-状态行显示当前状态与指标：`partial/final 数量、RTF、最近推理耗时、队列深度(ms)、背压跳过次数`。
-
-### 字幕浮窗操作
-
-- **显示/隐藏浮窗**：主窗口按钮切换。
-- **置顶**：浮窗始终在最前（不抢占 Teams 焦点，使用 `WS_EX_NOACTIVATE`）。
-- **拖动**：在浮窗上按住左键拖动（鼠标穿透关闭时）。
-- **字号 / 透明度 / 最大行数**：主窗口滑块实时调整（最大行数 2–5）。
-- **鼠标穿透**：勾选后点击穿透浮窗到下层窗口；**再次取消勾选可重新控制浮窗**。
-- 主窗口关闭时浮窗一并关闭。
-
-### 渐进识别参数（可配置，范围校验）
-
-`ProgressiveCaptionOptions`（默认值遵循 PROJECT.md 9）：partial 间隔 500–1000 ms、窗口 2–6 s、
-overlap 1–2 s、最近候选 2–3、静音 final 500–800 ms，另有最大句长/最大等待/稳定次数/最大行数。
-`WindowSeconds`/`OverlapSeconds`/`MaxLines` 取自 `appsettings.json`（Speech/Subtitle），启动时校验，越界即报错。
-
-### 性能测量方法
-
-- 运行时指标见主窗口状态行；详细稳定性/内存/CPU/RTF 见 `docs/Verification.md`。
-- 长时间稳定性（真实模型，播放连续音）：
-
-```bash
-set KIKU_REALMODEL=1
-set KIKU_RT_MINUTES=15
-dotnet test tests/KikuCaption.Speech.Tests --filter Category=Stability -v detailed
-```
-
-结果写入 `%TEMP%\kiku_rt_stability.txt`；停止后用 `tasklist | findstr python` 确认无孤儿。
-
-## 字幕持久化与恢复（Milestone 4）
-
-实时字幕运行时会自动持久化。详见 [docs/Storage.md](docs/Storage.md) 与 [docs/Recovery.md](docs/Recovery.md)。
-
-- **数据库**：单个 SQLite 于 `<输出根>/kikucaption.db`（`PRAGMA user_version=1`，外键开启，WAL）。
-- **会话目录**：`<输出根>/yyyy-MM-dd_HHmmss_<session-id>/`，含 `transcript.json/.txt/.srt` 与 `session.json`。
-  输出根来自 `appsettings.json` 的 `Storage.OutputDirectory`（相对路径基于应用运行目录）。**不生成** `meeting.mp4`、`translation.srt`（录屏/翻译尚未实现）。
-- **实时保存**：final 产生后立即写入 SQLite（UI 不等待磁盘）；JSON/TXT/SRT 采用去抖（默认 ~1 s）从 SQLite 重导出，
-  停止时最终导出。最大文件延迟 ≈ 去抖间隔；SQLite 中 final 立即存在，恢复可从 SQLite 重建。
-- **磁盘保护**：开始前检查 `Storage.MinimumFreeSpaceGb`，不足则拒绝并提示；运行中定期复查，跌破阈值时安全停止接收、
-  flush、标记会话并提示。
-- **崩溃恢复**：应用启动时自动扫描未完成会话，从 SQLite 重建文件并标记为 Recovered（幂等；损坏 JSON 会改名备份，
-  数据库损坏则报错不谎称成功）。主窗口顶部显示恢复结果。
-- **主窗口存储状态**：当前 Session、输出目录、已保存 final 数、最后保存时间、存储状态与错误。
-
-手工验证（严格解析 SRT）：用支持 SRT 的播放器/字幕工具打开 `transcript.srt`，或按 `HH:mm:ss,fff` 格式校验时间轴。
-
-## 录屏与音画复用（Milestone 5）
-
-详见 [docs/Recording.md](docs/Recording.md) 与 [docs/FFmpeg.md](docs/FFmpeg.md)。
-
-### FFmpeg 定位/安装
-`Recording:FFmpegPath`（appsettings）→ 向上查找 `tools/ffmpeg/ffmpeg.exe`（+ffprobe）→ PATH。本项目已在
-`tools/ffmpeg/` 放置 BtbN win64 **GPL** 构建（含 libx264 与 h264_qsv），二进制不提交 Git；部署时随附或配置路径。
-
-### 录制流程
-主窗口「实时字幕、字幕浮窗与录屏」区：选择**整个屏幕**或**指定窗口**（窗口可刷新列表），点击
-**开始录制和字幕**。程序同时：加载模型跑实时字幕、启动 FFmpeg 录制到会话目录 `meeting.mp4`。点击**停止**
-协调停止两条管线、优雅结束 FFmpeg 并 `ffprobe` 校验。默认 **15 FPS、H.264（QSV 可用则用，否则 libx264）、AAC 16 kHz**。
-
-### 会话产物
 ```text
-Meetings/<yyyy-MM-dd_HHmmss_session-id>/
-  ├─ meeting.mp4        # M5 新增
-  ├─ transcript.json / .txt / .srt
-  └─ session.json       # 含 recordingPath
+Meetings\<日期时间_会话ID>\
+├─ meeting.mp4
+├─ transcript.json
+├─ transcript.txt
+├─ transcript.srt
+├─ translation.srt
+├─ corrected-transcript.json / .txt / .srt   # 启用校正且成功时
+├─ meeting-summary.md                         # 生成会议要点后
+└─ session.json
 ```
 
-### 已知限制
-gdigrab 无法可靠捕获最小化/硬件加速/DWM 窗口；录制音频为 16 kHz（V1 允许）；QSV 需 Intel 硬件（无则 libx264，CPU 更高）。
-确认无孤儿：停止后 `tasklist | findstr /I "ffmpeg python"` 应为空。
+数据库默认位于输出根目录的 `kikucaption.db`。会议文件属于用户数据，不会因为卸载应用而自动删除。
 
-## 日译中翻译（Milestone 6）
+## 常见问题
 
-详见 [docs/Translation.md](docs/Translation.md) 与 [docs/Security.md](docs/Security.md)。
+### 环境检查提示 faster-whisper Worker 缺失
 
-主窗口「日译中翻译（Milestone 6）」面板：
+模型存在并不代表 Worker 环境存在。请在发布包根目录执行：
 
-1. 填写 **Endpoint**（完整 HTTPS 地址）、**Model/Deployment**、可选 **API Version**、**认证模式**（`Bearer`/`ApiKeyHeader`/`None`）与 **Header 名**。
-2. 在 **API Key** 的 `PasswordBox` 输入密钥并点「保存密钥」——以 **Windows DPAPI** 加密保存在 `%LOCALAPPDATA%/KikuCaption/secrets`，
-   **不写入配置/日志/SQLite**，不要贴进代码或聊天。可「清除密钥」。
-3. 勾选「启用日译中翻译」；用 **日本語(ja)** 识别。点「测试连接」（发送固定文本 `テスト接続`，不发真实字幕）。
-4. 日语 final 出现后原文立即显示，翻译返回时**在同一卡片下方补上中文**（浮窗与右侧时间线均双行），并写入会话目录 `translation.srt`。
+```powershell
+.\setup-python.ps1
+```
 
-**只发送日语 final 文本**；不发送音频、partial、PCM、视频或整场历史。翻译失败保留原文、不影响录屏；应用重启自动恢复未完成的翻译任务。
-配置项（`appsettings.json` 的 `Translation` 段）**绝不含 ApiKey**。
+执行完成后重新启动程序并再次检查环境。
 
-## 先决条件
+### 首次开始识别较慢
 
-| 依赖 | 版本 | Milestone 0 是否必需 |
-|---|---|---|
-| .NET SDK | **10.0** | 是（编译/运行/测试都需要） |
-| Windows | 11 | 是（WPF 目标平台） |
-| Python | 3.11（推荐） | 否（仅被检测；缺失只给提示） |
-| FFmpeg | 近期版本 | 否（仅被检测；缺失只给提示） |
+首次需要启动 Python Worker 并加载模型。可在“设置 → 常用”启用后台预热，以内存换取更快的首次开始速度。
 
-安装 .NET 10 SDK：<https://dotnet.microsoft.com/download/dotnet/10.0>
+### 校正版字幕生成失败
 
-## 编译
+确认 `medium` 模型完整存在。若日志包含证书或联网错误，通常是模型路径没有被正确识别，程序尝试访问远程模型仓库；请检查配置的模型缓存路径及模型文件结构。
 
-```bash
+### 翻译或会议要点失败
+
+先在翻译设置中执行“测试连接”。检查 Endpoint、Model/Deployment、API Version、认证模式和 API Key。HTTP 200 但仍失败通常代表公司 API 返回内容不符合预期 JSON 格式。
+
+### 录屏不可用但字幕正常
+
+检查 FFmpeg、FFprobe 和录制目标。录屏模块故障会与字幕隔离，原文字幕仍会继续保存。
+
+## 隐私说明
+
+- faster-whisper 识别和专业术语词典均在本机运行。
+- 翻译和会议要点只向配置的公司 API 发送必要的最终文字。
+- 普通日志不记录完整字幕、翻译正文、原始 PCM 或 API Key。
+- 请遵守所在公司的会议录制、转录和数据处理政策。
+
+## 从源码构建
+
+开发环境需要 .NET 10 SDK、Windows 11 和 Python 3.12/3.13：
+
+```powershell
 dotnet restore KikuCaption.sln
 dotnet build KikuCaption.sln -c Debug
+.\scripts\setup-python.ps1
+dotnet run --project src\KikuCaption.App\KikuCaption.App.csproj -c Debug
 ```
 
-## 运行
+运行测试：
 
-```bash
-dotnet run --project src/KikuCaption.App/KikuCaption.App.csproj -c Debug
-```
-
-启动后主窗口会自动运行环境检查，列出 .NET 运行时、Python、FFmpeg 与可用磁盘空间的状态。
-缺少 Python 或 FFmpeg 时会显示明确的中文提示，程序不会崩溃。点击“重新检查”可再次检测。
-
-## 测试
-
-```bash
+```powershell
 dotnet test KikuCaption.sln
+.\python\whisper_worker\.venv\Scripts\python.exe -m pytest -q python\whisper_worker\tests
 ```
 
-## 日志
+生成发布包：
 
-运行时日志写入应用输出目录下的 `logs/app-yyyyMMdd.log`（按天滚动，默认保留 14 天）。
-日志不记录密钥、完整字幕、翻译文本或原始音频（PROJECT.md 15）。
+```powershell
+.\scripts\publish.ps1
+```
+
+发布目录和 ZIP 会包含根目录 `setup-python.ps1`，但不会包含 Python `.venv`、模型、会议数据、日志或密钥。
 
 ## 文档
 
-- [docs/Architecture.md](docs/Architecture.md) — 模块与依赖方向
-- [docs/Protocol.md](docs/Protocol.md) — C#↔Python Worker 协议（设计，M2 实现）
-- [docs/Verification.md](docs/Verification.md) — 各里程碑验证步骤与结果
+- [`docs/UserGuide.md`](docs/UserGuide.md)：详细用户操作说明
+- [`docs/Delivery.md`](docs/Delivery.md)：发布与交付说明
+- [`docs/Architecture.md`](docs/Architecture.md)：技术架构
+- [`docs/Protocol.md`](docs/Protocol.md)：C# 与 Python Worker 协议
+- [`docs/Verification.md`](docs/Verification.md)：测试和人工验证记录
+- [`docs/README.development-history.md`](docs/README.development-history.md)：旧版开发记录备份
+- [`PROJECT.md`](PROJECT.md)：项目启动阶段的原始需求和里程碑基线，并非当前成品功能清单
+
+## 许可证与第三方组件
+
+第三方依赖及分发义务见 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。随包 FFmpeg 为 GPL 构建；对外分发时请遵守相应许可证要求。
+
+KikuCaption — Designed & built by Yu. Contributor: Claude.
