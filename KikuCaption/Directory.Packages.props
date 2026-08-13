@@ -17,6 +17,10 @@
     <!-- Audio capture / resampling (Milestone 1) -->
     <PackageVersion Include="NAudio" Version="2.2.1" />
 
+    <!-- Embedded meeting playback (LGPL; native Windows LibVLC is shipped with the app). -->
+    <PackageVersion Include="LibVLCSharp.WPF" Version="3.10.0" />
+    <PackageVersion Include="VideoLAN.LibVLC.Windows" Version="3.0.23.1" />
+
     <!-- Storage (Milestone 4). Pin the patched SQLite native bundle (3.x) to clear NU1903
          (GHSA-2m69-gcr7-jv3q affects the 2.1.x e_sqlite3 native lib). -->
     <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.10" />

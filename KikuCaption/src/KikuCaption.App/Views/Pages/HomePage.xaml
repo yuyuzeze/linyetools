@@ -174,16 +174,22 @@
                                 </ListBox.ItemContainerStyle>
                                 <ListBox.ItemTemplate>
                                     <DataTemplate>
-                                        <Button Style="{StaticResource NavButton}" HorizontalContentAlignment="Stretch" Padding="8,7"
-                                                Command="{Binding DataContext.LoadHistoryCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                CommandParameter="{Binding}">
-                                            <StackPanel>
-                                                <TextBlock Text="{Binding DateText}" FontWeight="SemiBold" />
-                                                <TextBlock Text="{Binding DetailText}" FontSize="11" Foreground="{StaticResource MutedBrush}" Margin="0,2,0,0" />
-                                                <TextBlock Text="{Binding ArtifactText}" FontSize="11" Foreground="{StaticResource AccentBrush}" Margin="0,2,0,0"
-                                                           Visibility="{Binding ArtifactText, Converter={StaticResource NonEmptyToVisibility}}" />
-                                            </StackPanel>
-                                        </Button>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                            <Button Style="{StaticResource NavButton}" HorizontalContentAlignment="Stretch" Padding="8,7"
+                                                    Command="{Binding DataContext.LoadHistoryCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    CommandParameter="{Binding}">
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding DateText}" FontWeight="SemiBold" />
+                                                    <TextBlock Text="{Binding DetailText}" FontSize="11" Foreground="{StaticResource MutedBrush}" Margin="0,2,0,0" />
+                                                    <TextBlock Text="{Binding ArtifactText}" FontSize="11" Foreground="{StaticResource AccentBrush}" Margin="0,2,0,0"
+                                                               Visibility="{Binding ArtifactText, Converter={StaticResource NonEmptyToVisibility}}" />
+                                                </StackPanel>
+                                            </Button>
+                                            <Button Grid.Column="1" Content="{loc:Loc Playback.Open}" Margin="4,5,4,5" Padding="8,4"
+                                                    Click="OpenPlayback_Click"
+                                                    Visibility="{Binding HasRecording, Converter={StaticResource BoolToVisibility}}" />
+                                        </Grid>
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
                             </ListBox>

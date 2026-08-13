@@ -11,7 +11,8 @@ namespace KikuCaption.App.ViewModels;
 /// Identity of whatever session the timeline is currently showing (UI-R5C): the live current session
 /// or a loaded history session. Both id AND directory come from the actual record — never guessed.
 /// </summary>
-public sealed record DisplayedSessionInfo(Guid SessionId, string Directory, DateTimeOffset Date, string Language, bool IsLive);
+public sealed record DisplayedSessionInfo(Guid SessionId, string Directory, DateTimeOffset Date, string Language,
+    bool IsLive, string? RecordingPath = null);
 
 /// <summary>
 /// The full-meeting subtitle timeline (Milestone 3.1). Holds <b>every</b> final of the current
@@ -103,14 +104,16 @@ public partial class MeetingTimelineViewModel : ObservableObject
     /// Appends a live final produced by the recognition pipeline. The display sequence is the
     /// 1-based arrival order, which matches the SQLite <c>SequenceNumber</c> assigned per final.
     /// </summary>
-    public void AppendLive(Guid segmentId, DateTimeOffset createdAt, string text, TranslationDisplayState state = TranslationDisplayState.None)
+    public void AppendLive(Guid segmentId, DateTimeOffset createdAt, string text,
+        TranslationDisplayState state = TranslationDisplayState.None,
+        TimeSpan? startTime = null, TimeSpan? endTime = null)
     {
         if (string.IsNullOrWhiteSpace(text))
         {
             return;
         }
 
-        Entries.Add(new CaptionEntryViewModel(segmentId, ++_lastSequence, createdAt, text) { TranslationState = state });
+        Entries.Add(new CaptionEntryViewModel(segmentId, ++_lastSequence, createdAt, text, startTime, endTime) { TranslationState = state });
         PartialText = string.Empty;
         OnPropertyChanged(nameof(FinalCount));
 
@@ -209,7 +212,8 @@ public partial class MeetingTimelineViewModel : ObservableObject
             {
                 DisplayedSession = new DisplayedSessionInfo(
                     session.Session.Id, session.Session.OutputDirectory,
-                    session.Session.StartedAt, session.Session.RecognitionLanguage, IsLive: false);
+                    session.Session.StartedAt, session.Session.RecognitionLanguage, IsLive: false,
+                    session.Session.RecordingPath);
             }
 
             HistoryStatus = $"已从数据库加载 {Entries.Count} 条 final 字幕（会话 {sessionId:N}）。";
@@ -266,7 +270,7 @@ public partial class MeetingTimelineViewModel : ObservableObject
                 TranscriptStatus.TranslationFailed => TranslationDisplayState.Failed,
                 _ => TranslationDisplayState.None
             };
-            Entries.Add(new CaptionEntryViewModel(seg.Id, s.SequenceNumber, seg.CreatedAt, seg.Text)
+            Entries.Add(new CaptionEntryViewModel(seg.Id, s.SequenceNumber, seg.CreatedAt, seg.Text, seg.StartTime, seg.EndTime)
             {
                 Translation = seg.Translation,
                 TranslationState = state

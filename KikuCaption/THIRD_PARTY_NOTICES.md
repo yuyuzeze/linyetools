@@ -10,6 +10,8 @@ KikuCaption 使用以下第三方组件。各组件版权归其作者所有，�
 | .NET 10 运行时（自包含发布） | 10.0.x | MIT（.NET Runtime / Libraries） |
 | CommunityToolkit.Mvvm | 8.4.0 | MIT |
 | NAudio | 2.2.1 | MIT |
+| LibVLCSharp.WPF | 3.10.0 | LGPL-2.1-or-later |
+| VideoLAN.LibVLC.Windows | 3.0.23.1 | LGPL-2.1-or-later (native LibVLC runtime) |
 | Microsoft.Data.Sqlite | 10.0.10 | MIT |
 | SQLitePCLRaw.lib.e_sqlite3 | 3.50.3 | Apache-2.0（SQLite 本体属公有领域 Public Domain） |
 | Microsoft.Extensions.*（Hosting/DI/Config/Options/Logging/Http） | 10.0.0 | MIT |

@@ -26,12 +26,15 @@ public enum TranslationDisplayState
 /// </summary>
 public sealed partial class CaptionEntryViewModel : ObservableObject
 {
-    public CaptionEntryViewModel(Guid segmentId, long sequenceNumber, DateTimeOffset createdAt, string text)
+    public CaptionEntryViewModel(Guid segmentId, long sequenceNumber, DateTimeOffset createdAt, string text,
+        TimeSpan? startTime = null, TimeSpan? endTime = null)
     {
         SegmentId = segmentId;
         SequenceNumber = sequenceNumber;
         CreatedAt = createdAt;
         Text = text;
+        StartTime = startTime ?? TimeSpan.Zero;
+        EndTime = endTime ?? StartTime;
         Time = createdAt.LocalDateTime.ToString("HH:mm:ss", CultureInfo.InvariantCulture);
     }
 
@@ -42,6 +45,8 @@ public sealed partial class CaptionEntryViewModel : ObservableObject
     public DateTimeOffset CreatedAt { get; }
     public string Time { get; }
     public string Text { get; }
+    public TimeSpan StartTime { get; }
+    public TimeSpan EndTime { get; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasTranslation))]

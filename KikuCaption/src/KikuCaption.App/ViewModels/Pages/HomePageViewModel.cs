@@ -4,6 +4,7 @@ using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using KikuCaption.App.Localization;
+using KikuCaption.App.Playback;
 using KikuCaption.App.Services;
 using KikuCaption.App.ViewModels;
 using KikuCaption.Audio.Capture;
@@ -37,6 +38,7 @@ public partial class HomePageViewModel : ObservableObject
     private readonly KikuCaption.Summarization.MeetingSummaryOptions _summaryOptions;
     private readonly ILogger<HomePageViewModel> _logger;
     private readonly ITranscriptStore _store;
+    private readonly MeetingPlaybackCoordinator _playback;
     private readonly DispatcherTimer _elapsedTimer;
     private DateTime _sessionStartedUtc;
 
@@ -54,6 +56,7 @@ public partial class HomePageViewModel : ObservableObject
         KikuCaption.Translation.TranslationOptions translationOptions,
         KikuCaption.Summarization.MeetingSummaryOptions summaryOptions,
         ITranscriptStore store,
+        MeetingPlaybackCoordinator playback,
         ILogger<HomePageViewModel> logger)
     {
         Realtime = realtime;
@@ -69,6 +72,7 @@ public partial class HomePageViewModel : ObservableObject
         _translationOptions = translationOptions;
         _summaryOptions = summaryOptions;
         _store = store;
+        _playback = playback;
         _logger = logger;
 
         _elapsedTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
@@ -180,6 +184,12 @@ public partial class HomePageViewModel : ObservableObject
     }
 
     private bool CanLoadHistory(RecentMeetingViewModel? meeting) => meeting is not null && !Realtime.IsRunning;
+
+    public bool CanOpenDisplayedPlayback
+        => Realtime.Timeline.DisplayedSession is { RecordingPath: not null } && !Realtime.IsRunning;
+
+    public Task<MeetingPlaybackSession> LoadPlaybackAsync(Guid sessionId)
+        => _playback.LoadAsync(sessionId, CancellationToken.None);
 
     [ObservableProperty]
     private string _elapsedText = "00:00";

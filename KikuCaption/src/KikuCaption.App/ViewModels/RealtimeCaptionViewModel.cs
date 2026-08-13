@@ -621,7 +621,7 @@ public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptur
             Overlay.AddFinal(segmentId, e.Text, translating: willTranslate);
             // Full-meeting timeline keeps every final (never trimmed). Arrival order == SQLite
             // SequenceNumber for this fresh session, so the on-screen order matches storage.
-            Timeline.AppendLive(segmentId, createdAt, e.Text, display);
+            Timeline.AppendLive(segmentId, createdAt, e.Text, display, e.StartTime, e.EndTime);
         });
 
         _ = PersistAndTranslateAsync(segmentId, createdAt, e, willTranslate);

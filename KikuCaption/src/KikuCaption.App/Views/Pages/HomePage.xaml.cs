@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using KikuCaption.App.ViewModels;
 using KikuCaption.App.ViewModels.Pages;
+using KikuCaption.App.Playback;
 
 namespace KikuCaption.App.Views.Pages;
 
@@ -56,5 +57,27 @@ public partial class HomePage : UserControl
     {
         TimelineMenuToggle.IsChecked = false;
         ViewModel?.ShowSummaryFolder();
+    }
+
+    private async void OpenPlayback_Click(object sender, RoutedEventArgs e)
+    {
+        TimelineMenuToggle.IsChecked = false;
+        if (ViewModel is null) return;
+        Guid? id = (sender as FrameworkElement)?.DataContext is RecentMeetingViewModel recent
+            ? recent.SessionId
+            : ViewModel.Realtime.Timeline.DisplayedSession?.SessionId;
+        if (id is null) return;
+
+        try
+        {
+            var session = await ViewModel.LoadPlaybackAsync(id.Value);
+            new MeetingPlaybackWindow(session) { Owner = Window.GetWindow(this) }.Show();
+        }
+        catch
+        {
+            MessageBox.Show(Localization.LocalizationService.Instance["Playback.OpenFailed"],
+                Localization.LocalizationService.Instance["Playback.Title"],
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
     }
 }

@@ -39,6 +39,8 @@
     <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Binder" />
     <PackageReference Include="Serilog.Extensions.Hosting" />
+    <PackageReference Include="LibVLCSharp.WPF" />
+    <PackageReference Include="VideoLAN.LibVLC.Windows" />
   </ItemGroup>
 
   <ItemGroup>
