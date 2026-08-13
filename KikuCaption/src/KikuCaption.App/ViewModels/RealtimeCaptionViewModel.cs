@@ -83,6 +83,12 @@ public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptur
     [ObservableProperty] private string _metricsText = string.Empty;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasAudioQualityWarning))]
+    private string _audioQualityWarning = string.Empty;
+
+    public bool HasAudioQualityWarning => !string.IsNullOrWhiteSpace(AudioQualityWarning);
+
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasError))]
     private string? _errorMessage;
 
@@ -266,6 +272,10 @@ public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptur
         {
             HealthText = _loc["Health." + _healthState];
         }
+        if (_mixer is { SpeechDroppedChunks: > 0 } mixer)
+        {
+            AudioQualityWarning = string.Format(_loc["AudioQuality.Dropped"], mixer.SpeechDroppedChunks);
+        }
         OnPropertyChanged(nameof(SelectedLanguageDisplay));
     }
 
@@ -290,6 +300,7 @@ public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptur
 
         ErrorMessage = null;
         StorageError = null;
+        AudioQualityWarning = string.Empty;
         _sessionState.BeginPreflight();
 
         var root = _storageOptions.ResolveOutputRoot();
@@ -735,6 +746,10 @@ public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptur
         RefreshStorageStatus();
 
         var m = _pipeline?.CurrentMetrics;
+        var speechDropped = _mixer?.SpeechDroppedChunks ?? 0;
+        AudioQualityWarning = speechDropped > 0
+            ? string.Format(_loc["AudioQuality.Dropped"], speechDropped)
+            : string.Empty;
         MetricsText = m is null
             ? string.Empty
             : $"partial={m.PartialCount}  final={m.FinalCount}  RTF={m.Rtf:0.00}  推理={m.LastInferenceMs}ms  " +
@@ -742,7 +757,8 @@ public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptur
               // Audio-loss Hotfix diagnostics (numbers only, never caption text): received vs
               // finalized/pending, and the invariant that must always read 0 on the safe path.
               $"音频收到={m.AudioReceivedSeconds:0.0}s 已final={m.AudioFinalizedSeconds:0.0}s " +
-              $"待处理={m.PendingAudioSeconds:0.0}s 丢弃(未提交)={m.AudioDiscardedUncommittedSeconds:0.0}s";
+              $"待处理={m.PendingAudioSeconds:0.0}s 丢弃(未提交)={m.AudioDiscardedUncommittedSeconds:0.0}s " +
+              $"识别分支丢块={speechDropped}";
 
         // Milestone 7: reproducible resource sampling (main + ffmpeg CPU/mem) → redacted log + health.
         try
