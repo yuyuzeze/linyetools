@@ -88,8 +88,13 @@
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <!-- Current-session status card -->
-            <Border Grid.Column="0" Background="{StaticResource CardBrush}" CornerRadius="8" Padding="16" VerticalAlignment="Top">
+            <!-- Current session + recent meeting history. -->
+            <Grid Grid.Column="0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+            <Border Grid.Row="0" Background="{StaticResource CardBrush}" CornerRadius="8" Padding="16" VerticalAlignment="Top">
                 <StackPanel>
                     <TextBlock Text="{loc:Loc Session.Title}" FontWeight="SemiBold" FontSize="15" Margin="0,0,0,10" />
 
@@ -133,8 +138,65 @@
                                Visibility="{Binding Realtime.HasError, Converter={StaticResource BoolToVisibility}}" />
                     <TextBlock Text="{Binding Realtime.StorageError}" TextWrapping="Wrap" Foreground="{StaticResource DangerBrush}" FontSize="12" Margin="0,4,0,0"
                                Visibility="{Binding Realtime.HasStorageError, Converter={StaticResource BoolToVisibility}}" />
+                    <Border Background="#FFF4CE" BorderBrush="#E6B800" BorderThickness="1" CornerRadius="5" Padding="8,6" Margin="0,8,0,0"
+                            Visibility="{Binding Realtime.HasAudioQualityWarning, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="{Binding Realtime.AudioQualityWarning}" TextWrapping="Wrap" Foreground="#7A5200" FontSize="12" />
+                    </Border>
                 </StackPanel>
             </Border>
+
+                <Border Grid.Row="1" Background="{StaticResource CardBrush}" CornerRadius="8" Padding="10" Margin="0,12,0,0">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <Grid Grid.Row="0" Margin="4,2,2,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="{loc:Loc History.Title}" FontWeight="SemiBold" FontSize="14" VerticalAlignment="Center" />
+                            <Button Grid.Column="1" Content="↻" Padding="7,2" Background="Transparent" BorderThickness="0"
+                                    ToolTip="{loc:Loc History.Refresh}" Command="{Binding RefreshRecentMeetingsCommand}" />
+                        </Grid>
+
+                        <Grid Grid.Row="1">
+                            <ListBox ItemsSource="{Binding RecentMeetings}" BorderThickness="0" Background="Transparent"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                     VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
+                                <ListBox.ItemContainerStyle>
+                                    <Style TargetType="ListBoxItem">
+                                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                        <Setter Property="Padding" Value="0" />
+                                        <Setter Property="Margin" Value="0,0,0,5" />
+                                    </Style>
+                                </ListBox.ItemContainerStyle>
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Style="{StaticResource NavButton}" HorizontalContentAlignment="Stretch" Padding="8,7"
+                                                Command="{Binding DataContext.LoadHistoryCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding}">
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding DateText}" FontWeight="SemiBold" />
+                                                <TextBlock Text="{Binding DetailText}" FontSize="11" Foreground="{StaticResource MutedBrush}" Margin="0,2,0,0" />
+                                                <TextBlock Text="{Binding ArtifactText}" FontSize="11" Foreground="{StaticResource AccentBrush}" Margin="0,2,0,0"
+                                                           Visibility="{Binding ArtifactText, Converter={StaticResource NonEmptyToVisibility}}" />
+                                            </StackPanel>
+                                        </Button>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                            <TextBlock Text="{loc:Loc History.Empty}" TextWrapping="Wrap" TextAlignment="Center"
+                                       Foreground="{StaticResource MutedBrush}" FontSize="12" Margin="8,16"
+                                       Visibility="{Binding HasNoRecentMeetings, Converter={StaticResource BoolToVisibility}}" />
+                            <TextBlock Text="{Binding RecentMeetingsError}" TextWrapping="Wrap" TextAlignment="Center"
+                                       Foreground="{StaticResource DangerBrush}" FontSize="12" Margin="8,16"
+                                       Visibility="{Binding RecentMeetingsError, Converter={StaticResource NonEmptyToVisibility}}" />
+                        </Grid>
+                    </Grid>
+                </Border>
+            </Grid>
 
             <!-- Meeting timeline (kept in full; MinWidth keeps it readable on narrow windows) -->
             <Border Grid.Column="1" Margin="12,0,0,0" MinWidth="360" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="8">
@@ -151,6 +213,7 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0" VerticalAlignment="Center">
                             <TextBlock FontWeight="SemiBold" FontSize="15">
@@ -159,7 +222,16 @@
                             <TextBlock Text="{loc:Loc Timeline.Hint}" Foreground="{StaticResource MutedBrush}" FontSize="11" Margin="0,1,0,0" />
                         </StackPanel>
 
-                        <ToggleButton x:Name="TimelineMenuToggle" Grid.Column="1" Content="⋯" FontSize="16" Padding="10,2"
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0">
+                            <Button Content="{loc:Loc Summary.Generate}" Style="{StaticResource PrimaryButton}" Padding="12,6"
+                                    Click="GenerateSummary_Click"
+                                    IsEnabled="{Binding DataContext.CanGenerateSummary, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                            <Button Content="{loc:Loc Summary.Open}" Margin="6,0,0,0" Padding="10,6"
+                                    Click="OpenSummary_Click"
+                                    Visibility="{Binding DataContext.SummaryFileExists, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVisibility}}" />
+                        </StackPanel>
+
+                        <ToggleButton x:Name="TimelineMenuToggle" Grid.Column="2" Content="⋯" FontSize="16" Padding="10,2"
                                       Background="Transparent" BorderThickness="0" Cursor="Hand" VerticalAlignment="Center"
                                       AutomationProperties.Name="{loc:Loc Timeline.Menu}" ToolTip="{loc:Loc Timeline.Menu}">
                             <ToggleButton.Template>
@@ -178,7 +250,7 @@
                                 </ControlTemplate>
                             </ToggleButton.Template>
                         </ToggleButton>
-                        <Popup Grid.Column="1" IsOpen="{Binding IsChecked, ElementName=TimelineMenuToggle}" PlacementTarget="{Binding ElementName=TimelineMenuToggle}"
+                        <Popup Grid.Column="2" IsOpen="{Binding IsChecked, ElementName=TimelineMenuToggle}" PlacementTarget="{Binding ElementName=TimelineMenuToggle}"
                                Placement="Bottom" StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade" HorizontalOffset="-140">
                             <Border Background="White" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="4" Margin="0,4,0,0" MinWidth="150">
                                 <Border.Effect>

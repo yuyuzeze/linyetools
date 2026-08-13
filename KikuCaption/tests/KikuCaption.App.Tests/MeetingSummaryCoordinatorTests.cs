@@ -22,6 +22,8 @@ public class MeetingSummaryCoordinatorTests
         public Task InitializeAsync(CancellationToken c) => Task.CompletedTask;
         public Task<StoredSession?> GetSessionAsync(Guid s, CancellationToken c) => Task.FromResult<StoredSession?>(null);
         public Task<StoredSession?> GetMostRecentSessionAsync(CancellationToken c) => Task.FromResult<StoredSession?>(null);
+        public Task<IReadOnlyList<StoredSession>> GetRecentSessionsAsync(int limit, CancellationToken c)
+            => Task.FromResult<IReadOnlyList<StoredSession>>(Array.Empty<StoredSession>());
         public Task<IReadOnlyList<StoredSession>> GetIncompleteSessionsAsync(CancellationToken c) => throw new NotSupportedException();
         public Task SetSessionStateAsync(Guid s, string st, DateTimeOffset? e, CancellationToken c) => throw new NotSupportedException();
         public Task SetRecordingPathAsync(Guid s, string p, CancellationToken c) => throw new NotSupportedException();

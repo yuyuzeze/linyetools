@@ -1,6 +1,8 @@
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using KikuCaption.App.Localization;
 using KikuCaption.App.Services;
 using KikuCaption.App.ViewModels;
@@ -9,6 +11,7 @@ using KikuCaption.Audio.Diagnostics;
 using KikuCaption.Infrastructure.Configuration;
 using KikuCaption.Storage;
 using KikuCaption.Storage.Recovery;
+using KikuCaption.Storage.Sqlite;
 using Microsoft.Extensions.Logging;
 
 namespace KikuCaption.App.ViewModels.Pages;
@@ -33,6 +36,7 @@ public partial class HomePageViewModel : ObservableObject
     private readonly KikuCaption.Translation.TranslationOptions _translationOptions;
     private readonly KikuCaption.Summarization.MeetingSummaryOptions _summaryOptions;
     private readonly ILogger<HomePageViewModel> _logger;
+    private readonly ITranscriptStore _store;
     private readonly DispatcherTimer _elapsedTimer;
     private DateTime _sessionStartedUtc;
 
@@ -49,6 +53,7 @@ public partial class HomePageViewModel : ObservableObject
         KikuCaption.App.Services.MeetingSummaryCoordinator summary,
         KikuCaption.Translation.TranslationOptions translationOptions,
         KikuCaption.Summarization.MeetingSummaryOptions summaryOptions,
+        ITranscriptStore store,
         ILogger<HomePageViewModel> logger)
     {
         Realtime = realtime;
@@ -63,6 +68,7 @@ public partial class HomePageViewModel : ObservableObject
         _summary = summary;
         _translationOptions = translationOptions;
         _summaryOptions = summaryOptions;
+        _store = store;
         _logger = logger;
 
         _elapsedTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
@@ -71,7 +77,11 @@ public partial class HomePageViewModel : ObservableObject
         Realtime.PropertyChanged += OnRealtimeChanged;
         Realtime.Timeline.PropertyChanged += OnTimelineChanged;
         Translation.PropertyChanged += OnTranslationChanged;
-        _loc.LanguageChanged += (_, _) => RaiseTranslationDisplay();
+        _loc.LanguageChanged += (_, _) =>
+        {
+            RaiseTranslationDisplay();
+            foreach (var meeting in RecentMeetings) meeting.RefreshLocalization();
+        };
     }
 
     // ---- UI-R4A translation direction display (source follows recognition; target from session
@@ -119,6 +129,57 @@ public partial class HomePageViewModel : ObservableObject
 
     /// <summary>Translation quick control (toggle + direction). Full config lives on the Settings page.</summary>
     public TranslationViewModel Translation { get; }
+
+    public ObservableCollection<RecentMeetingViewModel> RecentMeetings { get; } = new();
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasNoRecentMeetings))]
+    private bool _isLoadingRecentMeetings;
+
+    [ObservableProperty]
+    private string _recentMeetingsError = string.Empty;
+
+    public bool HasNoRecentMeetings => !IsLoadingRecentMeetings && RecentMeetings.Count == 0;
+
+    public async Task LoadRecentMeetingsAsync()
+    {
+        if (IsLoadingRecentMeetings) return;
+        IsLoadingRecentMeetings = true;
+        RecentMeetingsError = string.Empty;
+        try
+        {
+            var sessions = await _store.GetRecentSessionsAsync(20, CancellationToken.None).ConfigureAwait(true);
+            RecentMeetings.Clear();
+            foreach (var session in sessions)
+            {
+                RecentMeetings.Add(new RecentMeetingViewModel(
+                    session, _loc, _summary.SummaryExists(session.Session.OutputDirectory)));
+            }
+            OnPropertyChanged(nameof(HasNoRecentMeetings));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Loading recent meetings failed.");
+            RecentMeetingsError = _loc["History.LoadFailed"];
+        }
+        finally
+        {
+            IsLoadingRecentMeetings = false;
+            OnPropertyChanged(nameof(HasNoRecentMeetings));
+        }
+    }
+
+    [RelayCommand]
+    private async Task RefreshRecentMeetingsAsync() => await LoadRecentMeetingsAsync();
+
+    [RelayCommand(CanExecute = nameof(CanLoadHistory))]
+    private async Task LoadHistoryAsync(RecentMeetingViewModel? meeting)
+    {
+        if (meeting is null) return;
+        await Realtime.Timeline.LoadHistoryAsync(meeting.SessionId, CancellationToken.None).ConfigureAwait(true);
+    }
+
+    private bool CanLoadHistory(RecentMeetingViewModel? meeting) => meeting is not null && !Realtime.IsRunning;
 
     [ObservableProperty]
     private string _elapsedText = "00:00";
@@ -266,11 +327,13 @@ public partial class HomePageViewModel : ObservableObject
             else
             {
                 _elapsedTimer.Stop();
+                _ = LoadRecentMeetingsAsync();
             }
 
             OnPropertyChanged(nameof(HasNoSession));
             RaiseTranslationDisplay(); // running↔idle changes which target is shown
             RaiseSummaryState();       // stopped session → summary becomes available
+            LoadHistoryCommand.NotifyCanExecuteChanged();
         }
         else if (e.PropertyName is nameof(RealtimeCaptionViewModel.SelectedLanguage)
                  or nameof(RealtimeCaptionViewModel.SessionTargetLanguage))

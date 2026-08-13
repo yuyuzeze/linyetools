@@ -8,11 +8,14 @@ internal sealed class TestTranscriptStore : ITranscriptStore
 {
     public IReadOnlyList<StoredSegment> Segments = System.Array.Empty<StoredSegment>();
     public StoredSession? Session;
-    public StoredSession? MostRecent;
+    public StoredSession? MostRecent { get; set; }
+    public IReadOnlyList<StoredSession> Recent = System.Array.Empty<StoredSession>();
 
     public Task<IReadOnlyList<StoredSegment>> GetSegmentsAsync(Guid s, CancellationToken c) => Task.FromResult(Segments);
     public Task<StoredSession?> GetSessionAsync(Guid s, CancellationToken c) => Task.FromResult(Session);
     public Task<StoredSession?> GetMostRecentSessionAsync(CancellationToken c) => Task.FromResult(MostRecent);
+    public Task<IReadOnlyList<StoredSession>> GetRecentSessionsAsync(int limit, CancellationToken c)
+        => Task.FromResult<IReadOnlyList<StoredSession>>(Recent.Take(limit).ToArray());
 
     public Task InitializeAsync(CancellationToken c) => Task.CompletedTask;
     public Task<IReadOnlyList<StoredSession>> GetIncompleteSessionsAsync(CancellationToken c) => throw new NotSupportedException();

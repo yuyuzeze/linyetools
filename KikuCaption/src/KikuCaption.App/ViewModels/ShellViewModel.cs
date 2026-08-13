@@ -60,6 +60,7 @@ public partial class ShellViewModel : ObservableObject
         var check = Environment.CheckCommand.ExecuteAsync(null);
         var recover = Home.RunRecoveryAsync();
         await Task.WhenAll(check, recover).ConfigureAwait(true);
+        await Home.LoadRecentMeetingsAsync().ConfigureAwait(true);
     }
 
     [RelayCommand]
