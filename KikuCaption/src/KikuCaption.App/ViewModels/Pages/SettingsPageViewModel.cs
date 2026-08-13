@@ -17,6 +17,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         General = general;
         Subtitle = subtitle;
         Translation = translation;
+        About = new AboutViewModel();
     }
 
     public GeneralSettingsViewModel General { get; }
@@ -24,4 +25,17 @@ public sealed partial class SettingsPageViewModel : ObservableObject
 
     /// <summary>Existing translation settings panel (unchanged behaviour).</summary>
     public TranslationViewModel Translation { get; }
+    public AboutViewModel About { get; }
+}
+
+public sealed class AboutViewModel
+{
+    public string VersionText
+    {
+        get
+        {
+            var version = typeof(AboutViewModel).Assembly.GetName().Version;
+            return $"Version {version?.ToString(3) ?? "0.0.0"}";
+        }
+    }
 }

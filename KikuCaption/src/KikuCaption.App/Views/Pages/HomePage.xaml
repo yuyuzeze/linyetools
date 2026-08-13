@@ -134,6 +134,8 @@
                                Visibility="{Binding Realtime.HealthText, Converter={StaticResource NonEmptyToVisibility}}" />
                     <TextBlock Text="{Binding RecoveryStatus}" TextWrapping="Wrap" Foreground="{StaticResource AccentBrush}" FontSize="12" Margin="0,4,0,0"
                                Visibility="{Binding RecoveryStatus, Converter={StaticResource NonEmptyToVisibility}}" />
+                    <TextBlock Text="{Binding Realtime.CorrectionStatus}" TextWrapping="Wrap" Foreground="{StaticResource AccentBrush}" FontSize="12" Margin="0,4,0,0"
+                               Visibility="{Binding Realtime.CorrectionStatus, Converter={StaticResource NonEmptyToVisibility}}" />
                     <TextBlock Text="{Binding Realtime.ErrorMessage}" TextWrapping="Wrap" Foreground="{StaticResource DangerBrush}" FontSize="12" Margin="0,4,0,0"
                                Visibility="{Binding Realtime.HasError, Converter={StaticResource BoolToVisibility}}" />
                     <TextBlock Text="{Binding Realtime.StorageError}" TextWrapping="Wrap" Foreground="{StaticResource DangerBrush}" FontSize="12" Margin="0,4,0,0"
@@ -229,8 +231,11 @@
                         </StackPanel>
 
                         <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0">
+                            <Button FontFamily="Segoe MDL2 Assets" Content="&#xE721;" Padding="10,6"
+                                    Click="SearchTimeline_Click" ToolTip="{loc:Loc Search.Open}"
+                                    AutomationProperties.Name="{loc:Loc Search.Open}" />
                             <Button Content="{loc:Loc Summary.Generate}" Style="{StaticResource PrimaryButton}" Padding="12,6"
-                                    Click="GenerateSummary_Click"
+                                    Margin="6,0,0,0" Click="GenerateSummary_Click"
                                     IsEnabled="{Binding DataContext.CanGenerateSummary, RelativeSource={RelativeSource AncestorType=UserControl}}" />
                             <Button Content="{loc:Loc Summary.Open}" Margin="6,0,0,0" Padding="10,6"
                                     Click="OpenSummary_Click"
@@ -285,7 +290,7 @@
 
                     <!-- Virtualized timeline -->
                     <Grid Grid.Row="1">
-                        <ListBox ItemsSource="{Binding Entries}"
+                        <ListBox x:Name="TimelineList" ItemsSource="{Binding Entries}"
                                  behaviors:TimelineAutoScroll.ViewModel="{Binding}"
                                  BorderThickness="0" Background="Transparent"
                                  HorizontalContentAlignment="Stretch"

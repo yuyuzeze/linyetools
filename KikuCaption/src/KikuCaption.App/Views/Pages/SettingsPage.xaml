@@ -82,6 +82,11 @@
                                   Content="{loc:Loc General.MinimizeToTray}" IsChecked="{Binding MinimizeToTray}" />
                         <CheckBox Margin="0,6,0,0"
                                   Content="{loc:Loc General.CloseToTray}" IsChecked="{Binding CloseToTray}" />
+                        <CheckBox Margin="0,14,0,0"
+                                  Content="{loc:Loc General.AutoCorrectAfterMeeting}"
+                                  IsChecked="{Binding AutoCorrectAfterMeeting}" />
+                        <TextBlock Text="{loc:Loc General.AutoCorrectHint}" TextWrapping="Wrap" Margin="24,3,0,0"
+                                   Foreground="{StaticResource MutedBrush}" FontSize="11" />
 
                         <TextBlock Text="{loc:Loc Settings.NextMeetingHint}" TextWrapping="Wrap" Margin="0,12,0,0"
                                    Foreground="{StaticResource MutedBrush}" FontSize="12" />
@@ -312,6 +317,20 @@
                         <TextBlock Text="{Binding LastErrorText}" TextWrapping="Wrap" Margin="0,2,0,0" Foreground="#B26A00" />
                     </StackPanel>
                 </ScrollViewer>
+            </TabItem>
+
+            <!-- ==================== About ==================== -->
+            <TabItem Header="{loc:Loc Settings.Tab.About}">
+                <StackPanel MaxWidth="620" HorizontalAlignment="Left" Margin="4,20,4,4">
+                    <TextBlock Text="KikuCaption" FontSize="26" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" />
+                    <TextBlock Text="{Binding About.VersionText, Mode=OneWay}" Margin="0,5,0,18" Foreground="{StaticResource MutedBrush}" />
+                    <TextBlock Text="{loc:Loc About.Description}" TextWrapping="Wrap" FontSize="14" />
+                    <Separator Margin="0,18,0,14" />
+                    <TextBlock Text="Designed &amp; built by Yu" FontSize="15" FontWeight="SemiBold" />
+                    <TextBlock Text="Contributor: Claude" Margin="0,6,0,0" />
+                    <TextBlock Text="{loc:Loc About.Privacy}" TextWrapping="Wrap" Margin="0,18,0,0"
+                               Foreground="{StaticResource MutedBrush}" />
+                </StackPanel>
             </TabItem>
         </TabControl>
     </Grid>

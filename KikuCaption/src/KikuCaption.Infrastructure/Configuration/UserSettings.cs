@@ -32,6 +32,10 @@ public sealed record UserSettings
     // user picks one in the dialog it is persisted here (zh/ja/en) and no longer follows the UI.
     public string? SummaryOutputLanguage { get; init; }
 
+    // Post-meeting high-accuracy pass. Enabled by default to preserve the behaviour introduced
+    // with corrected-transcript.*; disabling it leaves the realtime transcript untouched.
+    public bool AutoCorrectAfterMeeting { get; init; } = true;
+
     public bool TranslationEnabled { get; init; }
 
     // NOTE: the Endpoint is intentionally NOT persisted here — it can embed a credential (e.g. a
@@ -71,4 +75,7 @@ public sealed record UserSettings
     public string SubtitleOriginalColor { get; init; } = "#F5F5F5";
     public string SubtitleTranslationColor { get; init; } = "#6FC3FF";
     public double SubtitlePartialOpacity { get; init; } = 0.6;
+
+    /// <summary>Hidden subtitle theme unlocked from the brand: default, night-sakura or deep-sea.</summary>
+    public string SubtitleTheme { get; init; } = "default";
 }

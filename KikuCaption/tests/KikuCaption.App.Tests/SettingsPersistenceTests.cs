@@ -106,6 +106,14 @@ public class SettingsPersistenceTests : IDisposable
         Assert.False(s.CloseToTray);
     }
 
+    [Fact]
+    public void AutoCorrection_DefaultsOn_AndRoundTrips()
+    {
+        Assert.True(new UserSettings().AutoCorrectAfterMeeting);
+        _store.Save(new UserSettings { AutoCorrectAfterMeeting = false });
+        Assert.False(_store.Load().Settings.AutoCorrectAfterMeeting);
+    }
+
     [Fact] // the API key must never be part of the persisted settings type
     public void UserSettings_HasNoSecretProperty()
     {
@@ -138,7 +146,8 @@ public class SettingsPersistenceTests : IDisposable
             DefaultRecognitionLanguage = "zh",
             LoadRecentOnStartup = true,
             DefaultRecordingTarget = "window",
-            LogRetentionDays = 30
+            LogRetentionDays = 30,
+            AutoCorrectAfterMeeting = false
         };
 
         vm.SaveCommand.Execute(null);
@@ -148,5 +157,6 @@ public class SettingsPersistenceTests : IDisposable
         Assert.True(s.LoadRecentOnStartup);
         Assert.Equal("window", s.CaptureType);
         Assert.Equal(30, s.LogRetentionDays);
+        Assert.False(s.AutoCorrectAfterMeeting);
     }
 }

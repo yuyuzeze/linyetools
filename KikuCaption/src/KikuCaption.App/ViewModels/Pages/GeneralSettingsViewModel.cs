@@ -49,6 +49,7 @@ public sealed partial class GeneralSettingsViewModel : ObservableObject
     [ObservableProperty] private int _logRetentionDays = 14;
     [ObservableProperty] private bool _minimizeToTray = true;
     [ObservableProperty] private bool _closeToTray;
+    [ObservableProperty] private bool _autoCorrectAfterMeeting = true;
     [ObservableProperty] private string _statusText = string.Empty;
 
     // UI language applies live and persists immediately (discrete choice, safe to write once).
@@ -80,7 +81,8 @@ public sealed partial class GeneralSettingsViewModel : ObservableObject
                 CaptureType = DefaultRecordingTarget,
                 LogRetentionDays = Math.Clamp(LogRetentionDays, 1, 365),
                 MinimizeToTray = MinimizeToTray,
-                CloseToTray = CloseToTray
+                CloseToTray = CloseToTray,
+                AutoCorrectAfterMeeting = AutoCorrectAfterMeeting
             });
             StatusText = _localization["Settings.Saved"];
         }
@@ -104,6 +106,7 @@ public sealed partial class GeneralSettingsViewModel : ObservableObject
         LogRetentionDays = d.LogRetentionDays;
         MinimizeToTray = d.MinimizeToTray;
         CloseToTray = d.CloseToTray;
+        AutoCorrectAfterMeeting = d.AutoCorrectAfterMeeting;
         _loading = false;
         // Language reset applies live + persists via the changed handler.
         UiLanguage = d.UiLanguage;
@@ -125,6 +128,7 @@ public sealed partial class GeneralSettingsViewModel : ObservableObject
         LogRetentionDays = s.LogRetentionDays;
         MinimizeToTray = s.MinimizeToTray;
         CloseToTray = s.CloseToTray;
+        AutoCorrectAfterMeeting = s.AutoCorrectAfterMeeting;
         _loading = false;
     }
 }

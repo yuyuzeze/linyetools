@@ -82,6 +82,24 @@ public partial class MeetingPlaybackWindow : Window
     private void Caption_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
         if ((sender as FrameworkElement)?.DataContext is not PlaybackCaptionViewModel caption) return;
+        SeekToCaption(caption);
+    }
+
+    private void SearchPlayback_Click(object sender, RoutedEventArgs e)
+    {
+        var sources = _viewModel.Captions.Select(caption => new CaptionSearchSource(
+            caption.TimeText, caption.Text, caption.Translation, caption));
+        var dialog = new CaptionSearchDialog(sources) { Owner = this };
+        if (dialog.ShowDialog() != true || dialog.SelectedResult?.Target is not PlaybackCaptionViewModel selected)
+            return;
+
+        CaptionList.SelectedItem = selected;
+        CaptionList.ScrollIntoView(selected);
+        SeekToCaption(selected);
+    }
+
+    private void SeekToCaption(PlaybackCaptionViewModel caption)
+    {
         var target = _viewModel.SeekTarget(caption);
         _player.Time = (long)target.TotalMilliseconds;
         _viewModel.PositionMilliseconds = _player.Time;
@@ -93,6 +111,12 @@ public partial class MeetingPlaybackWindow : Window
         _player.Time = (long)PositionSlider.Value;
         _viewModel.PositionMilliseconds = _player.Time;
     }
+
+    private void CaptionEarlier_Click(object sender, RoutedEventArgs e) => _viewModel.AdjustCaptionOffset(-0.5);
+
+    private void CaptionOffsetReset_Click(object sender, RoutedEventArgs e) => _viewModel.CaptionOffsetSeconds = 0;
+
+    private void CaptionLater_Click(object sender, RoutedEventArgs e) => _viewModel.AdjustCaptionOffset(0.5);
 
     private void RateBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {

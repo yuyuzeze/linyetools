@@ -8,7 +8,7 @@
         SizeToContent="WidthAndHeight" ShowActivated="False">
     <Border CornerRadius="8" Padding="16,12" MinWidth="380" MaxWidth="900">
         <Border.Background>
-            <SolidColorBrush Color="Black" Opacity="{Binding BackgroundOpacity}" />
+            <SolidColorBrush Color="{Binding ThemeBackgroundColor}" Opacity="{Binding BackgroundOpacity}" />
         </Border.Background>
         <StackPanel>
             <ItemsControl ItemsSource="{Binding Lines}">

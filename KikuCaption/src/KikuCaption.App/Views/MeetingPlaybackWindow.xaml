@@ -28,7 +28,7 @@
                 <Grid Margin="0,5,0,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <Button x:Name="PlayPauseButton" Content="{loc:Loc Playback.Play}" Style="{StaticResource PrimaryButton}"
                             MinWidth="86" Click="PlayPause_Click" />
@@ -46,6 +46,16 @@
                             <ComboBoxItem Content="2.0×" Tag="2" />
                         </ComboBox>
                     </StackPanel>
+                    <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0">
+                        <TextBlock Text="{loc:Loc Playback.CaptionOffset}" VerticalAlignment="Center" Margin="0,0,6,0"
+                                   ToolTip="{loc:Loc Playback.CaptionOffsetHint}" />
+                        <Button Content="−0.5" Padding="7,3" Click="CaptionEarlier_Click"
+                                ToolTip="{loc:Loc Playback.CaptionEarlier}" />
+                        <Button Content="{Binding CaptionOffsetText, Mode=OneWay}" MinWidth="58" Padding="6,3" Margin="4,0"
+                                Click="CaptionOffsetReset_Click" ToolTip="{loc:Loc Playback.CaptionOffsetReset}" />
+                        <Button Content="+0.5" Padding="7,3" Click="CaptionLater_Click"
+                                ToolTip="{loc:Loc Playback.CaptionLater}" />
+                    </StackPanel>
                 </Grid>
             </StackPanel>
         </Grid>
@@ -53,10 +63,16 @@
         <Border Grid.Column="1" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="8" Background="White">
             <Grid>
                 <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-                <StackPanel Margin="12,10,12,8">
-                    <TextBlock Text="{loc:Loc Playback.Captions}" FontWeight="SemiBold" FontSize="15" />
-                    <TextBlock Text="{loc:Loc Playback.CaptionHint}" Foreground="{StaticResource MutedBrush}" FontSize="11" />
-                </StackPanel>
+                <Grid Margin="12,10,12,8">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                    <StackPanel>
+                        <TextBlock Text="{loc:Loc Playback.Captions}" FontWeight="SemiBold" FontSize="15" />
+                        <TextBlock Text="{loc:Loc Playback.CaptionHint}" Foreground="{StaticResource MutedBrush}" FontSize="11" />
+                    </StackPanel>
+                    <Button Grid.Column="1" FontFamily="Segoe MDL2 Assets" Content="&#xE721;" Padding="10,5"
+                            Click="SearchPlayback_Click" ToolTip="{loc:Loc Search.Open}"
+                            AutomationProperties.Name="{loc:Loc Search.Open}" />
+                </Grid>
                 <ListBox x:Name="CaptionList" Grid.Row="1" ItemsSource="{Binding Captions}" BorderThickness="0"
                          ScrollViewer.HorizontalScrollBarVisibility="Disabled" VirtualizingPanel.IsVirtualizing="True"
                          VirtualizingPanel.VirtualizationMode="Recycling">

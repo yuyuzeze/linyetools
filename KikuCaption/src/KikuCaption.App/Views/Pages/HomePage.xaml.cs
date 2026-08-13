@@ -34,6 +34,22 @@ public partial class HomePage : UserControl
 
     private void TimelineMenuItem_Click(object sender, RoutedEventArgs e) => TimelineMenuToggle.IsChecked = false;
 
+    private void SearchTimeline_Click(object sender, RoutedEventArgs e)
+    {
+        var entries = ViewModel?.Realtime.Timeline.Entries;
+        if (entries is null || entries.Count == 0) return;
+
+        var sources = entries.Select(entry => new CaptionSearchSource(
+            entry.Time, entry.Text, entry.Translation, entry));
+        var dialog = new CaptionSearchDialog(sources) { Owner = Window.GetWindow(this) };
+        if (dialog.ShowDialog() != true || dialog.SelectedResult?.Target is not CaptionEntryViewModel selected)
+            return;
+
+        TimelineList.SelectedItem = selected;
+        TimelineList.ScrollIntoView(selected);
+        TimelineList.Focus();
+    }
+
     // UI-R5C: open the generate-summary dialog for the current session (built from an immutable snapshot).
     private void GenerateSummary_Click(object sender, RoutedEventArgs e)
     {

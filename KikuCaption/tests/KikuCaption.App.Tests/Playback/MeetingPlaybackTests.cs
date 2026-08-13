@@ -46,6 +46,29 @@ public sealed class MeetingPlaybackTests
     }
 
     [Fact]
+    public void CaptionOffset_AppliesToSeekAndClampsToTenSeconds()
+    {
+        var vm = new MeetingPlaybackViewModel(Session(new[] { Segment(1, 12.345, 14) }));
+        vm.CaptionOffsetSeconds = 2.5;
+        Assert.Equal(TimeSpan.FromSeconds(14.845), vm.SeekTarget(vm.Captions[0]));
+        vm.AdjustCaptionOffset(100);
+        Assert.Equal(10, vm.CaptionOffsetSeconds);
+    }
+
+    [Fact]
+    public void CaptionOffset_AppliesToAutomaticHighlight()
+    {
+        var vm = new MeetingPlaybackViewModel(Session(new[]
+        {
+            Segment(1, 2, 4), Segment(2, 5, 8)
+        })) { CaptionOffsetSeconds = 2 };
+
+        vm.UpdateActiveCaption(TimeSpan.FromSeconds(6));
+
+        Assert.Same(vm.Captions[0], vm.ActiveCaption);
+    }
+
+    [Fact]
     public void Position_HighlightsLatestCaptionAtOrBeforeTime()
     {
         var vm = new MeetingPlaybackViewModel(Session(new[]

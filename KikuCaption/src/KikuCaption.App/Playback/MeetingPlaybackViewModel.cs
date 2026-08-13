@@ -22,9 +22,11 @@ public sealed partial class MeetingPlaybackViewModel : ObservableObject
     [ObservableProperty] private long _durationMilliseconds;
     [ObservableProperty] private PlaybackCaptionViewModel? _activeCaption;
     [ObservableProperty] private float _playbackRate = 1f;
+    [ObservableProperty] private double _captionOffsetSeconds;
 
     public string PositionText => Format(PositionMilliseconds);
     public string DurationText => Format(DurationMilliseconds);
+    public string CaptionOffsetText => $"{CaptionOffsetSeconds:+0.0;-0.0;0.0} s";
 
     partial void OnPositionMillisecondsChanged(long value)
     {
@@ -33,12 +35,29 @@ public sealed partial class MeetingPlaybackViewModel : ObservableObject
     }
 
     partial void OnDurationMillisecondsChanged(long value) => OnPropertyChanged(nameof(DurationText));
-    public TimeSpan SeekTarget(PlaybackCaptionViewModel caption) => caption.Segment.StartTime;
 
-    public void UpdateActiveCaption(TimeSpan position)
+    partial void OnCaptionOffsetSecondsChanged(double value)
+    {
+        var clamped = Math.Clamp(value, -10d, 10d);
+        if (Math.Abs(clamped - value) > 0.0001)
+        {
+            CaptionOffsetSeconds = clamped;
+            return;
+        }
+        OnPropertyChanged(nameof(CaptionOffsetText));
+        UpdateActiveCaption(TimeSpan.FromMilliseconds(Math.Max(0, PositionMilliseconds)), force: true);
+    }
+
+    public TimeSpan SeekTarget(PlaybackCaptionViewModel caption)
+        => MaxZero(caption.Segment.StartTime + TimeSpan.FromSeconds(CaptionOffsetSeconds));
+
+    public void AdjustCaptionOffset(double seconds)
+        => CaptionOffsetSeconds = Math.Round(Math.Clamp(CaptionOffsetSeconds + seconds, -10d, 10d), 1);
+
+    public void UpdateActiveCaption(TimeSpan position, bool force = false)
     {
         var index = FindCaption(position);
-        if (index == _activeIndex) return;
+        if (!force && index == _activeIndex) return;
         if (_activeIndex >= 0 && _activeIndex < Captions.Count) Captions[_activeIndex].IsActive = false;
         _activeIndex = index;
         ActiveCaption = index >= 0 ? Captions[index] : null;
@@ -51,7 +70,8 @@ public sealed partial class MeetingPlaybackViewModel : ObservableObject
         while (lo <= hi)
         {
             var mid = lo + ((hi - lo) / 2);
-            if (Captions[mid].Segment.StartTime <= position) { found = mid; lo = mid + 1; }
+            var effectiveStart = Captions[mid].Segment.StartTime + TimeSpan.FromSeconds(CaptionOffsetSeconds);
+            if (effectiveStart <= position) { found = mid; lo = mid + 1; }
             else hi = mid - 1;
         }
         return found;
@@ -62,4 +82,6 @@ public sealed partial class MeetingPlaybackViewModel : ObservableObject
         var t = TimeSpan.FromMilliseconds(Math.Max(0, ms));
         return t.TotalHours >= 1 ? t.ToString(@"h\:mm\:ss") : t.ToString(@"mm\:ss");
     }
+
+    private static TimeSpan MaxZero(TimeSpan value) => value < TimeSpan.Zero ? TimeSpan.Zero : value;
 }

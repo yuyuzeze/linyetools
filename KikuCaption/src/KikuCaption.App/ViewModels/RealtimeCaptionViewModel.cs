@@ -12,6 +12,7 @@ using KikuCaption.Core.Interfaces;
 using KikuCaption.Core.Models;
 using KikuCaption.Core.Session;
 using KikuCaption.Infrastructure.Diagnostics;
+using KikuCaption.Infrastructure.Configuration;
 using KikuCaption.Recording.CaptureTargets;
 using KikuCaption.Recording.FFmpeg;
 using KikuCaption.Speech.Streaming;
@@ -41,6 +42,8 @@ public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptur
     private readonly PreflightService _preflight;
     private readonly LocalizationService _loc;
     private readonly ILogger<RealtimeCaptionViewModel> _logger;
+    private readonly KikuCaption.App.Services.PostMeetingCorrectionService _correction;
+    private readonly UserSettingsStore _userSettingsStore;
     private readonly DispatcherTimer _metricsTimer;
 
     // UI-R3: the long-lived status strings are held as resource keys/args and re-localized when the
@@ -49,6 +52,7 @@ public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptur
     private string? _recorderKey;
     private object?[] _recorderArgs = System.Array.Empty<object?>();
     private HealthState? _healthState;
+    private string? _correctionStatusKey;
 
     // Milestone 7: unified lifecycle + reproducible resource sampling.
     private readonly SessionStateMachine _sessionState = new();
@@ -70,6 +74,7 @@ public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptur
     private bool _recordSystemAudio = true;
     private bool _recordMicrophone = true;
     private string? _micDeviceId;
+    private bool _autoCorrectThisSession = true;
     private FFmpegCapabilities? _capabilities;
     private CancellationTokenSource? _cts;
 
@@ -120,6 +125,8 @@ public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptur
     [ObservableProperty] private string _sessionStateText = string.Empty;
     [ObservableProperty] private string _healthText = string.Empty;
     [ObservableProperty] private string _preflightSummary = string.Empty;
+    [ObservableProperty] private string _correctionStatus = string.Empty;
+    [ObservableProperty] private bool _isCorrectionRunning;
 
     public RealtimeCaptionViewModel(
         Func<AudioMixOptions, SessionAudioMixer> mixerFactory,
@@ -135,6 +142,8 @@ public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptur
         TranslationOptions translationOptions,
         ITranscriptExporter exporter,
         PreflightService preflight,
+        KikuCaption.App.Services.PostMeetingCorrectionService correction,
+        UserSettingsStore userSettingsStore,
         LocalizationService localization,
         ILogger<RealtimeCaptionViewModel> logger)
     {
@@ -146,6 +155,8 @@ public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptur
         _screenRecorderFactory = screenRecorderFactory;
         _capabilityProbe = capabilityProbe;
         _preflight = preflight;
+        _correction = correction;
+        _userSettingsStore = userSettingsStore;
         _recordingRuntime = recordingRuntime;
         _translation = translation;
         _translationOptions = translationOptions;
@@ -272,6 +283,7 @@ public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptur
         {
             HealthText = _loc["Health." + _healthState];
         }
+        if (_correctionStatusKey is not null) CorrectionStatus = _loc[_correctionStatusKey];
         if (_mixer is { SpeechDroppedChunks: > 0 } mixer)
         {
             AudioQualityWarning = string.Format(_loc["AudioQuality.Dropped"], mixer.SpeechDroppedChunks);
@@ -298,6 +310,8 @@ public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptur
             return;
         }
 
+        _correction.CancelCurrent();
+        _autoCorrectThisSession = _userSettingsStore.Load().Settings.AutoCorrectAfterMeeting;
         ErrorMessage = null;
         StorageError = null;
         AudioQualityWarning = string.Empty;
@@ -471,6 +485,55 @@ public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptur
         _sessionState.TryTransition(Core.Enums.SessionState.Completed);
         _sessionState.TryTransition(Core.Enums.SessionState.Idle);
         SetStatus("Status.Stopped");
+
+        if (_autoCorrectThisSession && Guid.TryParse(StorageSessionId, out var completedSessionId) &&
+            !string.IsNullOrWhiteSpace(RecordingFilePath) && File.Exists(RecordingFilePath) &&
+            !string.IsNullOrWhiteSpace(StorageOutputDirectory))
+        {
+            StartPostMeetingCorrection(new KikuCaption.App.Services.PostMeetingCorrectionRequest(
+                completedSessionId, RecordingFilePath, StorageOutputDirectory, SelectedLanguage));
+        }
+    }
+
+    private void StartPostMeetingCorrection(KikuCaption.App.Services.PostMeetingCorrectionRequest request)
+    {
+        IsCorrectionRunning = true;
+        _correctionStatusKey = "Correction.Running";
+        CorrectionStatus = _loc[_correctionStatusKey];
+        _ = RunPostMeetingCorrectionAsync(request);
+    }
+
+    private async Task RunPostMeetingCorrectionAsync(KikuCaption.App.Services.PostMeetingCorrectionRequest request)
+    {
+        try
+        {
+            await _correction.RunAsync(request, CancellationToken.None).ConfigureAwait(false);
+            Dispatch(() =>
+            {
+                _correctionStatusKey = "Correction.Completed";
+                CorrectionStatus = _loc[_correctionStatusKey];
+                IsCorrectionRunning = false;
+            });
+        }
+        catch (OperationCanceledException)
+        {
+            Dispatch(() =>
+            {
+                _correctionStatusKey = "Correction.Cancelled";
+                CorrectionStatus = _loc[_correctionStatusKey];
+                IsCorrectionRunning = false;
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Post-meeting correction failed for session {SessionId}.", request.SessionId);
+            Dispatch(() =>
+            {
+                _correctionStatusKey = "Correction.Failed";
+                CorrectionStatus = _loc[_correctionStatusKey];
+                IsCorrectionRunning = false;
+            });
+        }
     }
 
     /// <summary>Unified session state for tests/UI (Milestone 7).</summary>

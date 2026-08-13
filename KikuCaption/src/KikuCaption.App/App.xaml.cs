@@ -151,6 +151,8 @@ public partial class App : Application
                     services.AddSingleton<KikuCaption.App.Services.MeetingSummaryCoordinator>();
                     services.AddSingleton<MeetingPlaybackCoordinator>();
                     services.AddSingleton<MeetingPlaybackWindowManager>();
+                    services.AddSingleton<KikuCaption.App.Services.IMeetingAudioExtractor, KikuCaption.App.Services.FfmpegMeetingAudioExtractor>();
+                    services.AddSingleton<KikuCaption.App.Services.PostMeetingCorrectionService>();
 
                     // Milestone 7: preflight + user settings store (non-sensitive prefs).
                     services.AddSingleton<KikuCaption.App.Services.PreflightService>();
@@ -293,6 +295,7 @@ public partial class App : Application
             // Stop the translation queue first: cancels the in-flight request but leaves Pending
             // jobs durable in SQLite for the next run.
             try { await _host.Services.GetRequiredService<TranslationQueue>().DisposeAsync(); } catch { /* ignore */ }
+            try { await _host.Services.GetRequiredService<KikuCaption.App.Services.PostMeetingCorrectionService>().DisposeAsync(); } catch { /* ignore */ }
             await _host.StopAsync();
             _host.Dispose();
         }

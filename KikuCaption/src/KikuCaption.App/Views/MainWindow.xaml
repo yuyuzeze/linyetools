@@ -24,8 +24,11 @@
 
                 <!-- Left: brand + primary navigation -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="KikuCaption" FontSize="16" FontWeight="Bold" VerticalAlignment="Center"
-                               Margin="4,0,16,0" Foreground="{StaticResource AccentBrush}" />
+                    <Button Click="Brand_Click" Background="Transparent" BorderThickness="0" Padding="4,3"
+                            Margin="0,0,12,0" Cursor="Arrow" ToolTip="KikuCaption">
+                        <TextBlock Text="KikuCaption" FontSize="16" FontWeight="Bold" VerticalAlignment="Center"
+                                   Foreground="{StaticResource AccentBrush}" />
+                    </Button>
                     <Button Content="{loc:Loc Nav.Home}" Style="{StaticResource NavButton}" Command="{Binding GoHomeCommand}"
                             Tag="{Binding IsHomeSelected}" AutomationProperties.Name="{loc:Loc Nav.Home}" />
                     <Button Content="{loc:Loc Nav.Audio}" Style="{StaticResource NavButton}" Command="{Binding GoAudioCommand}"
