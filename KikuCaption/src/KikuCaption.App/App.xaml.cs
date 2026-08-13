@@ -259,6 +259,10 @@ public partial class App : Application
 
             var window = _host.Services.GetRequiredService<MainWindow>();
             window.Show();
+            // The subtitle overlay window is constructed first (a MainWindow ctor dependency), so WPF
+            // auto-assigns it to Application.MainWindow. Point MainWindow at the real shell so dialogs
+            // owned by "the main window" center on it and are modal to it (not the hidden overlay).
+            MainWindow = window;
 
             // UI-R5B: attach + start the single system-tray coordinator after the window is shown.
             var tray = _host.Services.GetRequiredService<KikuCaption.App.Tray.ISystemTrayService>();

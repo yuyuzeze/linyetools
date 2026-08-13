@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Windows;
 using KikuCaption.App.ViewModels;
 using KikuCaption.App.ViewModels.Pages;
@@ -21,6 +22,7 @@ public interface IMeetingLauncher
 public sealed class MeetingLauncher : IMeetingLauncher
 {
     private readonly Func<HomePageViewModel> _home;
+    private bool _dialogOpen;
 
     // Resolved lazily so the launcher and the home page can reference each other without a DI cycle.
     public MeetingLauncher(Func<HomePageViewModel> home) => _home = home;
@@ -29,18 +31,27 @@ public sealed class MeetingLauncher : IMeetingLauncher
     {
         var vm = _home();
         var realtime = vm.Realtime;
-        if (realtime.IsRunning)
+        if (realtime.IsRunning || _dialogOpen)
         {
-            return; // a meeting is already running — the dialog would be meaningless
+            return; // already running, or the dialog is already open — never stack a second dialog
         }
 
-        var owner = Application.Current?.MainWindow;
         var draft = new StartMeetingDialogViewModel(
             realtime.CaptureTarget, realtime.Windows, vm.OutputRootSummary,
             realtime.AudioOptions, vm.GetMicDevices(), vm.GetMicDevices);
-        var dialog = new StartMeetingDialog(draft, vm.CreateLevelMeter()) { Owner = owner };
+        var dialog = new StartMeetingDialog(draft, vm.CreateLevelMeter()) { Owner = ResolveOwner() };
 
-        var result = dialog.ShowDialog();
+        bool? result;
+        _dialogOpen = true;
+        try
+        {
+            result = dialog.ShowDialog();
+        }
+        finally
+        {
+            _dialogOpen = false;
+        }
+
         if (MeetingStartCoordinator.ResolveStart(result, draft, realtime))
         {
             vm.PersistCaptureTarget(realtime.CaptureTarget);
@@ -50,5 +61,15 @@ public sealed class MeetingLauncher : IMeetingLauncher
                 await realtime.StartCommand.ExecuteAsync(null);
             }
         }
+    }
+
+    // The dialog owner MUST be the real main window (so it centers on it and is modal to it) — never
+    // the subtitle overlay, which WPF instantiates first and auto-assigns to Application.MainWindow.
+    private static Window? ResolveOwner()
+    {
+        var windows = Application.Current?.Windows.OfType<Window>().ToList() ?? new List<Window>();
+        return windows.FirstOrDefault(w => w is MainWindow && w.IsVisible)
+            ?? windows.FirstOrDefault(w => w.IsActive && w.IsVisible)
+            ?? (Application.Current?.MainWindow is { IsVisible: true } mw ? mw : null);
     }
 }

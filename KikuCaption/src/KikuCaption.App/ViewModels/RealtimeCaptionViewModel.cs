@@ -148,7 +148,11 @@ public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptur
         Timeline = timeline;
         _logger = logger;
         _translation.OutcomeChanged += OnTranslationOutcome;
-        _sessionState.StateChanged += (_, to) => Dispatch(() => SessionStateText = _loc["Session.State." + to]);
+        _sessionState.StateChanged += (_, to) => Dispatch(() =>
+        {
+            SessionStateText = _loc["Session.State." + to];
+            OnPropertyChanged(nameof(CanStartMeeting)); // enable/disable the Start button across the whole cycle
+        });
         SessionStateText = _loc["Session.State." + _sessionState.State];
         SetStatus("Status.Idle");
         SetRecorder(recordingRuntime.FFmpegPath is null ? "Recorder.NoFFmpeg" : "Recorder.Ready");
@@ -460,6 +464,11 @@ public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptur
 
     /// <summary>Unified session state for tests/UI (Milestone 7).</summary>
     public Core.Enums.SessionState CurrentSessionState => _sessionState.State;
+
+    /// <summary>True only when a NEW meeting may be started (idle/completed/faulted) — drives the
+    /// Start button so it is clearly disabled through the whole preflight→running→stopping cycle,
+    /// not just while running (UI feedback fix).</summary>
+    public bool CanStartMeeting => _sessionState.CanStart;
 
     [RelayCommand]
     private void ToggleOverlay() => Overlay.IsVisible = !Overlay.IsVisible;

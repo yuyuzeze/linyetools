@@ -19,6 +19,11 @@
     <SolidColorBrush x:Key="NavSelectedBrush" Color="#E3EDF9" />
     <SolidColorBrush x:Key="FocusRingBrush" Color="#005FB8" />
     <SolidColorBrush x:Key="TextBrush" Color="#1A1A1A" />
+    <!-- Disabled PRIMARY button: keep the blue+white identity but dim the blue (a distinctly lighter
+         shade than the enabled #005FB8) so it still reads as disabled, with crisp white text — not a
+         translucent fade that washes the label out. -->
+    <SolidColorBrush x:Key="DisabledFillBrush" Color="#7FAAD9" />
+    <SolidColorBrush x:Key="DisabledTextBrush" Color="#FFFFFF" />
 
     <!-- ==================== Typography ====================
          Fallback chain covers Latin, Japanese (Yu Gothic UI / Meiryo) and Chinese (YaHei) so the
@@ -76,7 +81,7 @@
                 <ControlTemplate TargetType="Button">
                     <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="5" SnapsToDevicePixels="True">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
-                                          Margin="{TemplateBinding Padding}" TextElement.Foreground="White" />
+                                          Margin="{TemplateBinding Padding}" TextElement.Foreground="{TemplateBinding Foreground}" />
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
@@ -85,8 +90,11 @@
                         <Trigger Property="IsPressed" Value="True">
                             <Setter TargetName="Bd" Property="Background" Value="{StaticResource AccentPressedBrush}" />
                         </Trigger>
+                        <!-- Disabled: a solid muted fill + muted text (legible), not a translucent fade
+                             that washes blue+white into an unreadable haze. -->
                         <Trigger Property="IsEnabled" Value="False">
-                            <Setter TargetName="Bd" Property="Opacity" Value="0.45" />
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource DisabledFillBrush}" />
+                            <Setter Property="Foreground" Value="{StaticResource DisabledTextBrush}" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
