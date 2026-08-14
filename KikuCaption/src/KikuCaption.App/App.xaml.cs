@@ -283,7 +283,7 @@ public partial class App : Application
         }
         catch (Exception ex)
         {
-            ShowFatal("KikuCaption 启动失败：" + ex.Message);
+            ShowFatal("KikuMemo 启动失败：" + ex.Message);
         }
     }
 
@@ -310,7 +310,7 @@ public partial class App : Application
 
     private void ShowFatal(string message)
     {
-        MessageBox.Show(message, "KikuCaption", MessageBoxButton.OK, MessageBoxImage.Error);
+        MessageBox.Show(message, "KikuMemo", MessageBoxButton.OK, MessageBoxImage.Error);
         Shutdown(-1);
     }
 

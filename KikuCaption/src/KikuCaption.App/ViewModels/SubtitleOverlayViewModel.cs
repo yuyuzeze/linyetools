@@ -34,8 +34,6 @@ public partial class SubtitleOverlayViewModel : ObservableObject
     [ObservableProperty] private string _originalColor = "#F5F5F5";
     [ObservableProperty] private string _translationColor = "#6FC3FF";
     [ObservableProperty] private double _partialOpacity = 0.6;
-    [ObservableProperty] private string _themeBackgroundColor = "#000000";
-    [ObservableProperty] private string _themeName = "default";
 
     /// <summary>Whether a new meeting should show the overlay automatically (UI-R3 DefaultShowOverlay).</summary>
     [ObservableProperty] private bool _defaultVisible;
@@ -67,23 +65,6 @@ public partial class SubtitleOverlayViewModel : ObservableObject
         TranslationColor = s.SubtitleTranslationColor;
         PartialOpacity = s.SubtitlePartialOpacity;
         DefaultVisible = s.DefaultShowOverlay;
-        ApplyTheme(s.SubtitleTheme);
-    }
-
-    public void ApplyTheme(string? theme)
-    {
-        ThemeName = theme switch
-        {
-            "night-sakura" => "night-sakura",
-            "deep-sea" => "deep-sea",
-            _ => "default"
-        };
-        ThemeBackgroundColor = ThemeName switch
-        {
-            "night-sakura" => "#2B1425",
-            "deep-sea" => "#071D2B",
-            _ => "#000000"
-        };
     }
 
     public ObservableCollection<CaptionLineViewModel> Lines { get; } = new();

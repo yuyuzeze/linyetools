@@ -341,12 +341,9 @@
             <!-- ==================== About ==================== -->
             <TabItem Header="{loc:Loc Settings.Tab.About}">
                 <StackPanel MaxWidth="620" HorizontalAlignment="Left" Margin="4,20,4,4">
-                    <TextBlock Text="KikuCaption" FontSize="26" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" />
+                    <TextBlock Text="KikuMemo" FontSize="26" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" />
                     <TextBlock Text="{Binding About.VersionText, Mode=OneWay}" Margin="0,5,0,18" Foreground="{StaticResource MutedBrush}" />
                     <TextBlock Text="{loc:Loc About.Description}" TextWrapping="Wrap" FontSize="14" />
-                    <Separator Margin="0,18,0,14" />
-                    <TextBlock Text="Designed &amp; built by Yu" FontSize="15" FontWeight="SemiBold" />
-                    <TextBlock Text="Contributor: Claude" Margin="0,6,0,0" />
                     <TextBlock Text="{loc:Loc About.Privacy}" TextWrapping="Wrap" Margin="0,18,0,0"
                                Foreground="{StaticResource MutedBrush}" />
                 </StackPanel>

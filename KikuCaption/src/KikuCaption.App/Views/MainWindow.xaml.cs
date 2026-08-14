@@ -1,7 +1,6 @@
 using System.Windows;
 using KikuCaption.App.Tray;
 using KikuCaption.App.ViewModels;
-using KikuCaption.Infrastructure.Configuration;
 
 namespace KikuCaption.App.Views;
 
@@ -17,16 +16,13 @@ public partial class MainWindow : Window, IMainWindowController
     private readonly SubtitleOverlayWindow _overlay;
     private ISystemTrayService? _tray;
     private bool _legacyStopInProgress;
-    private readonly UserSettingsStore _settingsStore;
-    private int _brandClickCount;
-    private DateTimeOffset _lastBrandClick;
+    private readonly EasterEggClickTracker _easterEggClicks = new();
 
-    public MainWindow(ShellViewModel shell, SubtitleOverlayWindow overlay, UserSettingsStore settingsStore)
+    public MainWindow(ShellViewModel shell, SubtitleOverlayWindow overlay)
     {
         InitializeComponent();
         _shell = shell;
         _overlay = overlay;
-        _settingsStore = settingsStore;
         DataContext = shell;
 
         Loaded += OnLoaded;
@@ -141,19 +137,11 @@ public partial class MainWindow : Window, IMainWindowController
 
     private void Brand_Click(object sender, RoutedEventArgs e)
     {
-        var now = DateTimeOffset.UtcNow;
-        _brandClickCount = now - _lastBrandClick <= TimeSpan.FromSeconds(2) ? _brandClickCount + 1 : 1;
-        _lastBrandClick = now;
-        if (_brandClickCount < 5) return;
-        _brandClickCount = 0;
+        if (!_easterEggClicks.Register(DateTimeOffset.UtcNow))
+        {
+            return;
+        }
 
-        var (settings, _) = _settingsStore.Load();
-        var nextTheme = SubtitleThemeCycle.Next(settings.SubtitleTheme);
-        _settingsStore.Save(settings with { SubtitleTheme = nextTheme });
-        _shell.Home.Realtime.Overlay.ApplyTheme(nextTheme);
-
-        var loc = KikuCaption.App.Localization.LocalizationService.Instance;
-        MessageBox.Show(loc[$"EasterEgg.Theme.{nextTheme}"], loc["EasterEgg.Title"],
-            MessageBoxButton.OK, MessageBoxImage.Information);
+        new EasterEggAboutWindow { Owner = this }.ShowDialog();
     }
 }

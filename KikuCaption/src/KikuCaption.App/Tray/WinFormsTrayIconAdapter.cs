@@ -24,7 +24,7 @@ public sealed class WinFormsTrayIconAdapter : ITrayIconAdapter
         _icon = new WinForms.NotifyIcon
         {
             Icon = LoadIcon(),
-            Text = "KikuCaption",
+            Text = "KikuMemo",
             Visible = false
         };
         _icon.DoubleClick += (_, _) => DoubleClicked?.Invoke();

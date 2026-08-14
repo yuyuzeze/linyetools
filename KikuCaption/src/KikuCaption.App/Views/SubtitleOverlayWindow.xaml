@@ -2,13 +2,13 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:loc="clr-namespace:KikuCaption.App.Localization"
-        Title="KikuCaption 字幕"
+        Title="KikuMemo"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         Topmost="{Binding Topmost}" ShowInTaskbar="False" ResizeMode="NoResize"
         SizeToContent="WidthAndHeight" ShowActivated="False">
     <Border CornerRadius="8" Padding="16,12" MinWidth="380" MaxWidth="900">
         <Border.Background>
-            <SolidColorBrush Color="{Binding ThemeBackgroundColor}" Opacity="{Binding BackgroundOpacity}" />
+            <SolidColorBrush Color="#000000" Opacity="{Binding BackgroundOpacity}" />
         </Border.Background>
         <StackPanel>
             <ItemsControl ItemsSource="{Binding Lines}">

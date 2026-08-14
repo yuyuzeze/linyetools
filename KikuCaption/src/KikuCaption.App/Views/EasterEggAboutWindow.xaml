@@ -1,0 +1,52 @@
+<Window x:Class="KikuCaption.App.Views.EasterEggAboutWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:loc="clr-namespace:KikuCaption.App.Localization"
+        Title="{loc:Loc EasterEgg.Title}" Width="500" Height="390"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        ShowInTaskbar="False">
+    <Border CornerRadius="18" BorderThickness="1" BorderBrush="#7D4B73" Padding="1">
+        <Border.Background>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#17101E" Offset="0" />
+                <GradientStop Color="#2B1428" Offset="0.55" />
+                <GradientStop Color="#151526" Offset="1" />
+            </LinearGradientBrush>
+        </Border.Background>
+        <Grid Margin="28">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <TextBlock Grid.Row="0" Text="✿  ✦  ✿" Foreground="#EFA9C8" FontSize="20"
+                       HorizontalAlignment="Right" Opacity="0.8" />
+
+            <StackPanel Grid.Row="1" VerticalAlignment="Center">
+                <TextBlock Text="KikuMemo" Foreground="#FFF6FB" FontSize="34"
+                           FontWeight="SemiBold" HorizontalAlignment="Center" />
+                <TextBlock x:Name="VersionTextBlock" Foreground="#CBB8C8" FontSize="12"
+                           HorizontalAlignment="Center" Margin="0,5,0,22" />
+                <TextBlock Text="{loc:Loc EasterEgg.Thanks}" Foreground="#F4C2D8" FontSize="20"
+                           FontWeight="SemiBold" HorizontalAlignment="Center" />
+                <TextBlock Text="{loc:Loc EasterEgg.Tagline}" Foreground="#E8DDE5" FontSize="13"
+                           TextWrapping="Wrap" TextAlignment="Center" HorizontalAlignment="Center"
+                           MaxWidth="390" Margin="0,9,0,24" />
+                <Border BorderBrush="#65445F" BorderThickness="0,1,0,0" Padding="0,18,0,0">
+                    <StackPanel>
+                        <TextBlock Text="Designed &amp; built by Yu" Foreground="#FFF6FB" FontSize="15"
+                                   FontWeight="SemiBold" HorizontalAlignment="Center" />
+                        <TextBlock Text="Contributor: Claude" Foreground="#CBB8C8" FontSize="13"
+                                   HorizontalAlignment="Center" Margin="0,6,0,0" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <Button Grid.Row="2" Content="{loc:Loc EasterEgg.Close}" Width="96" Height="34"
+                    HorizontalAlignment="Center" Click="Close_Click" Foreground="White"
+                    Background="#A94778" BorderBrush="#CB6B9A" />
+        </Grid>
+    </Border>
+</Window>

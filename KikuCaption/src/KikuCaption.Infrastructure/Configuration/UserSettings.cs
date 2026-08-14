@@ -80,6 +80,4 @@ public sealed record UserSettings
     public string SubtitleTranslationColor { get; init; } = "#6FC3FF";
     public double SubtitlePartialOpacity { get; init; } = 0.6;
 
-    /// <summary>Hidden subtitle theme unlocked from the brand: default, night-sakura or deep-sea.</summary>
-    public string SubtitleTheme { get; init; } = "default";
 }
