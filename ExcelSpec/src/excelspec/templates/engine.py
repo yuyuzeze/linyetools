@@ -78,6 +78,34 @@ def _sheet_cells(sheet: SheetIR) -> dict[str, CellIR]:
     return cells
 
 
+@dataclass(slots=True)
+class _SheetScan:
+    """Per-sheet cache built once and reused across every locator/anchor pass.
+
+    Replaces the previous pattern of rebuilding the coordinate dict and
+    re-``sorted``-ing the cell list inside every ``locate_regions`` /
+    anchor-search call. The bundled :class:`SheetIndex` is also built once here.
+    """
+
+    cells: dict[str, CellIR]
+    ordered: list[CellIR]
+    bounds: tuple[int, int, int, int] | None
+    index: "SheetIndex"
+
+
+def _scan_sheet(sheet: SheetIR) -> _SheetScan:
+    from ..index import SheetIndex
+
+    cells = _sheet_cells(sheet)
+    ordered = sorted(cells.values(), key=_cell_position)
+    return _SheetScan(
+        cells=cells,
+        ordered=ordered,
+        bounds=_sheet_bounds(cells),
+        index=SheetIndex.from_sheet(sheet),
+    )
+
+
 def _regex_matches(pattern: str, value: str) -> bool:
     try:
         return re.search(pattern, value, flags=re.IGNORECASE) is not None
@@ -91,10 +119,29 @@ def _matching_sheets(document: DocumentIR, pattern: str | None) -> list[SheetIR]
     return [sheet for sheet in document.sheets if _regex_matches(pattern, sheet.name)]
 
 
-def _fingerprint_score(document: DocumentIR, rule: FingerprintRule) -> float:
+def _cached_sheet_cells(
+    sheet: SheetIR, cache: dict[str, dict[str, CellIR]] | None
+) -> dict[str, CellIR]:
+    """Return a sheet's coordinate map, reusing a per-scoring-pass cache."""
+
+    if cache is None:
+        return _sheet_cells(sheet)
+    cached = cache.get(sheet.name)
+    if cached is None:
+        cached = _sheet_cells(sheet)
+        cache[sheet.name] = cached
+    return cached
+
+
+def _fingerprint_score(
+    document: DocumentIR,
+    rule: FingerprintRule,
+    *,
+    cells_cache: dict[str, dict[str, CellIR]] | None = None,
+) -> float:
     best = 0.0
     for sheet in _matching_sheets(document, rule.sheet_name_pattern):
-        cells = _sheet_cells(sheet)
+        cells = _cached_sheet_cells(sheet, cells_cache)
         checks: list[bool] = []
         for coordinate, expected in rule.cells.items():
             cell = cells.get(coordinate.upper())
@@ -106,8 +153,18 @@ def _fingerprint_score(document: DocumentIR, rule: FingerprintRule) -> float:
     return best
 
 
-def score_template(document: DocumentIR, template: TemplateSpec) -> TemplateCandidate:
-    """Return a normalized and explainable score for one candidate template."""
+def score_template(
+    document: DocumentIR,
+    template: TemplateSpec,
+    *,
+    cells_cache: dict[str, dict[str, CellIR]] | None = None,
+) -> TemplateCandidate:
+    """Return a normalized and explainable score for one candidate template.
+
+    ``cells_cache`` (built once per :func:`match_template` pass) lets repeated
+    scoring of the same document reuse each sheet's coordinate map instead of
+    rebuilding it for every fingerprint rule and every candidate template.
+    """
 
     patterns = template.match.sheet_name_patterns or [
         sheet.name_pattern for sheet in template.sheets
@@ -118,7 +175,7 @@ def score_template(document: DocumentIR, template: TemplateSpec) -> TemplateCand
         else 0.0
     )
     weighted_fingerprints = [
-        (_fingerprint_score(document, rule), rule.weight)
+        (_fingerprint_score(document, rule, cells_cache=cells_cache), rule.weight)
         for rule in template.match.fingerprints
     ]
     total_weight = sum(weight for _, weight in weighted_fingerprints)
@@ -155,8 +212,15 @@ def match_template(
     """Rank candidates and select the highest candidate above its threshold."""
 
     template_list = list(templates)
+    cells_cache: dict[str, dict[str, CellIR]] = {}
     ranked = sorted(
-        zip((score_template(document, item) for item in template_list), template_list),
+        zip(
+            (
+                score_template(document, item, cells_cache=cells_cache)
+                for item in template_list
+            ),
+            template_list,
+        ),
         key=lambda pair: (-pair[0].score, pair[0].template_id, pair[0].version),
     )
     candidates = [candidate for candidate, _ in ranked]
@@ -194,8 +258,21 @@ def _sheet_bounds(cells: dict[str, CellIR]) -> tuple[int, int, int, int] | None:
     )
 
 
-def _find_anchor(cells: dict[str, CellIR], locator: RegionLocator) -> CellIR | None:
-    for cell in sorted(cells.values(), key=_cell_position):
+def _ordered_cells(
+    cells: dict[str, CellIR], ordered: list[CellIR] | None
+) -> list[CellIR]:
+    """Prefer a precomputed sorted list; fall back to sorting on demand."""
+
+    return ordered if ordered is not None else sorted(cells.values(), key=_cell_position)
+
+
+def _find_anchor(
+    cells: dict[str, CellIR],
+    locator: RegionLocator,
+    *,
+    ordered: list[CellIR] | None = None,
+) -> CellIR | None:
+    for cell in _ordered_cells(cells, ordered):
         value = _display(cell)
         if locator.anchor_text is not None and value == locator.anchor_text:
             return cell
@@ -204,9 +281,14 @@ def _find_anchor(cells: dict[str, CellIR], locator: RegionLocator) -> CellIR | N
     return None
 
 
-def _find_all_anchors(cells: dict[str, CellIR], locator: RegionLocator) -> list[CellIR]:
+def _find_all_anchors(
+    cells: dict[str, CellIR],
+    locator: RegionLocator,
+    *,
+    ordered: list[CellIR] | None = None,
+) -> list[CellIR]:
     matches: list[CellIR] = []
-    for cell in sorted(cells.values(), key=_cell_position):
+    for cell in _ordered_cells(cells, ordered):
         value = _display(cell)
         if locator.anchor_text is not None and value == locator.anchor_text:
             matches.append(cell)
@@ -222,8 +304,9 @@ def _find_end_anchor(
     start_row: int,
     *,
     before_row: int | None = None,
+    ordered: list[CellIR] | None = None,
 ) -> CellIR | None:
-    for cell in sorted(cells.values(), key=_cell_position):
+    for cell in _ordered_cells(cells, ordered):
         if cell.row <= start_row:
             continue
         if before_row is not None and cell.row >= before_row:
@@ -248,10 +331,13 @@ def _bounds_from_anchor(
     sheet_max_row: int,
     cells: dict[str, CellIR],
     before_row: int | None = None,
+    ordered: list[CellIR] | None = None,
 ) -> tuple[int, int, int, int]:
     min_row = max(sheet_min_row, anchor.row + locator.row_offset)
     min_col = max(sheet_min_col, anchor.column + locator.column_offset)
-    end_anchor = _find_end_anchor(cells, locator, min_row, before_row=before_row)
+    end_anchor = _find_end_anchor(
+        cells, locator, min_row, before_row=before_row, ordered=ordered
+    )
     default_max_row = (
         before_row - 1
         if before_row is not None
@@ -286,12 +372,23 @@ def locate_region(
 
 
 def locate_regions(
-    sheet: SheetIR, locator: RegionLocator
+    sheet: SheetIR,
+    locator: RegionLocator,
+    *,
+    scan: _SheetScan | None = None,
 ) -> list[tuple[int, int, int, int]]:
-    """Resolve one or more rectangular regions for a locator."""
+    """Resolve one or more rectangular regions for a locator.
 
-    cells = _sheet_cells(sheet)
-    bounds = _sheet_bounds(cells)
+    Pass ``scan`` (from :func:`_scan_sheet`) to reuse a sheet's cell dict,
+    sorted list, and bounds across every region template instead of rebuilding
+    them per call.
+    """
+
+    if scan is None:
+        scan = _scan_sheet(sheet)
+    cells = scan.cells
+    ordered = scan.ordered
+    bounds = scan.bounds
     if bounds is None:
         return []
     sheet_min_col, sheet_min_row, sheet_max_col, sheet_max_row = bounds
@@ -299,9 +396,13 @@ def locate_regions(
         return [range_boundaries(locator.range or "")]
 
     anchors = (
-        _find_all_anchors(cells, locator)
+        _find_all_anchors(cells, locator, ordered=ordered)
         if locator.repeat_anchor
-        else ([anchor] if (anchor := _find_anchor(cells, locator)) is not None else [])
+        else (
+            [anchor]
+            if (anchor := _find_anchor(cells, locator, ordered=ordered)) is not None
+            else []
+        )
     )
     if not anchors:
         return []
@@ -319,6 +420,7 @@ def locate_regions(
                 sheet_max_row=sheet_max_row,
                 cells=cells,
                 before_row=before_row,
+                ordered=ordered,
             )
         )
     return regions
@@ -876,126 +978,140 @@ def extract_with_template(document: DocumentIR, match: MatchResult) -> Extractio
     template = match.template
     output_sheets: list[SheetIR] = []
     unrecognized: dict[str, list[str]] = {}
-    for sheet in document.sheets:
-        template_sheet: SheetTemplate | None = None
-        if template is not None:
-            template_sheet = next(
-                (item for item in template.sheets if _regex_matches(item.name_pattern, sheet.name)),
-                None,
+    # Reuse a single Excel COM session for every region screenshot in this
+    # workbook. The session is lazy: Excel launches only on the first capture,
+    # so this wrapper is free when no region requests a screenshot.
+    from contextlib import nullcontext
+
+    from ..render import ExcelCaptureSession
+
+    session_ctx = (
+        ExcelCaptureSession(document.source_path)
+        if document.source_path
+        else nullcontext()
+    )
+    with session_ctx:
+        for sheet in document.sheets:
+            template_sheet: SheetTemplate | None = None
+            if template is not None:
+                template_sheet = next(
+                    (item for item in template.sheets if _regex_matches(item.name_pattern, sheet.name)),
+                    None,
+                )
+            if template_sheet is None:
+                regions, ranges = _freeform_regions(sheet)
+                unrecognized[sheet.name] = ranges
+                output_sheets.append(
+                    SheetIR(
+                        sheet_id=sheet.sheet_id,
+                        name=sheet.name,
+                        index=sheet.index,
+                        regions=regions,
+                        assets=_copy_assets(sheet, regions),
+                        diagnostics=list(sheet.diagnostics),
+                        metadata={**sheet.metadata, "extraction_mode": "freeform"},
+                    )
+                )
+                continue
+
+            scan = _scan_sheet(sheet)
+            cells = scan.cells
+            covered: set[str] = set()
+            diagnostics = list(sheet.diagnostics)
+            regions: list[RegionIR] = []
+            for region_template in sorted(
+                template_sheet.regions, key=lambda item: (item.order, item.region_id)
+            ):
+                located = locate_regions(sheet, region_template.locator, scan=scan)
+                if not located:
+                    severity = (
+                        DiagnosticSeverity.ERROR
+                        if region_template.required
+                        else DiagnosticSeverity.WARNING
+                    )
+                    diagnostics.append(
+                        DiagnosticIR(
+                            code="template.region_not_found",
+                            severity=severity,
+                            message=f"模板区域未找到: {region_template.region_id}",
+                            source=SourceRef(sheet=sheet.name),
+                            region_id=region_template.region_id,
+                        )
+                    )
+                    continue
+                for index, bounds in enumerate(located, start=1):
+                    extractor = region_template.extractor or ExtractionSpec(
+                        kind=region_template.region_type
+                    )
+                    if _option_flag(extractor.options, "ignore"):
+                        covered.update(
+                            cell.coordinate for cell in _cells_in_bounds(cells, bounds)
+                        )
+                        continue
+                    region_id = (
+                        region_template.region_id
+                        if index == 1
+                        else f"{region_template.region_id}-{index}"
+                    )
+                    region = _extract_region(
+                        sheet, region_template, bounds, region_id=region_id
+                    )
+                    if len(located) > 1:
+                        region.metadata["repeat_index"] = index
+                        region.metadata["repeat_anchor"] = True
+                        if region.title and index > 1:
+                            region.title = f"{region.title} ({index})"
+                    for binding in region_template.screenshot_bindings:
+                        region.asset_ids.append(binding.asset_id)
+                    rendered = _attach_region_screenshot(
+                        document, sheet, region, extractor, diagnostics
+                    )
+                    if rendered is not None:
+                        sheet.assets = [*sheet.assets, rendered]
+                    regions.append(region)
+                    if region.source and region.source.range:
+                        try:
+                            final_bounds = range_boundaries(region.source.range)
+                        except ValueError:
+                            final_bounds = bounds
+                    else:
+                        final_bounds = bounds
+                    covered.update(
+                        cell.coordinate for cell in _cells_in_bounds(cells, final_bounds)
+                    )
+            fallback_regions, ranges = _freeform_regions(
+                sheet, excluded=covered, prefix="unrecognized"
             )
-        if template_sheet is None:
-            regions, ranges = _freeform_regions(sheet)
+            regions.extend(fallback_regions)
             unrecognized[sheet.name] = ranges
+            assets = _copy_assets(sheet, regions)
+            known_assets = {asset.asset_id for asset in assets}
+            for region_template in template_sheet.regions:
+                for binding in region_template.screenshot_bindings:
+                    if binding.asset_id not in known_assets:
+                        assets.append(
+                            AssetIR(
+                                asset_id=binding.asset_id,
+                                asset_type=AssetType(binding.asset_type),
+                                uri=binding.path,
+                                description=binding.description,
+                                source=SourceRef(sheet=sheet.name),
+                                extraction_status="bound",
+                                metadata={"template_binding": True},
+                            )
+                        )
+                        known_assets.add(binding.asset_id)
             output_sheets.append(
                 SheetIR(
                     sheet_id=sheet.sheet_id,
                     name=sheet.name,
                     index=sheet.index,
                     regions=regions,
-                    assets=_copy_assets(sheet, regions),
-                    diagnostics=list(sheet.diagnostics),
-                    metadata={**sheet.metadata, "extraction_mode": "freeform"},
+                    assets=assets,
+                    diagnostics=diagnostics,
+                    metadata={**sheet.metadata, "extraction_mode": "template"},
                 )
             )
-            continue
-
-        cells = _sheet_cells(sheet)
-        covered: set[str] = set()
-        diagnostics = list(sheet.diagnostics)
-        regions: list[RegionIR] = []
-        for region_template in sorted(
-            template_sheet.regions, key=lambda item: (item.order, item.region_id)
-        ):
-            located = locate_regions(sheet, region_template.locator)
-            if not located:
-                severity = (
-                    DiagnosticSeverity.ERROR
-                    if region_template.required
-                    else DiagnosticSeverity.WARNING
-                )
-                diagnostics.append(
-                    DiagnosticIR(
-                        code="template.region_not_found",
-                        severity=severity,
-                        message=f"模板区域未找到: {region_template.region_id}",
-                        source=SourceRef(sheet=sheet.name),
-                        region_id=region_template.region_id,
-                    )
-                )
-                continue
-            for index, bounds in enumerate(located, start=1):
-                extractor = region_template.extractor or ExtractionSpec(
-                    kind=region_template.region_type
-                )
-                if _option_flag(extractor.options, "ignore"):
-                    covered.update(
-                        cell.coordinate for cell in _cells_in_bounds(cells, bounds)
-                    )
-                    continue
-                region_id = (
-                    region_template.region_id
-                    if index == 1
-                    else f"{region_template.region_id}-{index}"
-                )
-                region = _extract_region(
-                    sheet, region_template, bounds, region_id=region_id
-                )
-                if len(located) > 1:
-                    region.metadata["repeat_index"] = index
-                    region.metadata["repeat_anchor"] = True
-                    if region.title and index > 1:
-                        region.title = f"{region.title} ({index})"
-                for binding in region_template.screenshot_bindings:
-                    region.asset_ids.append(binding.asset_id)
-                rendered = _attach_region_screenshot(
-                    document, sheet, region, extractor, diagnostics
-                )
-                if rendered is not None:
-                    sheet.assets = [*sheet.assets, rendered]
-                regions.append(region)
-                if region.source and region.source.range:
-                    try:
-                        final_bounds = range_boundaries(region.source.range)
-                    except ValueError:
-                        final_bounds = bounds
-                else:
-                    final_bounds = bounds
-                covered.update(
-                    cell.coordinate for cell in _cells_in_bounds(cells, final_bounds)
-                )
-        fallback_regions, ranges = _freeform_regions(
-            sheet, excluded=covered, prefix="unrecognized"
-        )
-        regions.extend(fallback_regions)
-        unrecognized[sheet.name] = ranges
-        assets = _copy_assets(sheet, regions)
-        known_assets = {asset.asset_id for asset in assets}
-        for region_template in template_sheet.regions:
-            for binding in region_template.screenshot_bindings:
-                if binding.asset_id not in known_assets:
-                    assets.append(
-                        AssetIR(
-                            asset_id=binding.asset_id,
-                            asset_type=AssetType(binding.asset_type),
-                            uri=binding.path,
-                            description=binding.description,
-                            source=SourceRef(sheet=sheet.name),
-                            extraction_status="bound",
-                            metadata={"template_binding": True},
-                        )
-                    )
-                    known_assets.add(binding.asset_id)
-        output_sheets.append(
-            SheetIR(
-                sheet_id=sheet.sheet_id,
-                name=sheet.name,
-                index=sheet.index,
-                regions=regions,
-                assets=assets,
-                diagnostics=diagnostics,
-                metadata={**sheet.metadata, "extraction_mode": "template"},
-            )
-        )
 
     output = DocumentIR(
         document_id=document.document_id,

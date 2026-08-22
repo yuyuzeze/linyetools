@@ -42,6 +42,8 @@ _FORMAT_SUFFIX = {
     "html": ".html",
     "jsonl": ".jsonl",
     "kb-jsonl": ".jsonl",
+    "semantic-json": ".semantic.json",
+    "chunks": ".chunks.jsonl",
 }
 
 
@@ -70,6 +72,13 @@ def _parse_one(
     asset_dir: Path | None,
     strict: bool,
     minimum_score: float | None,
+    strict_schema: bool,
+    ingest_engine: str,
+    mode: str | None,
+    profile: Path | None,
+    auto_legacy_template: bool,
+    cache: bool,
+    cache_dir: Path | None,
 ) -> None:
     output.mkdir(parents=True, exist_ok=True)
     assets = _asset_dir_for(output, workbook, asset_dir)
@@ -81,6 +90,13 @@ def _parse_one(
             template_directory=template_dir,
             asset_dir=assets,
             minimum_score=minimum_score,
+            strict_schema=strict_schema,
+            ingest_engine=ingest_engine,
+            mode=mode,
+            profile=profile,
+            auto_legacy_template=auto_legacy_template,
+            cache=cache,
+            cache_dir=cache_dir or output,
         )
     except (PipelineValidationError, TemplateValidationError, Exception) as error:  # noqa: BLE001
         _fail(f"parse 失败 ({workbook.name}): {error}")
@@ -119,8 +135,21 @@ def _parse_one(
         typer.echo(str(destination.resolve()))
 
     (output / f"{stem}.diagnostics.json").write_text(
-        to_json([item.to_dict() for item in diagnostics]) + "\n",
+        to_json(
+            {
+                "processing": result.processing,
+                "diagnostics": [item.to_dict() for item in diagnostics],
+            }
+        )
+        + "\n",
         encoding="utf-8",
+    )
+    typer.echo(
+        "mode: "
+        f"{result.processing.get('processing_mode')}"
+        f"/{result.processing.get('detection_mode')}"
+        f" profile={result.processing.get('profile_id')}"
+        f" ingest={result.processing.get('ingest_engine')}"
     )
     if result.match and result.match.template:
         typer.echo(
@@ -178,6 +207,26 @@ def parse_cmd(
         "-t",
         help="模板文件或模板包目录；省略则自动匹配内置/目录模板",
     ),
+    legacy_template: Optional[Path] = typer.Option(
+        None, "--legacy-template", help="旧坐标模板（等价 --template）"
+    ),
+    mode: Optional[str] = typer.Option(
+        None, "--mode", help="零配置检测模式：fast|auto|visual（与 --template 互斥）"
+    ),
+    profile: Optional[Path] = typer.Option(
+        None, "--profile", help="语义 Profile 文件（仅在零配置模式下生效）"
+    ),
+    auto_legacy_template: bool = typer.Option(
+        False,
+        "--auto-legacy-template",
+        help="显式启用旧版 bundled 模板自动匹配（默认零配置 fast）",
+    ),
+    cache: bool = typer.Option(
+        False, "--cache/--no-cache", help="启用内容哈希缓存（默认 output/.excelspec-cache）"
+    ),
+    cache_dir: Optional[Path] = typer.Option(
+        None, "--cache-dir", help="缓存目录（默认 output/）"
+    ),
     template_dir: Optional[Path] = typer.Option(
         None, "--template-dir", help="自动匹配用的模板目录"
     ),
@@ -194,6 +243,16 @@ def parse_cmd(
         help="嵌入图目录；默认每个源文件写到 output/asset.{stem}/",
     ),
     strict: bool = typer.Option(False, "--strict", help="warning 也视为失败"),
+    strict_schema: bool = typer.Option(
+        False,
+        "--strict-schema",
+        help="对 XLSX 也执行完整 DocumentIR JSON Schema 校验（默认仅结构检查）",
+    ),
+    ingest_engine: str = typer.Option(
+        "auto",
+        "--ingest-engine",
+        help="XLSX 摄取引擎：auto(默认)|sparse|legacy",
+    ),
     minimum_score: Optional[float] = typer.Option(None, "--minimum-score"),
 ) -> None:
     """使用模板解析工作簿，写出 {stem}.json / {stem}.md 等（支持批量目录）。"""
@@ -205,16 +264,24 @@ def parse_cmd(
     if not sources:
         _fail("没有找到可解析的 XLSX 文件")
 
+    effective_template = template or legacy_template
     for source in sources:
         _parse_one(
             source,
-            template=template,
+            template=effective_template,
             template_dir=template_dir,
             output=output,
             formats=formats,
             asset_dir=asset_dir,
             strict=strict,
             minimum_score=minimum_score,
+            strict_schema=strict_schema,
+            ingest_engine=ingest_engine,
+            mode=mode,
+            profile=profile,
+            auto_legacy_template=auto_legacy_template,
+            cache=cache,
+            cache_dir=cache_dir,
         )
 
 
@@ -259,6 +326,26 @@ def validate_cmd(
             typer.echo(f"[{item.severity.value}] {item.code}: {item.message}")
     if not payload["valid"]:
         raise typer.Exit(1)
+
+
+@app.command("audit")
+def audit_cmd(
+    workbook: Path = typer.Argument(..., exists=True, readable=True, help="XLSX 文件"),
+    output: Path = typer.Option(
+        Path("audit.html"), "--output", "-o", help="审计 HTML 输出路径"
+    ),
+    mode: str = typer.Option("fast", "--mode", help="fast|auto|visual"),
+    profile: Optional[Path] = typer.Option(None, "--profile", help="语义 Profile"),
+) -> None:
+    """生成人工可检查的 HTML 审计报告（仅评估用途，不改变正式 exporter）。"""
+
+    from .eval.audit import build_audit_html
+
+    try:
+        path = build_audit_html(workbook, output, mode=mode, profile=profile)
+    except Exception as error:  # noqa: BLE001
+        _fail(f"audit 失败: {error}")
+    typer.echo(str(path.resolve()))
 
 
 @template_app.command("init")

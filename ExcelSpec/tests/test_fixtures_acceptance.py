@@ -79,6 +79,12 @@ def _normalized_document(name: str, asset_dir: Path) -> DocumentIR:
     source_name = f"fixtures/workbooks/{case['workbook'].name}"
     document.source_path = source_name
     document.metadata["asset_directory"] = "fixtures/assets"
+    # Phase 2: the sparse and legacy ingestors carry different ingestor metadata
+    # (engine name, fallback flags, sparse stats). Business content is identical,
+    # so normalize just this ingestor-identifying metadata for the shared golden.
+    document.metadata["ingestor"] = "openpyxl+ooxml"
+    for key in ("legacy_fallback", "fallback_reason", "sparse_stats"):
+        document.metadata.pop(key, None)
     for source in _all_sources(document):
         if source.workbook_path:
             source.workbook_path = source_name

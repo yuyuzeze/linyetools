@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import json
 import sysconfig
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
+
+from jsonschema import Draft202012Validator
 
 SCHEMA_FILENAMES = {
     "document-ir": "document-ir.schema.json",
@@ -33,3 +36,24 @@ def schema_path(name: str) -> Path:
 def load_schema(name: str) -> dict[str, Any]:
     with schema_path(name).open(encoding="utf-8") as schema_file:
         return json.load(schema_file)
+
+
+@lru_cache(maxsize=None)
+def _cached_schema(name: str) -> dict[str, Any]:
+    """Load-and-cache a schema so repeated conversions avoid disk + json cost."""
+
+    return load_schema(name)
+
+
+@lru_cache(maxsize=None)
+def get_validator(name: str) -> Draft202012Validator:
+    """Return a compiled, cached validator for ``name``.
+
+    Compiling a :class:`Draft202012Validator` (schema resolution + regex
+    compilation) is the expensive part of validation; caching it removes
+    that cost from every ``validate`` / ``convert`` call within a process.
+    """
+
+    schema = _cached_schema(name)
+    Draft202012Validator.check_schema(schema)
+    return Draft202012Validator(schema)

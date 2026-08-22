@@ -26,12 +26,44 @@ from .templates import TemplateValidationError, match_template
 
 def _add_input_options(parser: argparse.ArgumentParser, *, include_output: bool = False) -> None:
     parser.add_argument("inputs", nargs="+", help="XLSX 文件、IR JSON 或目录")
-    parser.add_argument("--template", help="显式模板文件或模板目录")
+    parser.add_argument("--template", help="显式模板文件或模板目录（legacy 坐标模板）")
+    parser.add_argument(
+        "--legacy-template",
+        help="旧坐标模板文件/目录（等价 --template）",
+    )
+    parser.add_argument(
+        "--mode",
+        choices=("fast", "auto", "visual"),
+        help="零配置检测模式：fast(不启动Excel)|auto|visual；与 --template 互斥（template 优先）",
+    )
+    parser.add_argument("--profile", help="语义 Profile 文件（仅在 --mode 下生效）")
+    parser.add_argument(
+        "--auto-legacy-template",
+        action="store_true",
+        help="显式启用旧版 bundled 模板自动匹配（默认零配置 fast，不再隐式加载）",
+    )
     parser.add_argument("--template-dir", help="自动匹配使用的模板目录")
     parser.add_argument("--minimum-score", type=float, help="覆盖自动匹配最低分")
     parser.add_argument("--asset-dir", help="摄取出的资源目录")
     parser.add_argument("--screenshot-manifest", help="截图清单 JSON")
+    parser.add_argument(
+        "--cache", dest="cache", action="store_true", default=False,
+        help="启用内容哈希缓存（默认写到 output/.excelspec-cache）",
+    )
+    parser.add_argument("--no-cache", dest="cache", action="store_false", help="禁用缓存")
+    parser.add_argument("--cache-dir", help="缓存目录（默认 output/）")
     parser.add_argument("--strict", action="store_true", help="将 warning 视为失败")
+    parser.add_argument(
+        "--ingest-engine",
+        choices=("auto", "sparse", "legacy"),
+        default="auto",
+        help="XLSX 摄取引擎：auto(默认,稀疏优先)|sparse|legacy",
+    )
+    parser.add_argument(
+        "--strict-schema",
+        action="store_true",
+        help="对 XLSX 也执行完整递归 DocumentIR JSON Schema 校验（默认仅结构检查）",
+    )
     parser.add_argument("--json", action="store_true", dest="json_output", help="输出机器可读 JSON")
     parser.add_argument(
         "--diagnostics",
@@ -122,6 +154,7 @@ def _result_dict(result: PipelineResult) -> dict[str, Any]:
             for sheet in result.document.sheets
         ],
         "unrecognized_ranges": result.unrecognized_ranges,
+        "processing": result.processing,
         "validation": {
             "valid": not counts["error"],
             "counts": counts,
@@ -217,13 +250,26 @@ def _process(args: argparse.Namespace, *, include_json: bool) -> tuple[list[dict
                     asset_root = output
                     asset_root.mkdir(parents=True, exist_ok=True)
                 asset_dir = str(asset_root / f"asset.{source.stem}")
+            # The ``validate`` command always runs the full schema; ``convert`` /
+            # ``inspect`` use the fast structural check unless --strict-schema.
+            strict_schema = bool(
+                getattr(args, "strict_schema", False) or args.command == "validate"
+            )
+            template = args.template or getattr(args, "legacy_template", None)
             result = run_pipeline(
                 source,
-                template=args.template,
+                template=template,
                 template_directory=args.template_dir,
                 asset_dir=asset_dir,
                 screenshot_manifest=args.screenshot_manifest,
                 minimum_score=args.minimum_score,
+                strict_schema=strict_schema,
+                ingest_engine=getattr(args, "ingest_engine", "auto"),
+                mode=getattr(args, "mode", None),
+                profile=getattr(args, "profile", None),
+                auto_legacy_template=getattr(args, "auto_legacy_template", False),
+                cache=getattr(args, "cache", False),
+                cache_dir=getattr(args, "cache_dir", None) or (str(output) if output else None),
             )
         except Exception as error:
             items.append(_failure(source, error))
@@ -239,7 +285,16 @@ def _parse_formats(raw: str) -> list[str]:
         name = part.strip().lower()
         if not name:
             continue
-        if name not in {"json", "md", "markdown", "html", "jsonl", "kb-jsonl"}:
+        if name not in {
+            "json",
+            "md",
+            "markdown",
+            "html",
+            "jsonl",
+            "kb-jsonl",
+            "semantic-json",
+            "chunks",
+        }:
             raise ValueError(f"不支持的输出格式: {name}")
         formats.append(name)
     return formats or ["json"]
@@ -255,6 +310,8 @@ def _output_destination(
         "html": ".html",
         "jsonl": ".jsonl",
         "kb-jsonl": ".jsonl",
+        "semantic-json": ".semantic.json",
+        "chunks": ".chunks.jsonl",
     }
     # Explicit single file: convert one.xlsx -o out.md -f md
     if (
@@ -302,6 +359,7 @@ def _run_template_match(args: argparse.Namespace) -> int:
                 source,
                 asset_dir=args.asset_dir,
                 screenshot_manifest=args.screenshot_manifest,
+                engine=getattr(args, "ingest_engine", "auto"),
             )
             result = match_template(raw, templates, minimum_score=args.minimum_score)
             items.append(

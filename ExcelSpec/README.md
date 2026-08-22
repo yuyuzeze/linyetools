@@ -1,15 +1,69 @@
 # ExcelSpec
 
-日语 Excel 式样书转换核心。稳定边界是版本化中间表示：
+把日语 Excel 式样书转换成 Markdown / HTML / 语义 JSON / 知识块 JSONL，用于构建知识库。
+
+## 快速开始（v0.2 · 默认零配置）
+
+```bash
+jpspec parse spec.xlsx -o output -f md,html,semantic-json,chunks
+```
+
+- **默认零配置 fast**：`SparseWorkbookIR → RegionDetector → RegionRouter → DocumentIR → exporters`，
+  无需模板/Profile；不启动 Excel、不执行宏和公式、不跑完整 JSON Schema。
+- **不执行宏和公式**：公式保留原文与缓存显示值，绝不计算，绝不加载外部 workbook 链接或访问公式内 URL。
+- **visual 模式需要 Windows + Excel**（`--mode visual` 截图；缺 Excel 时降级并保留结构化内容）。
+- **legacy 坐标模板仍受支持**：`--template PATH` / `--legacy-template PATH`（template 优先于 mode）。
+- **Profile 只负责语义别名**：Sheet role / 字段 concept，不含任何坐标（`--profile PATH`）。
+
+数据流：
 
 ```text
-XLSX -> DocumentIR / canonical.json -> Markdown / HTML / JSONL
+XLSX
+  → SparseWorkbookIR（稀疏，单次 openpyxl 加载）
+  → RegionDetector → CandidateRegion → materialize(选中) → RegionRouter
+  → DocumentIR（布局/兼容）
+  → SemanticAssembler → SemanticDocumentIR → KnowledgeChunker → KnowledgeChunkIR
+  → Markdown / HTML / JSON / semantic-json / chunks(JSONL)
 ```
 
 命令入口：
 
-- **推荐**：`jpspec`（Typer）
+- **推荐**：`jpspec`（Typer）— `parse` / `inspect` / `validate` / `audit` / `template`
 - **兼容**：`excelspec`（旧 argparse）
+- **基准**：`python -m excelspec.benchmark`（`--zeroconfig` / `--compare` / `--directory`）
+
+### 输出格式
+
+| 格式 | 文件 | 内容 |
+|------|------|------|
+| `json` | `{stem}.json` | DocumentIR（布局/兼容，稳定） |
+| `md` / `html` | `{stem}.md/.html` | 人类阅读 |
+| `semantic-json` | `{stem}.semantic.json` | SemanticDocumentIR（语义视图，可追溯） |
+| `chunks` | `{stem}.chunks.jsonl` | KnowledgeChunkIR（结构化知识块，一行一个 JSON） |
+| `jsonl` | `{stem}.jsonl` | 旧 KnowledgeBase JSONL（保留兼容） |
+
+### 模式与缓存
+
+```bash
+jpspec parse spec.xlsx --profile profiles/screen-design.yaml -o out -f semantic-json,chunks
+jpspec parse spec.xlsx --mode visual -o out -f md,html,chunks        # 需 Windows+Excel
+jpspec parse spec.xlsx -o out --cache                                # 内容哈希缓存（output/.excelspec-cache）
+jpspec audit spec.xlsx -o audit.html                                 # 人工检查 HTML 审计
+```
+
+缓存 key = workbook SHA-256 + parser/sparse/detector/semantic 版本 + profile 内容 hash + mode + asset_dir；
+命中跳过 ingest/detect 并**逐字节一致**；损坏自愈；只写在 `output/.excelspec-cache/`，绝不在源 Excel 旁。
+
+### 安全说明
+
+不执行宏/公式、不加载外部 workbook 链接、不访问公式内 URL、不用 pickle 反序列化缓存（仅 JSON）；
+HTML/Markdown/JSONL 均转义（`<script>`、`|`、换行、控制字符）；资产文件名净化、只从 zip 成员读取，
+不写出 output/cache 之外；单 Sheet 异常局部降级不影响其他 Sheet。
+
+### 已知限制
+
+评估基于合成标注用例（见 `src/excelspec/eval/`），**尚不能声称真实业务解析准确率**（仓库无真实生产式样书）。
+无样式表头、border-only 布局、数组/共享公式展开、连接线语义、真实 OCR/VLM 接入仍待完善。
 
 ## 工程结构
 

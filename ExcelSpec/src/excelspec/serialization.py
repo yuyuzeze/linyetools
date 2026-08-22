@@ -6,10 +6,23 @@ import json
 import types
 from dataclasses import fields, is_dataclass
 from enum import Enum
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, TypeVar, Union, get_args, get_origin, get_type_hints
 
 T = TypeVar("T", bound="JsonModel")
+
+
+@lru_cache(maxsize=None)
+def _cached_hints(annotation: type) -> dict[str, Any]:
+    """Cache ``get_type_hints`` per dataclass — it dominates ``from_dict`` cost."""
+
+    return get_type_hints(annotation)
+
+
+@lru_cache(maxsize=None)
+def _cached_field_names(annotation: type) -> frozenset[str]:
+    return frozenset(field.name for field in fields(annotation))
 
 
 def _to_data(value: Any) -> Any:
@@ -48,8 +61,8 @@ def _from_data(annotation: Any, value: Any) -> Any:
     if isinstance(annotation, type) and issubclass(annotation, Enum):
         return annotation(value)
     if isinstance(annotation, type) and is_dataclass(annotation):
-        hints = get_type_hints(annotation)
-        known_fields = {field.name for field in fields(annotation)}
+        hints = _cached_hints(annotation)
+        known_fields = _cached_field_names(annotation)
         unknown = set(value) - known_fields
         if unknown:
             names = ", ".join(sorted(unknown))

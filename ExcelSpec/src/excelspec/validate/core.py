@@ -7,8 +7,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable
 
-from jsonschema import Draft202012Validator
-
 from ..models.document_ir import (
     DiagnosticIR,
     DiagnosticSeverity,
@@ -18,7 +16,7 @@ from ..models.document_ir import (
     SourceRef,
 )
 from ..models.template import RegionTemplate, TemplateSpec, ValidationRule
-from ..schemas import load_schema
+from ..schemas import get_validator
 
 
 @dataclass(slots=True)
@@ -83,7 +81,7 @@ def validate_ir_data(
     """Validate an untyped mapping against the bundled DocumentIR schema."""
 
     diagnostics: list[DiagnosticIR] = []
-    validator = Draft202012Validator(load_schema("document-ir"))
+    validator = get_validator("document-ir")
     for error in sorted(
         validator.iter_errors(data),
         key=lambda item: tuple(str(part) for part in item.absolute_path),
@@ -113,13 +111,66 @@ def validate_ir_schema(document: DocumentIR) -> list[DiagnosticIR]:
     return validate_ir_data(document.to_dict(), document=document)
 
 
+def validate_ir_structure(document: DocumentIR) -> list[DiagnosticIR]:
+    """Fast, allocation-free structural sanity check on a *typed* document.
+
+    Used on the default XLSX ``convert`` / ``parse`` path in place of the full
+    recursive JSON Schema validation. Because the document is already built
+    from typed dataclasses, its shape is guaranteed; this only guards the few
+    invariants a construction bug could still violate (empty ids, negative
+    indexes, duplicate sheet ids) without walking every ``CellIR``.
+    """
+
+    diagnostics: list[DiagnosticIR] = []
+    if not document.document_id:
+        diagnostics.append(
+            DiagnosticIR(
+                code="structure.document_id_empty",
+                severity=DiagnosticSeverity.ERROR,
+                message="DocumentIR.document_id 不能为空",
+            )
+        )
+    seen_sheet_ids: set[str] = set()
+    for sheet in document.sheets:
+        if not sheet.sheet_id:
+            diagnostics.append(
+                DiagnosticIR(
+                    code="structure.sheet_id_empty",
+                    severity=DiagnosticSeverity.ERROR,
+                    message=f"工作表缺少 sheet_id: {sheet.name}",
+                    source=SourceRef(sheet=sheet.name),
+                )
+            )
+        elif sheet.sheet_id in seen_sheet_ids:
+            diagnostics.append(
+                DiagnosticIR(
+                    code="structure.sheet_id_duplicate",
+                    severity=DiagnosticSeverity.ERROR,
+                    message=f"重复的 sheet_id: {sheet.sheet_id}",
+                    source=SourceRef(sheet=sheet.name),
+                )
+            )
+        else:
+            seen_sheet_ids.add(sheet.sheet_id)
+        if sheet.index < 0:
+            diagnostics.append(
+                DiagnosticIR(
+                    code="structure.sheet_index_negative",
+                    severity=DiagnosticSeverity.ERROR,
+                    message=f"工作表 index 不能为负: {sheet.name}",
+                    source=SourceRef(sheet=sheet.name),
+                )
+            )
+    return diagnostics
+
+
 def validate_template_structure(
     data: dict[str, Any], *, path: str | Path | None = None
 ) -> list[DiagnosticIR]:
     """Return template-schema failures as normal machine-readable diagnostics."""
 
     diagnostics: list[DiagnosticIR] = []
-    validator = Draft202012Validator(load_schema("template"))
+    validator = get_validator("template")
     for error in sorted(
         validator.iter_errors(data),
         key=lambda item: tuple(str(part) for part in item.absolute_path),
@@ -406,9 +457,24 @@ def validate_business_rules(
 
 
 def validate_document(
-    document: DocumentIR, template: TemplateSpec | None = None
+    document: DocumentIR,
+    template: TemplateSpec | None = None,
+    *,
+    strict_schema: bool = True,
 ) -> ValidationResult:
-    diagnostics = validate_ir_schema(document)
+    """Validate a typed document.
+
+    ``strict_schema=True`` (the default, preserving historical behaviour and
+    used by the ``validate`` command / external JSON inputs / CI) runs the full
+    recursive DocumentIR JSON Schema over every cell. ``strict_schema=False``
+    (the default XLSX ``convert`` / ``parse`` fast path) substitutes the cheap
+    :func:`validate_ir_structure` check and keeps the business-rule pass.
+    """
+
+    if strict_schema:
+        diagnostics = validate_ir_schema(document)
+    else:
+        diagnostics = validate_ir_structure(document)
     if template is not None:
         diagnostics.extend(validate_business_rules(document, template))
     return ValidationResult(diagnostics)
@@ -420,5 +486,6 @@ __all__ = [
     "validate_document",
     "validate_ir_data",
     "validate_ir_schema",
+    "validate_ir_structure",
     "validate_template_structure",
 ]

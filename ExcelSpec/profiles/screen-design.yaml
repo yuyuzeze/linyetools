@@ -1,0 +1,61 @@
+# Semantic profile for Japanese screen-design specs.
+# Business semantics only — no coordinates, ranges, offsets, or anchors.
+schema_version: "1"
+profile_id: screen-design
+document_type: screen_design
+
+match:
+  filename_patterns:
+    - "^SCR-"
+  sheet_aliases:
+    cover:
+      - 表紙
+      - Cover
+    fields:
+      - 画面入出力項目一覧
+      - 入出力項目
+      - 項目一覧
+      - 画面項目
+    actions:
+      - 画面アクション一覧
+      - アクション一覧
+
+fields:
+  field_name:
+    aliases:
+      - 画面項目名
+      - 項目名称
+      - フィールド名
+      - 項目名
+  required:
+    aliases:
+      - 必須
+      - 必須区分
+  data_type:
+    aliases:
+      - データ型
+      - 型
+      - 属性
+  data_source:
+    aliases:
+      - データ元
+      - 取得元
+      - 表示名
+  remarks:
+    aliases:
+      - 補足説明
+      - 備考
+      - 入力チェック
+
+required_concepts:
+  fields:
+    - field_name
+
+validation:
+  - concept: field_name
+    required: true
+
+overrides:
+  - sheet_alias: fields
+    ignore:
+      - A1:Z1

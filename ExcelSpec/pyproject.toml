@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "excelspec"
-version = "0.1.0"
+version = "0.2.0"
 description = "Versioned intermediate representation for Excel specification documents"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -25,6 +25,7 @@ dev = []
 [project.scripts]
 excelspec = "excelspec.cli:main"
 jpspec = "excelspec.jpspec_cli:main"
+excelspec-bench = "excelspec.benchmark:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -9,6 +9,7 @@ from .core import (
     validate_document,
     validate_ir_data,
     validate_ir_schema,
+    validate_ir_structure,
     validate_template_structure,
 )
 
@@ -24,5 +25,6 @@ __all__ = [
     "validate_document",
     "validate_ir_data",
     "validate_ir_schema",
+    "validate_ir_structure",
     "validate_template_structure",
 ]

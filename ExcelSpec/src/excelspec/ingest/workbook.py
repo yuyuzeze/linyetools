@@ -361,6 +361,110 @@ def _bind_manifest(
     return document_diagnostics
 
 
+def attach_drawings(
+    sheets: list[SheetIR],
+    workbook_path: Path,
+    asset_dir: Path,
+    *,
+    include_images: bool,
+    include_shapes: bool,
+) -> list[DiagnosticIR]:
+    """Extract images/shapes for every sheet from the OOXML package.
+
+    Shared by the legacy and sparse ingestors so asset extraction stays
+    byte-identical across both paths. Returns document-level diagnostics; a
+    single malformed drawing yields a per-sheet warning, while a broken package
+    yields one ``OOXML_PACKAGE_INVALID`` document diagnostic.
+    """
+
+    document_diagnostics: list[DiagnosticIR] = []
+    try:
+        with zipfile.ZipFile(workbook_path) as archive:
+            sheet_parts = workbook_sheet_parts(archive)
+            for sheet in sheets:
+                part = sheet_parts.get(sheet.name)
+                if not part:
+                    sheet.diagnostics.append(
+                        DiagnosticIR(
+                            code="OOXML_WORKSHEET_PART_MISSING",
+                            severity=DiagnosticSeverity.ERROR,
+                            message="无法定位工作表对应的 OOXML 部件",
+                            source=_source(workbook_path, sheet.name),
+                        )
+                    )
+                    continue
+                drawing_assets, drawing_diagnostics = extract_sheet_drawings(
+                    archive,
+                    sheet_part=part,
+                    sheet_name=sheet.name,
+                    output_dir=asset_dir / f"sheet-{sheet.index + 1}",
+                    include_images=include_images,
+                    include_shapes=include_shapes,
+                )
+                asset_numbers: dict[str, int] = {}
+                for drawing in drawing_assets:
+                    asset_numbers[drawing.kind] = asset_numbers.get(drawing.kind, 0) + 1
+                    sheet.assets.append(
+                        AssetIR(
+                            asset_id=(
+                                f"{sheet.sheet_id}-{drawing.kind}-"
+                                f"{asset_numbers[drawing.kind]}"
+                            ),
+                            asset_type=AssetType(drawing.kind),
+                            uri=drawing.uri,
+                            media_type=drawing.media_type,
+                            description=drawing.description,
+                            source=_source(workbook_path, sheet.name),
+                            anchor=drawing.anchor,
+                            extraction_status="extracted",
+                            metadata=drawing.metadata,
+                        )
+                    )
+                for diagnostic in drawing_diagnostics:
+                    sheet.diagnostics.append(
+                        DiagnosticIR(
+                            code=diagnostic.code,
+                            severity=DiagnosticSeverity.WARNING,
+                            message=diagnostic.message,
+                            source=_source(workbook_path, sheet.name),
+                            details=diagnostic.details,
+                        )
+                    )
+    except (zipfile.BadZipFile, ET.ParseError, KeyError, ValueError) as error:
+        document_diagnostics.append(
+            DiagnosticIR(
+                code="OOXML_PACKAGE_INVALID",
+                severity=DiagnosticSeverity.ERROR,
+                message="无法解析 XLSX 的 OOXML 资产关系",
+                details={"error": str(error)},
+            )
+        )
+    return document_diagnostics
+
+
+def bind_manifest_assets(
+    manifest_path: Path,
+    sheets: list[SheetIR],
+    workbook_path: Path,
+) -> list[DiagnosticIR]:
+    """Load and bind a screenshot manifest (shared by both ingestors)."""
+
+    document_diagnostics: list[DiagnosticIR] = []
+    try:
+        manifest = load_screenshot_manifest(manifest_path)
+        document_diagnostics.extend(_bind_manifest(manifest, sheets, workbook_path))
+    except (OSError, ValueError) as error:
+        document_diagnostics.append(
+            DiagnosticIR(
+                code="SCREENSHOT_MANIFEST_INVALID",
+                severity=DiagnosticSeverity.ERROR,
+                message="截图清单无法读取",
+                details={"manifest": str(manifest_path), "error": str(error)},
+            )
+        )
+    return document_diagnostics
+
+
 class XlsxIngestor:
     def __init__(self, options: XlsxIngestOptions | None = None) -> None:
         self.options = options or XlsxIngestOptions()
@@ -402,88 +506,22 @@ class XlsxIngestor:
                 )
 
             if self.options.include_images or self.options.include_shapes:
-                try:
-                    with zipfile.ZipFile(workbook_path) as archive:
-                        sheet_parts = workbook_sheet_parts(archive)
-                        for sheet in sheets:
-                            part = sheet_parts.get(sheet.name)
-                            if not part:
-                                sheet.diagnostics.append(
-                                    DiagnosticIR(
-                                        code="OOXML_WORKSHEET_PART_MISSING",
-                                        severity=DiagnosticSeverity.ERROR,
-                                        message="无法定位工作表对应的 OOXML 部件",
-                                        source=_source(workbook_path, sheet.name),
-                                    )
-                                )
-                                continue
-                            drawing_assets, drawing_diagnostics = extract_sheet_drawings(
-                                archive,
-                                sheet_part=part,
-                                sheet_name=sheet.name,
-                                output_dir=asset_dir / f"sheet-{sheet.index + 1}",
-                                include_images=self.options.include_images,
-                                include_shapes=self.options.include_shapes,
-                            )
-                            asset_numbers: dict[str, int] = {}
-                            for drawing in drawing_assets:
-                                asset_numbers[drawing.kind] = (
-                                    asset_numbers.get(drawing.kind, 0) + 1
-                                )
-                                sheet.assets.append(
-                                    AssetIR(
-                                        asset_id=(
-                                            f"{sheet.sheet_id}-{drawing.kind}-"
-                                            f"{asset_numbers[drawing.kind]}"
-                                        ),
-                                        asset_type=AssetType(drawing.kind),
-                                        uri=drawing.uri,
-                                        media_type=drawing.media_type,
-                                        description=drawing.description,
-                                        source=_source(workbook_path, sheet.name),
-                                        anchor=drawing.anchor,
-                                        extraction_status="extracted",
-                                        metadata=drawing.metadata,
-                                    )
-                                )
-                            for diagnostic in drawing_diagnostics:
-                                sheet.diagnostics.append(
-                                    DiagnosticIR(
-                                        code=diagnostic.code,
-                                        severity=DiagnosticSeverity.WARNING,
-                                        message=diagnostic.message,
-                                        source=_source(workbook_path, sheet.name),
-                                        details=diagnostic.details,
-                                    )
-                                )
-                except (zipfile.BadZipFile, ET.ParseError, KeyError, ValueError) as error:
-                    document_diagnostics.append(
-                        DiagnosticIR(
-                            code="OOXML_PACKAGE_INVALID",
-                            severity=DiagnosticSeverity.ERROR,
-                            message="无法解析 XLSX 的 OOXML 资产关系",
-                            details={"error": str(error)},
-                        )
+                document_diagnostics.extend(
+                    attach_drawings(
+                        sheets,
+                        workbook_path,
+                        asset_dir,
+                        include_images=self.options.include_images,
+                        include_shapes=self.options.include_shapes,
                     )
+                )
 
             if self.options.screenshot_manifest:
-                try:
-                    manifest = load_screenshot_manifest(self.options.screenshot_manifest)
-                    document_diagnostics.extend(
-                        _bind_manifest(manifest, sheets, workbook_path)
+                document_diagnostics.extend(
+                    bind_manifest_assets(
+                        self.options.screenshot_manifest, sheets, workbook_path
                     )
-                except (OSError, ValueError) as error:
-                    document_diagnostics.append(
-                        DiagnosticIR(
-                            code="SCREENSHOT_MANIFEST_INVALID",
-                            severity=DiagnosticSeverity.ERROR,
-                            message="截图清单无法读取",
-                            details={
-                                "manifest": str(self.options.screenshot_manifest),
-                                "error": str(error),
-                            },
-                        )
-                    )
+                )
 
             properties = formula_book.properties
             return DocumentIR(
@@ -521,4 +559,15 @@ def ingest_xlsx(
     return XlsxIngestor(options).ingest(Path(workbook))
 
 
-__all__ = ["XlsxIngestOptions", "XlsxIngestor", "ingest_xlsx"]
+# The legacy openpyxl double-load ingestor, kept as the guaranteed fallback.
+LegacyOpenpyxlIngestor = XlsxIngestor
+
+
+__all__ = [
+    "LegacyOpenpyxlIngestor",
+    "XlsxIngestOptions",
+    "XlsxIngestor",
+    "attach_drawings",
+    "bind_manifest_assets",
+    "ingest_xlsx",
+]
