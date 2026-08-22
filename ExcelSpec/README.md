@@ -11,7 +11,7 @@ jpspec parse spec.xlsx -o output -f md,html,semantic-json,chunks
 - **默认零配置 fast**：`SparseWorkbookIR → RegionDetector → RegionRouter → DocumentIR → exporters`，
   无需模板/Profile；不启动 Excel、不执行宏和公式、不跑完整 JSON Schema。
 - **不执行宏和公式**：公式保留原文与缓存显示值，绝不计算，绝不加载外部 workbook 链接或访问公式内 URL。
-- **visual 模式需要 Windows + Excel**（`--mode visual` 截图；缺 Excel 时降级并保留结构化内容）。
+- **visual 模式按需使用 Windows + Excel**：嵌入图片直接复用原图；Shape 按锚点并集、单元格布局按连续边框/合并范围截图。过小的标题区域会跳过；只有真正需要区域截图时才启动 Excel。缺 Excel 时降级并保留结构化内容。
 - **legacy 坐标模板仍受支持**：`--template PATH` / `--legacy-template PATH`（template 优先于 mode）。
 - **Profile 只负责语义别名**：Sheet role / 字段 concept，不含任何坐标（`--profile PATH`）。
 

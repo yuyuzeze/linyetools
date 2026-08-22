@@ -273,6 +273,13 @@ class RegionRouter:
     def _route_asset(self, sheet, candidate, region) -> None:
         # image / shape: no grid cells, the asset carries the content
         region.metadata["materialized_cell_count"] = 0
+        if candidate.region_type == CandidateRegionType.SHAPE:
+            # Shape text is extracted structurally, but the connectors and
+            # relative placement require a visual capture in auto/visual mode.
+            region.metadata["visual"] = True
+            region.metadata["visual_kind"] = "shape"
+        else:
+            region.metadata["visual_source"] = "embedded_asset"
 
     def _route_layout(self, sheet, candidate, region) -> None:
         # fast mode: keep structure + drawings + source range only, no COM.

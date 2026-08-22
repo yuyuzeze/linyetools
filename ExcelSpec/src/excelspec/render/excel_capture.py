@@ -139,7 +139,16 @@ class ExcelCaptureSession:
                 "Excel COM 截图需要安装 pywin32：pip install pywin32"
             ) from error
         global _LAUNCH_COUNT
-        excel = win32com.client.DispatchEx("Excel.Application")
+        try:
+            excel = win32com.client.DispatchEx("Excel.Application")
+        except Exception as error:  # noqa: BLE001 - COM availability boundary
+            hresult = error.args[0] if getattr(error, "args", None) else None
+            if hresult == -2147221005:
+                raise RuntimeError(
+                    "无法启动 Microsoft Excel COM（Excel.Application 未注册）。"
+                    "请确认已安装桌面版 Excel，且 Office 与 Python 位数兼容。"
+                ) from error
+            raise
         _LAUNCH_COUNT += 1
         excel.Visible = False
         excel.DisplayAlerts = False

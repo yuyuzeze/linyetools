@@ -73,7 +73,7 @@ SparseWorkbookIR
   regex alias 可选，模糊匹配默认关闭；一表头匹配多 concept → `profile.ambiguous_header`；
   未匹配表头原样保留。
 - 字段映射同时保留 `source_header`/`semantic_name`/`source_column`/`confidence`。
-- overrides 支持 ignore ranges / exclude_sheet / force_region_type / title（全部可选，零配置仍可运行）。
+- overrides 支持 ignore ranges / exclude_sheet / force_region_type / title，以及仅用于视觉截图兜底的 `visual_range`（全部可选，零配置仍可运行）。
 
 顺序严格为：RegionDetector → CandidateRegion → Profile 增强 → RegionRouter（Profile 不做区域发现）。
 
@@ -93,7 +93,7 @@ SparseWorkbookIR
 经 excelspec CLI `results[].processing` 与 jpspec `{stem}.diagnostics.json` 输出。
 
 - fast：零配置、sparse ingest、detect+route、不启动 Excel、不 OCR/VLM，layout 仅留结构/资源/诊断。
-- auto/visual：对 layout（visual）区域截图，**一个工作簿复用一个 `ExcelCaptureSession`**
+- auto/visual：优先直接复用嵌入图片；Shape 使用锚点范围并集；单元格绘制布局使用连续边框和合并范围扩展截图边界；过小标题范围不截图。需要 Excel 截图时，**一个工作簿复用一个 `ExcelCaptureSession`**
   （`test_visual_mode_reuses_single_session_and_captures` 断言只启动一次）；
   截图失败写 `route.screenshot_failed` 警告并**保留结构化内容**
   （`test_visual_mode_screenshot_failure_keeps_structure`）。

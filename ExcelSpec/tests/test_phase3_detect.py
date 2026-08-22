@@ -292,6 +292,26 @@ class ProfileTests(unittest.TestCase):
         profile = self._profile()  # ignore under overrides must NOT be rejected
         self.assertEqual(["A1:Z1"], profile.overrides[0].ignore)
 
+    def test_overrides_may_contain_visual_range(self) -> None:
+        profile = parse_profile(
+            {
+                "profile_id": "p",
+                "document_type": "d",
+                "overrides": [{"sheet": "Layout", "visual_range": "A5:Z40"}],
+            }
+        )
+        self.assertEqual("A5:Z40", profile.overrides[0].visual_range)
+
+    def test_invalid_visual_range_is_rejected(self) -> None:
+        with self.assertRaises(ProfileValidationError):
+            parse_profile(
+                {
+                    "profile_id": "p",
+                    "document_type": "d",
+                    "overrides": [{"sheet": "Layout", "visual_range": "not-a-range"}],
+                }
+            )
+
     def test_normalize_header_nfkc_and_case(self) -> None:
         # full-width spaces trimmed/normalized; casing folded
         self.assertEqual(normalize_header("　項目名　"), "項目名")
@@ -386,7 +406,15 @@ class ModeTests(unittest.TestCase):
         self.assertEqual("fixture-screen-design", result.document.template_id)
 
     def _layout_workbook(self, directory: str) -> SparseWorkbookIR:
-        assets = [AssetIR(asset_id="img1", asset_type=AssetType.IMAGE, uri="x.png", anchor="A2")]
+        assets = [
+            AssetIR(
+                asset_id="shape1",
+                asset_type=AssetType.SHAPE,
+                uri="ooxml://drawing#shape-1",
+                anchor="A2:D8",
+                description="flow",
+            )
+        ]
         sheet = _sheet("Layout", {(1, 1): "画面レイアウト", (2, 1): "説明"}, assets=assets)
         workbook = _workbook(sheet)
         workbook.metadata["asset_directory"] = directory
@@ -423,6 +451,155 @@ class ModeTests(unittest.TestCase):
             a for s in document.sheets for a in s.assets if a.asset_type == AssetType.SCREENSHOT
         ]
         self.assertTrue(screenshots)
+        self.assertEqual("A1:D8", screenshots[0].anchor)
+        self.assertEqual("shape_anchor_union", screenshots[0].metadata["capture_strategy"])
+
+    def test_visual_mode_reuses_embedded_image_without_excel(self) -> None:
+        from excelspec.detect.assemble import assemble_document
+        import excelspec.render as render
+
+        class MustNotStart:
+            def __init__(self, path):
+                raise AssertionError("embedded image must not start Excel")
+
+        with tempfile.TemporaryDirectory() as directory:
+            assets = [
+                AssetIR(
+                    asset_id="img1",
+                    asset_type=AssetType.IMAGE,
+                    uri=str(Path(directory) / "layout.png"),
+                    anchor="A2",
+                    description="layout",
+                )
+            ]
+            sheet = _sheet(
+                "Layout",
+                {(1, 1): "画面レイアウト", (2, 1): "説明"},
+                assets=assets,
+            )
+            workbook = _workbook(sheet)
+            workbook.metadata["asset_directory"] = directory
+            with mock.patch.object(render, "ExcelCaptureSession", MustNotStart):
+                document, _ = assemble_document(workbook, mode="visual")
+        visual = next(
+            region
+            for sheet in document.sheets
+            for region in sheet.regions
+            if region.metadata.get("visual")
+        )
+        self.assertEqual(
+            "reuse_embedded_asset", visual.metadata["screenshot_strategy"]
+        )
+        self.assertEqual(["img1"], visual.metadata["visual_source_asset_ids"])
+
+    def test_visual_range_profile_override_wins(self) -> None:
+        from excelspec.detect.assemble import assemble_document
+        import excelspec.render as render
+
+        captures: list[str] = []
+
+        class FakeSession:
+            def __init__(self, path):
+                pass
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+            def capture(self, sheet_name, a1, destination):
+                captures.append(a1)
+                path = Path(destination)
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b"png")
+                return path
+
+        profile = parse_profile(
+            {
+                "profile_id": "p",
+                "document_type": "d",
+                "overrides": [{"sheet": "Layout", "visual_range": "B5:Z40"}],
+            }
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            workbook = self._layout_workbook(directory)
+            with mock.patch.object(render, "ExcelCaptureSession", FakeSession):
+                document, _ = assemble_document(workbook, mode="visual", profile=profile)
+        self.assertEqual(["B5:Z40"], captures)
+        screenshot = next(
+            asset
+            for sheet in document.sheets
+            for asset in sheet.assets
+            if asset.asset_type == AssetType.SCREENSHOT
+        )
+        self.assertEqual("profile_override", screenshot.metadata["capture_strategy"])
+
+    def test_border_drawn_layout_uses_detected_box(self) -> None:
+        from excelspec.detect.assemble import assemble_document
+        import excelspec.render as render
+
+        captures: list[str] = []
+
+        class FakeSession:
+            def __init__(self, path):
+                pass
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+            def capture(self, sheet_name, a1, destination):
+                captures.append(a1)
+                path = Path(destination)
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b"png")
+                return path
+
+        sheet = _sheet("Layout", {})
+        sheet.style_only = {(row, col): 1 for row in range(5, 10) for col in range(1, 5)}
+        workbook = _workbook(sheet, {1: StyleIR(border={"left": {"style": "thin"}})})
+        with tempfile.TemporaryDirectory() as directory:
+            workbook.metadata["asset_directory"] = directory
+            with mock.patch.object(render, "ExcelCaptureSession", FakeSession):
+                document, _ = assemble_document(workbook, mode="visual")
+        self.assertEqual(["A5:D9"], captures)
+        visual = next(
+            region
+            for output_sheet in document.sheets
+            for region in output_sheet.regions
+            if region.metadata.get("visual")
+        )
+        self.assertEqual("detected_visual_bounds", visual.metadata["screenshot_strategy"])
+
+    def test_tiny_visual_range_is_skipped_without_excel(self) -> None:
+        from excelspec.detect.assemble import assemble_document
+        import excelspec.render as render
+
+        class MustNotStart:
+            def __init__(self, path):
+                raise AssertionError("tiny layout must not start Excel")
+
+        sheet = _sheet(
+            "Layout",
+            {(1, 1): _cell(1, 1, "标题", style_id=1), (2, 1): "说明"},
+            merges={(1, 1): (1, 2)},
+        )
+        workbook = _workbook(sheet, {1: StyleIR(font={"bold": True})})
+        with mock.patch.object(render, "ExcelCaptureSession", MustNotStart):
+            document, _ = assemble_document(workbook, mode="visual")
+        visual_regions = [
+            region
+            for output_sheet in document.sheets
+            for region in output_sheet.regions
+            if region.metadata.get("visual")
+        ]
+        # The detector may conservatively keep this as text; if it marks it as
+        # visual, the capture policy must still refuse the tiny strip.
+        for region in visual_regions:
+            self.assertEqual("skip_tiny_visual_range", region.metadata["screenshot_strategy"])
 
     def test_visual_mode_screenshot_failure_keeps_structure(self) -> None:
         from excelspec.detect.assemble import assemble_document

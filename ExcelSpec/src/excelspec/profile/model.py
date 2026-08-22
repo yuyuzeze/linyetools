@@ -32,6 +32,10 @@ class ProfileOverride:
     force_region_type: str | None = None
     exclude_sheet: bool = False
     title: str | None = None
+    # Optional last-resort correction for a visually drawn sheet.  Profiles
+    # remain semantic by default; this coordinate is allowed only under
+    # ``overrides`` and never participates in ordinary region detection.
+    visual_range: str | None = None
 
 
 @dataclass(slots=True)

@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from openpyxl.utils import range_boundaries
 
 from .model import (
     FieldConcept,
@@ -97,6 +98,20 @@ def parse_profile(data: dict[str, Any], *, path: Path | None = None) -> Semantic
         for item in (data.get("validation", []) or [])
     ]
 
+    raw_overrides = list(data.get("overrides", []) or [])
+    for index, item in enumerate(raw_overrides):
+        visual_range = item.get("visual_range")
+        if visual_range is None:
+            continue
+        try:
+            range_boundaries(str(visual_range))
+        except ValueError:
+            errors.append(
+                f"overrides[{index}].visual_range: 无效的 Excel 范围 '{visual_range}'"
+            )
+    if errors:
+        raise ProfileValidationError(errors, path=path)
+
     overrides = [
         ProfileOverride(
             sheet_alias=item.get("sheet_alias"),
@@ -105,8 +120,9 @@ def parse_profile(data: dict[str, Any], *, path: Path | None = None) -> Semantic
             force_region_type=item.get("force_region_type"),
             exclude_sheet=bool(item.get("exclude_sheet", False)),
             title=item.get("title"),
+            visual_range=item.get("visual_range"),
         )
-        for item in (data.get("overrides", []) or [])
+        for item in raw_overrides
     ]
 
     return SemanticProfile(
