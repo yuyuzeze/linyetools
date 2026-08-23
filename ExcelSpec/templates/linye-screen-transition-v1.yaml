@@ -1,0 +1,66 @@
+schema_version: "1.0"
+template_id: linye-screen-transition
+version: "1.0"
+name: 画面遷移図（フロー図）
+description: |
+  画面遷移図 / 画面フロー系シート向け。
+  固定 top/left/right + 動的 bottom で図全体を 1 枚のスクリーンショットに収める。
+  bottom は OOXML Drawing anchor（図形・コネクタ・画像）と内容・罫線から算出し、
+  Excel が無い環境ではテキストと図形テキストにフォールバックする。
+  具体的な顧客ファイル名・絶対パス・固定 bottom 行は一切含まない。
+match:
+  file_name_patterns:
+    - "^.*(画面遷移図|画面遷移|画面フロー).*\\.(xlsx|xlsm)$"
+  require_file_name_match: true
+  file_name_priority: true
+  sheet_name_patterns:
+    - "^(画面遷移図|画面遷移|画面フロー)$"
+  fingerprints:
+    - sheet_name_pattern: "^(画面遷移図|画面遷移|画面フロー)$"
+      required_text: ["画面遷移"]
+      weight: 1.0
+  minimum_score: 0.4
+
+sheets:
+  - sheet_id: screen-transition
+    name_pattern: "^(画面遷移図|画面遷移|画面フロー)$"
+    order: 10
+    regions:
+      - region_id: transition-diagram
+        region_type: layout
+        title: 画面遷移図
+        order: 10
+        required: true
+        locator:
+          mode: anchor
+          anchor_pattern: "^\\s*■?\\s*(画面遷移図|画面遷移|画面フロー)\\s*$"
+          row_offset: 1
+          # repeat_anchor makes each ■画面遷移図 heading its own diagram, each
+          # with an independently computed dynamic bottom.
+          repeat_anchor: true
+        extractor:
+          kind: asset
+          options:
+            screenshot: true
+            screenshot_engine: excel_com
+            screenshot_bounds: dynamic_bottom
+            top_from_anchor: true
+            left_column: B
+            right_column: BZ
+            bottom_strategy: content_and_drawing
+            include_shapes: true
+            include_connectors: true
+            include_images: true
+            include_bordered_cells: true
+            padding_bottom_rows: 2
+            fallback_bottom: used_region
+            max_bottom_row: 2000
+            text_fallback: true
+
+validation_rules: []
+metadata:
+  language: ja-JP
+  document_kind: screen-transition
+  layout_family: flow-diagram
+  screenshot_policy: fixed-three-sides-dynamic-bottom
+  synthetic_fixture_only: true

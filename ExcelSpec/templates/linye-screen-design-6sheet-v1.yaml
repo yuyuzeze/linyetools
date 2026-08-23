@@ -1,11 +1,11 @@
 schema_version: "1.0"
 template_id: linye-screen-design-6sheet
-version: "1.0"
+version: "1.1"
 name: 画面設計書（表紙+修正履歴+レイアウト+入出力+アクション+入力チェック）
 description: |
-  OKI/林業系画面設計書（SCR-Axxxx）六シート構成向け。
-  方眼レイアウトでは表の物理列が広いため、locator に width を固定せず
-  trim_empty_columns / stop_after_blank_rows で実データ幅に縮める。
+  OKI/林業系 SCR-Axxxx 画面設計書の六シート構成向け。
+  方眼紙の物理列位置には依存せず、業務ラベルと表頭をアンカーとして抽出する。
+  表紙と各シートの共通ヘッダーは、ラベルから同じ行の次の非空セルを値として読む。
 match:
   sheet_name_patterns:
     - "^表紙$"
@@ -16,94 +16,111 @@ match:
     - "^入力チェック$"
   fingerprints:
     - sheet_name_pattern: "^表紙$"
-      required_text: ["画面設計書"]
+      required_text: ["画面設計書", "文書番号", "バージョン"]
+      weight: 1.2
+    - sheet_name_pattern: "^修正履歴$"
+      required_text: ["版数", "修正内容", "修正日"]
       weight: 1.0
     - sheet_name_pattern: "^画面入出力項目一覧$"
       required_text: ["No.", "画面項目名", "データ元"]
       weight: 1.2
     - sheet_name_pattern: "^画面アクション一覧$"
-      required_text: ["イベントID", "トリガー"]
+      required_text: ["イベントID", "トリガー", "イベント概要"]
       weight: 1.0
     - sheet_name_pattern: "^入力チェック$"
       required_text: ["チェック内容", "メッセージID"]
       weight: 1.0
   minimum_score: 0.55
+
 sheets:
   - sheet_id: cover
     name_pattern: "^表紙$"
     order: 10
     regions:
       - region_id: cover-title
-        region_type: table
-        # No region heading: content sits directly under ## 表紙.
+        region_type: freeform
         title: ""
+        order: 0
         locator:
           mode: fixed
-          range: "E4:E9"
+          range: "A1:XFD9"
         extractor:
-          kind: table
-          header_rows: 0
-          column_semantics:
-            E: cover_text
+          kind: freeform
           options:
-            stop_after_blank_rows: 2
             shrink_to_content: true
+            trim_empty_columns: true
+
       - region_id: document-info
         region_type: key_value
-        title: ""
+        title: 文書情報
+        order: 10
         required: true
         locator:
-          mode: fixed
-          range: "R11:Z14"
+          mode: anchor
+          anchor_text: "文書番号"
+          height: 4
         extractor:
           kind: key_value
-          key_column: 1
-          # Labels are R11:R14; values/formulas are Z11:Z14.
-          value_column: 9
           key_semantics:
             文書番号: document_no
             バージョン: version
             作成者: author
             作成日: created_at
-            画面ID: screen_id
-            画面名: screen_name
           options:
+            scan_labels: true
+            value_mode: next_nonblank
             shrink_to_content: true
 
   - sheet_id: revisions
     name_pattern: "^修正履歴$"
     order: 20
     regions:
-      - region_id: ignored-sheet-header
-        region_type: freeform
+      - &common_header
+        region_id: sheet-header
+        region_type: key_value
+        title: 基本情報
         order: 0
-        locator: {mode: fixed, range: "A1:XFD4"}
+        locator:
+          mode: anchor
+          anchor_text: "基本設計"
+          height: 4
         extractor:
-          kind: freeform
-          options: {ignore: true}
-      # The header contains several key/value pairs spread across graph-paper
-      # columns. Do not guess a single key/value region: parse the reliable
-      # revision table until exact header coordinates are supplied.
+          kind: key_value
+          key_semantics:
+            プロダクト: product_name
+            サブシステム: subsystem_name
+            機能名: function_name
+            画面名: screen_name
+            画面ID: screen_id
+            作成日: created_at
+            更新日: updated_at
+            作成者: author
+            更新者: updated_by
+          options:
+            scan_labels: true
+            value_mode: next_nonblank
+
       - region_id: revision-table
         region_type: table
         title: 修正履歴
+        order: 10
         required: true
         locator:
           mode: anchor
-          anchor_text: "No."
-          # 方眼紙のため物理列が多い。幅はシート右端まで取り、後で trim。
+          anchor_pattern: "^(No\\.?|№)$"
         extractor:
           kind: table
           header_rows: 1
           column_semantics:
-            "No\\.?": seq_no
-            版数: revision
-            シート: sheet_name
-            修正箇所: location
-            修正内容: change
-            修正者: author
-            修正日: changed_at
+            "^(No\\.?|№)$": seq_no
+            "^版数$": revision
+            "^シート$": sheet_name
+            "^修正箇所$": location
+            "^修正内容$": change
+            "^修正者$": author
+            "^修正日$": changed_at
           options:
+            auto_header_rows: true
             stop_after_blank_rows: 2
             shrink_to_content: true
             trim_empty_columns: true
@@ -112,21 +129,17 @@ sheets:
     name_pattern: "^画面レイアウト$"
     order: 30
     regions:
-      - region_id: ignored-sheet-header
-        region_type: freeform
-        order: 0
-        locator: {mode: fixed, range: "A1:XFD4"}
-        extractor:
-          kind: freeform
-          options: {ignore: true}
+      - <<: *common_header
+        region_id: sheet-header
+
       - region_id: screen-layout
         region_type: layout
-        title: 画面レイアウト
+        title: 画面イメージ
+        order: 10
+        required: true
         locator:
           mode: anchor
-          # Do not pin a short height: mockup images often sit far below the
-          # label, and unbound images would otherwise fall into 「资源」.
-          anchor_pattern: "^(■画面イメージ|画面イメージ|画面レイアウト)$"
+          anchor_pattern: "^\\s*■?\\s*画面イメージ\\s*$"
           row_offset: 1
         extractor:
           kind: asset
@@ -135,55 +148,56 @@ sheets:
     name_pattern: "^画面入出力項目一覧$"
     order: 40
     regions:
-      - region_id: ignored-sheet-header
+      - <<: *common_header
+        region_id: sheet-header
+
+      - region_id: ignored-section-heading
         region_type: freeform
-        order: 0
-        locator: {mode: fixed, range: "A1:XFD4"}
-        extractor:
-          kind: freeform
-          options: {ignore: true}
-      # 凡例 is cell-drawn (not an embedded picture). Capture a fixed-area
-      # Pillow screenshot so MD/HTML can show it as an image.
-      - region_id: legend
-        region_type: image
-        title: 凡例
         order: 1
         locator:
           mode: anchor
-          # Match loosely (■ optional, no trailing $) so any variant of the
-          # title cell (extra spaces, trailing punctuation, etc.) still
-          # anchors correctly — a strict full-match here silently drops the
-          # whole legend region when the cell text does not match exactly,
-          # and the legend text then leaks into a neighbouring layout
-          # region as plain bullet text instead of a screenshot.
-          # The capture AREA is still coordinate-bound via width/height so
-          # the screenshot stays small and precise (does not bleed across
-          # the whole sheet). The OKI-Q-102 sample places 凡例 at R6:V11
-          # (5 cols × 6 rows) relative to the anchor cell.
+          anchor_pattern: "^\\s*■?\\s*画面入出力項目一覧\\s*$"
+          height: 1
+          repeat_anchor: true
+        extractor:
+          kind: freeform
+          options:
+            ignore: true
+
+      - region_id: legend
+        region_type: image
+        title: 凡例
+        order: 2
+        locator:
+          mode: anchor
           anchor_pattern: "^\\s*■?\\s*凡例"
-          column_offset: 0
-          row_offset: 0
-          width: 5
-          height: 6
+          end_anchor_pattern: "^(No\\.?|№)$"
         extractor:
           kind: freeform
           options:
             screenshot: true
-            # Excel COM range capture (CopyPicture xlPrinter).
             screenshot_engine: excel_com
+            screenshot_bounds: connected_region
+            padding_rows: 1
+            padding_columns: 1
+            text_fallback: true
+            shrink_to_content: true
+            trim_empty_columns: true
+
       - region_id: io-table
         region_type: table
         title: 画面入出力項目一覧
+        order: 10
         required: true
         locator:
           mode: anchor
-          anchor_text: "No."
+          anchor_pattern: "^(No\\.?|№)$"
         extractor:
           kind: table
           header_rows: 1
           column_semantics:
-            "^No\\.?$": seq_no
-            "^(画面項目名|画面項目名称|項目名称)$": field_name
+            "^(No\\.?|№)$": seq_no
+            "^(画面項目名|画面項目名称|項目名|項目名称)$": field_name
             "^種別$": control_type
             "^全半角$": charset
             "^桁数$": length
@@ -196,6 +210,7 @@ sheets:
             "^イベントID$": event_id
             "^(補足説明|補足)$": remarks
           options:
+            auto_header_rows: true
             stop_after_blank_rows: 2
             shrink_to_content: true
             trim_empty_columns: true
@@ -204,32 +219,43 @@ sheets:
     name_pattern: "^画面アクション一覧$"
     order: 50
     regions:
-      - region_id: ignored-sheet-header
+      - <<: *common_header
+        region_id: sheet-header
+
+      - region_id: ignored-section-heading
         region_type: freeform
-        order: 0
-        locator: {mode: fixed, range: "A1:XFD4"}
+        order: 1
+        locator:
+          mode: anchor
+          anchor_pattern: "^\\s*■?\\s*画面アクション一覧\\s*$"
+          height: 1
+          repeat_anchor: true
         extractor:
           kind: freeform
-          options: {ignore: true}
+          options:
+            ignore: true
+
       - region_id: action-table
         region_type: table
         title: 画面アクション一覧
+        order: 10
         required: true
         locator:
           mode: anchor
-          anchor_text: "No."
+          anchor_pattern: "^(No\\.?|№|Z|Ｚ)$"
         extractor:
           kind: table
           header_rows: 1
           column_semantics:
-            "^No\\.?$": seq_no
+            "^(No\\.?|№|Z|Ｚ)$": seq_no
             "^イベントID$": event_id
             "^イベント名$": event_name
-            "^(画面項目名|画面項目名称|項目名称)$": field_name
+            "^(画面項目名|画面項目名称|項目名|項目名称)$": field_name
             "^種別$": control_type
             "^トリガー$": trigger
             "^イベント概要$": overview
           options:
+            auto_header_rows: true
             stop_after_blank_rows: 2
             shrink_to_content: true
             trim_empty_columns: true
@@ -238,34 +264,33 @@ sheets:
     name_pattern: "^入力チェック$"
     order: 60
     regions:
-      - region_id: ignored-sheet-header
-        region_type: freeform
-        order: 0
-        locator: {mode: fixed, range: "A1:XFD4"}
-        extractor:
-          kind: freeform
-          options: {ignore: true}
+      - <<: *common_header
+        region_id: sheet-header
+
       - region_id: check-table
         region_type: table
         title: 入力チェック
+        order: 10
         required: true
         locator:
           mode: anchor
-          anchor_text: "No."
+          anchor_pattern: "^(No\\.?|№)$"
         extractor:
           kind: table
           header_rows: 1
           column_semantics:
-            "^No\\.?$": seq_no
+            "^(No\\.?|№)$": seq_no
             "^イベントID$": event_id
             "^イベント名$": event_name
-            "^(画面項目名|画面項目名称|項目名称)$": field_name
+            "^(画面項目名|画面項目名称|項目名|項目名称)$": field_name
+            "^種別$": control_type
             "^チェック方法$": check_method
             "^チェック内容.*$": check_content
             "^メッセージID$": message_id
             "^パラメータ$": parameters
-            "^(規定説明|判定説明|エラーメッセージ)$": message_text
+            "^(補足説明|補足|規定説明|判定説明|エラーメッセージ)$": message_text
           options:
+            auto_header_rows: true
             stop_after_blank_rows: 2
             shrink_to_content: true
             trim_empty_columns: true
@@ -275,5 +300,7 @@ metadata:
   language: ja-JP
   document_kind: screen-design
   sheet_count: 6
+  layout_family: graph-paper
+  screenshot_policy: embedded-assets-first
   export:
     clean: true

@@ -204,7 +204,14 @@ def compact_rows(table: TableIR) -> list[list[str]]:
     start = min_row + max(table.header_rows, 0)
     rows: list[list[str]] = []
     for row in range(start, max_row + 1):
-        values = [cell_text(cells.get((row, column))) for column in columns]
+        # A vertical merge represents one business value.  Keep it on the
+        # merge master's row, but do not repeat it on every continuation row
+        # in readable Markdown/HTML.  The canonical IR still retains every
+        # merge member and its source coordinate.
+        values = []
+        for column in columns:
+            cell = cells.get((row, column))
+            values.append("" if cell is not None and cell.row < row else cell_text(cell))
         if not any(values):
             continue
         rows.append(_normalize_group_row(values))
@@ -255,6 +262,8 @@ def compact_list_rows_with_positions(table: TableIR) -> list[tuple[int, list[str
         last_identity: str | None = None
         for column in columns:
             cell = cells.get((row, column))
+            if cell is not None and cell.row < row:
+                continue
             identity = cell.coordinate if cell is not None else None
             if identity is not None and identity == last_identity:
                 last_identity = identity

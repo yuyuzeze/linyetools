@@ -76,6 +76,19 @@
           "minimum": 0,
           "maximum": 1,
           "default": 0.7
+        },
+        "file_name_patterns": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "require_file_name_match": {
+          "type": "boolean",
+          "default": false
+        },
+        "file_name_priority": {
+          "type": "boolean",
+          "default": false
         }
       }
     },

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -38,6 +39,40 @@ def _load_mapping(path: Path) -> dict[str, Any]:
     return value
 
 
+def _validate_match_regexes(data: dict[str, Any]) -> list[str]:
+    """Compile the match-section regexes so invalid ones fail at load time."""
+
+    messages: list[str] = []
+    match = data.get("match")
+    if not isinstance(match, dict):
+        return messages
+    checks: list[tuple[str, Any]] = [
+        ("match.file_name_patterns", match.get("file_name_patterns")),
+        ("match.sheet_name_patterns", match.get("sheet_name_patterns")),
+    ]
+    for label, patterns in checks:
+        if not isinstance(patterns, list):
+            continue
+        for index, pattern in enumerate(patterns):
+            if not isinstance(pattern, str):
+                continue
+            try:
+                re.compile(pattern)
+            except re.error as error:
+                messages.append(f"{label}[{index}]: 无效正则表达式 '{pattern}' ({error})")
+    for f_index, fingerprint in enumerate(match.get("fingerprints", []) or []):
+        if isinstance(fingerprint, dict):
+            pattern = fingerprint.get("sheet_name_pattern")
+            if isinstance(pattern, str):
+                try:
+                    re.compile(pattern)
+                except re.error as error:
+                    messages.append(
+                        f"match.fingerprints[{f_index}].sheet_name_pattern: 无效正则 '{pattern}' ({error})"
+                    )
+    return messages
+
+
 def validate_template_data(data: dict[str, Any], *, path: Path | None = None) -> None:
     validator = Draft202012Validator(load_schema("template"))
     messages: list[str] = []
@@ -47,6 +82,7 @@ def validate_template_data(data: dict[str, Any], *, path: Path | None = None) ->
     ):
         location = ".".join(str(part) for part in error.absolute_path) or "$"
         messages.append(f"{location}: {error.message}")
+    messages.extend(_validate_match_regexes(data))
     if messages:
         raise TemplateValidationError(path or Path("<memory>"), messages)
 

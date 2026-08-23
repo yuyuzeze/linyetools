@@ -29,6 +29,17 @@ class TemplateMatch(JsonModel):
     sheet_name_patterns: list[str] = dataclass_field(default_factory=list)
     fingerprints: list[FingerprintRule] = dataclass_field(default_factory=list)
     minimum_score: float = 0.7
+    # File-name regexes matched against Path(source).name only (NFKC-normalized,
+    # case-insensitive). When empty, scoring is unchanged from before.
+    file_name_patterns: list[str] = dataclass_field(default_factory=list)
+    # When true, a template whose file_name_patterns do not match is rejected in
+    # automatic matching (--template-dir / --auto-legacy-template). An explicit
+    # single --legacy-template can still force-run (with an info diagnostic).
+    require_file_name_match: bool = False
+    # When true, and the file name matches and at least one sheet matches, this
+    # template outranks generic templates (those without file_name_patterns) even
+    # if the generic template's primary score is slightly higher.
+    file_name_priority: bool = False
 
 
 @dataclass(slots=True)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable
@@ -45,6 +46,10 @@ class TemplateCandidate:
     sheet_score: float
     fingerprint_score: float
     accepted: bool
+    filename_score: float = 0.0
+    filename_matched_pattern: str | None = None
+    filename_required: bool = False
+    filename_accepted: bool = True
 
 
 @dataclass(slots=True)
@@ -153,6 +158,30 @@ def _fingerprint_score(
     return best
 
 
+def _filename_matched_pattern(patterns: list[str], filename: str) -> str | None:
+    """Return the first file-name regex matching ``filename`` (NFKC, case-insensitive).
+
+    Matches ``Path.name`` only — never the full path. Invalid patterns are
+    validated at template-load time, so a stray ``re.error`` here is skipped
+    defensively rather than raised.
+    """
+
+    if not patterns or not filename:
+        return None
+    normalized = unicodedata.normalize("NFKC", filename)
+    for pattern in patterns:
+        try:
+            if re.search(pattern, normalized, flags=re.IGNORECASE):
+                return pattern
+        except re.error:
+            continue
+    return None
+
+
+def _document_filename(document: DocumentIR) -> str:
+    return Path(document.source_path).name if document.source_path else ""
+
+
 def score_template(
     document: DocumentIR,
     template: TemplateSpec,
@@ -193,6 +222,11 @@ def score_template(
     else:
         score = 0.0
     score = round(min(1.0, max(0.0, score)), 6)
+    # Filename is auxiliary and never alters ``score`` (so templates without
+    # file_name_patterns keep identical scoring/output). It is reported and used
+    # only as a ranking tie-break / hard gate (require_file_name_match).
+    file_patterns = template.match.file_name_patterns
+    matched = _filename_matched_pattern(file_patterns, _document_filename(document))
     return TemplateCandidate(
         template_id=template.template_id,
         version=template.version,
@@ -200,6 +234,10 @@ def score_template(
         sheet_score=round(sheet_score, 6),
         fingerprint_score=round(fingerprint_score, 6),
         accepted=score >= template.match.minimum_score,
+        filename_score=1.0 if matched else 0.0,
+        filename_matched_pattern=matched,
+        filename_required=template.match.require_file_name_match,
+        filename_accepted=True,
     )
 
 
@@ -213,18 +251,60 @@ def match_template(
 
     template_list = list(templates)
     cells_cache: dict[str, dict[str, CellIR]] = {}
+    filename = _document_filename(document)
+
+    scored: list[tuple[TemplateCandidate, TemplateSpec]] = []
+    for template in template_list:
+        patterns = template.match.file_name_patterns
+        matched = _filename_matched_pattern(patterns, filename)
+        # Performance + correctness: a template that REQUIRES a filename match and
+        # does not match is rejected without scoring sheets/fingerprints.
+        if template.match.require_file_name_match and patterns and matched is None:
+            scored.append(
+                (
+                    TemplateCandidate(
+                        template_id=template.template_id,
+                        version=template.version,
+                        score=0.0,
+                        sheet_score=0.0,
+                        fingerprint_score=0.0,
+                        accepted=False,
+                        filename_score=0.0,
+                        filename_matched_pattern=None,
+                        filename_required=True,
+                        filename_accepted=False,
+                    ),
+                    template,
+                )
+            )
+            continue
+        scored.append((score_template(document, template, cells_cache=cells_cache), template))
+
+    def _priority(pair) -> bool:
+        candidate, template = pair
+        return bool(
+            template.match.file_name_priority
+            and candidate.filename_matched_pattern is not None
+            and candidate.sheet_score > 0
+        )
+
     ranked = sorted(
-        zip(
-            (
-                score_template(document, item, cells_cache=cells_cache)
-                for item in template_list
-            ),
-            template_list,
+        scored,
+        # file_name_priority templates (filename + sheet matched) rank first;
+        # then score, filename match as an auxiliary tie-break, then id/version.
+        key=lambda pair: (
+            0 if _priority(pair) else 1,
+            -pair[0].score,
+            -pair[0].filename_score,
+            pair[0].template_id,
+            pair[0].version,
         ),
-        key=lambda pair: (-pair[0].score, pair[0].template_id, pair[0].version),
     )
     candidates = [candidate for candidate, _ in ranked]
     for candidate, template in ranked:
+        if not candidate.filename_accepted:
+            candidate.accepted = False
+            continue
         threshold = template.match.minimum_score if minimum_score is None else minimum_score
         candidate.accepted = candidate.score >= threshold
     selected = next(
@@ -592,6 +672,77 @@ def _key_semantic(extractor: ExtractionSpec, key: str) -> str:
     return key
 
 
+def _matched_key_semantic(extractor: ExtractionSpec, key: str) -> str | None:
+    """Return a configured semantic for *key*, without treating unknown text as a key.
+
+    Fixed-format Japanese specifications often arrange several label/value pairs
+    horizontally in the same graph-paper row.  The older key/value extractor
+    could only read one fixed label column and one fixed value column, which made
+    templates depend on the exact physical column widths of each workbook.
+    """
+
+    if key in extractor.key_semantics:
+        return extractor.key_semantics[key]
+    for pattern, semantic in extractor.key_semantics.items():
+        try:
+            if re.fullmatch(pattern, key, flags=re.IGNORECASE):
+                return semantic
+        except re.error:
+            continue
+    return None
+
+
+def _cell_value(cell: CellIR | None):
+    if cell is None:
+        return None
+    if cell.formula is not None:
+        return cell.display_value
+    return cell.raw_value if cell.raw_value is not None else _display(cell)
+
+
+def _next_nonblank_value(
+    key_cell: CellIR,
+    *,
+    cells: list[CellIR],
+    extractor: ExtractionSpec,
+) -> CellIR | None:
+    """Find the next value cell on the key's row.
+
+    Stop at another configured label so a genuinely blank field does not steal
+    the following field's label as its value.  Merge members are naturally
+    skipped because they have no displayed value; the merge master containing
+    the business value is selected instead.
+    """
+
+    for candidate in cells:
+        if candidate.row != key_cell.row or candidate.column <= key_cell.column:
+            continue
+        text = _display(candidate)
+        if not text:
+            continue
+        if _matched_key_semantic(extractor, text) is not None:
+            return None
+        return candidate
+    return None
+
+
+def _effective_header_rows(
+    cells: list[CellIR],
+    bounds: tuple[int, int, int, int],
+    extractor: ExtractionSpec,
+) -> int:
+    header_rows = extractor.header_rows
+    if not _option_flag(extractor.options, "auto_header_rows"):
+        return header_rows
+    min_row = bounds[1]
+    spans = [
+        max(cell.row_span, 1)
+        for cell in cells
+        if cell.row == min_row and (_display(cell) or cell.merged_master)
+    ]
+    return max([header_rows, *spans])
+
+
 def _extract_region(
     sheet: SheetIR,
     template: RegionTemplate,
@@ -635,26 +786,38 @@ def _extract_region(
         key_column = min_col + (extractor.key_column or 1) - 1
         value_column = min_col + (extractor.value_column or 2) - 1
         by_position = {(cell.row, cell.column): cell for cell in cells}
-        for row in range(min_row + extractor.header_rows, bounds[3] + 1):
-            key_cell = by_position.get((row, key_column))
-            value_cell = by_position.get((row, value_column))
-            key = _display(key_cell) if key_cell else ""
+        scan_labels = _option_flag(extractor.options, "scan_labels")
+        next_nonblank = extractor.options.get("value_mode") == "next_nonblank"
+        if scan_labels:
+            key_cells = [
+                cell
+                for cell in cells
+                if cell.row >= min_row + extractor.header_rows
+                and _matched_key_semantic(extractor, _display(cell)) is not None
+            ]
+        else:
+            key_cells = [
+                key_cell
+                for row in range(min_row + extractor.header_rows, bounds[3] + 1)
+                if (key_cell := by_position.get((row, key_column))) is not None
+            ]
+        for key_cell in key_cells:
+            key = _display(key_cell)
             if not key:
                 continue
-            semantic = _key_semantic(extractor, key)
-            if value_cell is None:
-                region.values[semantic] = None
-            elif value_cell.formula is not None:
-                # For formula cells, use Excel's cached calculated result.
-                # Falling back to the formula text would expose implementation
-                # details instead of the document value.
-                region.values[semantic] = value_cell.display_value
-            else:
-                region.values[semantic] = (
-                    value_cell.raw_value
-                    if value_cell.raw_value is not None
-                    else _display(value_cell)
+            semantic = _matched_key_semantic(extractor, key) or _key_semantic(
+                extractor, key
+            )
+            value_cell = (
+                _next_nonblank_value(
+                    key_cell,
+                    cells=cells,
+                    extractor=extractor,
                 )
+                if next_nonblank
+                else by_position.get((key_cell.row, value_column))
+            )
+            region.values[semantic] = _cell_value(value_cell)
         region.metadata["key_labels"] = dict(extractor.key_semantics)
         region.metadata["value_labels"] = {
             semantic: label
@@ -662,14 +825,15 @@ def _extract_region(
             if isinstance(label, str) and isinstance(semantic, str)
         }
     elif extractor.kind == "table":
-        labels = _header_labels(cells, bounds, extractor.header_rows)
+        header_rows = _effective_header_rows(cells, bounds, extractor)
+        labels = _header_labels(cells, bounds, header_rows)
         semantics = _column_semantics(extractor, labels, min_col)
         region.tables.append(
             TableIR(
                 table_id=resolved_id,
                 cells=cells,
                 source=source,
-                header_rows=extractor.header_rows,
+                header_rows=header_rows,
                 column_semantics=semantics,
                 metadata={
                     "header_labels": {
@@ -678,6 +842,8 @@ def _extract_region(
                 },
             )
         )
+        if _option_flag(extractor.options, "auto_header_rows"):
+            region.metadata["resolved_header_rows"] = header_rows
     else:
         region.tables.append(
             TableIR(table_id=resolved_id, cells=cells, source=source)
@@ -814,6 +980,16 @@ def _is_visual_asset(asset: AssetIR) -> bool:
     }
 
 
+def _bounds_from_range(a1: str) -> tuple[int, int, int, int] | None:
+    """Return ``(min_row, min_col, max_row, max_col)`` for an A1 range."""
+
+    try:
+        min_col, min_row, max_col, max_row = range_boundaries(a1)
+    except ValueError:
+        return None
+    return (min_row, min_col, max_row, max_col)
+
+
 def _asset_directory(document: DocumentIR) -> Path | None:
     raw = document.metadata.get("asset_directory")
     if isinstance(raw, str) and raw.strip():
@@ -824,18 +1000,136 @@ def _asset_directory(document: DocumentIR) -> Path | None:
     return None
 
 
+def _com_shape_bottom(
+    document: DocumentIR,
+    sheet: SheetIR,
+    extractor: ExtractionSpec,
+    base: tuple[int, int, int, int],
+    section_max_row: int,
+    diagnostics: list[DiagnosticIR],
+) -> tuple[int | None, list, list]:
+    """Read the union Shape bottom via the active Excel COM capture session.
+
+    Reuses the ambient :class:`ExcelCaptureSession` (the one that will take the
+    screenshot), so no second Excel is launched. Returns ``(bottom, included,
+    excluded)``. On any COM error, records a diagnostic and returns ``(None, ...)``
+    so the caller falls back to OOXML/content bottoms.
+    """
+
+    if not _option_flag(extractor.options, "prefer_com_shape_bounds", default=True):
+        return None, [], []
+    if not document.source_path:
+        return None, [], []
+    from .capture_bounds import dynamic_band
+    from ..render.excel_capture import active_capture_session
+
+    session = active_capture_session()
+    if session is None:
+        return None, [], []
+    try:
+        if session.workbook_path != Path(document.source_path).resolve():
+            return None, [], []
+    except (OSError, ValueError):
+        return None, [], []
+
+    band = dynamic_band(base, extractor.options, section_max_row=section_max_row)
+    try:
+        result = session.resolve_shape_bounds(
+            sheet.name,
+            top_row=band.top,
+            left_column=extractor.options.get("left_column", band.left),
+            right_column=extractor.options.get("right_column", band.right),
+            section_limit=band.section_ceiling,
+        )
+    except Exception as error:  # noqa: BLE001 - COM shape read is best-effort
+        diagnostics.append(
+            DiagnosticIR(
+                code="template.com_shape_bounds_failed",
+                severity=DiagnosticSeverity.WARNING,
+                message=f"Excel COM Shape 范围读取失败，回退 OOXML/内容: {sheet.name} ({error})",
+                source=SourceRef(sheet=sheet.name),
+            )
+        )
+        return None, [], []
+    return (
+        result.get("bottom"),
+        result.get("included_shapes", []),
+        result.get("excluded_shapes", []),
+    )
+
+
 def _attach_region_screenshot(
     document: DocumentIR,
     sheet: SheetIR,
     region: RegionIR,
     extractor: ExtractionSpec,
     diagnostics: list[DiagnosticIR],
+    *,
+    section_limit: int | None = None,
 ) -> AssetIR | None:
     """Capture a fixed region to PNG via Excel COM when ``options.screenshot``."""
 
     if not _option_flag(extractor.options, "screenshot"):
         return None
-    range_ref = region.source.range if region.source else None
+    locator_range = region.source.range if region.source else None
+    range_ref = locator_range
+    # Resolve a tighter capture range from sparse content + drawing anchors
+    # (never the whole sheet) when a bounds strategy is configured.
+    bounds_method = "locator_range"
+    capture_meta: dict = {}
+    strategy = extractor.options.get("screenshot_bounds")
+    if strategy and locator_range:
+        from .capture_bounds import (
+            dynamic_band,
+            resolve_connected_region,
+            resolve_dynamic_bottom,
+        )
+
+        region_cells = [cell for table in region.tables for cell in table.cells]
+        base = _bounds_from_range(locator_range)
+        if base is not None:
+            if strategy == "connected_region":
+                resolution = resolve_connected_region(
+                    region_cells,
+                    base,
+                    padding_rows=int(extractor.options.get("padding_rows", 1) or 0),
+                    padding_columns=int(extractor.options.get("padding_columns", 1) or 0),
+                )
+            elif strategy == "dynamic_bottom":
+                # The section a dynamic diagram may grow into is limited by the
+                # next repeat anchor, else only by max_bottom_row (below).
+                section_max_row = section_limit if section_limit is not None else 1048576
+                # Priority 2: Excel COM Shape bounds, read from the SAME lazy
+                # capture session that will take the screenshot (no extra Excel).
+                com_bottom, included_shapes, excluded_shapes = _com_shape_bottom(
+                    document, sheet, extractor, base, section_max_row, diagnostics
+                )
+                resolution = resolve_dynamic_bottom(
+                    region_cells,
+                    list(sheet.assets),
+                    base,
+                    extractor.options,
+                    section_max_row=section_max_row,
+                    com_shape_bottom=com_bottom,
+                )
+                resolution.metadata["included_shapes"] = included_shapes
+                resolution.metadata["excluded_shapes"] = excluded_shapes
+            else:
+                resolution = None
+            if resolution is not None:
+                range_ref = resolution.range_a1
+                bounds_method = resolution.bounds_method
+                capture_meta = resolution.metadata
+                for code, message in resolution.diagnostics:
+                    diagnostics.append(
+                        DiagnosticIR(
+                            code=code,
+                            severity=DiagnosticSeverity.WARNING,
+                            message=message,
+                            source=SourceRef(sheet=sheet.name, range=range_ref),
+                            region_id=region.region_id,
+                        )
+                    )
     asset_dir = _asset_directory(document)
     if asset_dir is None:
         diagnostics.append(
@@ -909,11 +1203,20 @@ def _attach_region_screenshot(
             "source_kind": "region_screenshot",
             "template_region_id": region.region_id,
             "capture_method": method,
+            "requested_range": locator_range,
+            "resolved_range": range_ref,
+            "bounds_method": bounds_method,
+            **capture_meta,
         },
     )
     if asset_id not in region.asset_ids:
         region.asset_ids.append(asset_id)
     region.metadata["readable_mode"] = "screenshot"
+    region.metadata["screenshot_requested_range"] = locator_range
+    region.metadata["screenshot_resolved_range"] = range_ref
+    region.metadata["screenshot_bounds_method"] = bounds_method
+    if capture_meta:
+        region.metadata["screenshot_bottom_sources"] = capture_meta
     return asset
 
 
@@ -1063,8 +1366,17 @@ def extract_with_template(document: DocumentIR, match: MatchResult) -> Extractio
                             region.title = f"{region.title} ({index})"
                     for binding in region_template.screenshot_bindings:
                         region.asset_ids.append(binding.asset_id)
+                    # For a dynamic-bottom screenshot, the section it may grow
+                    # into ends one row above the next repeat anchor (if any).
+                    next_anchor_row = (
+                        located[index][1] if index < len(located) else None
+                    )
+                    section_limit = (
+                        next_anchor_row - 1 if next_anchor_row is not None else None
+                    )
                     rendered = _attach_region_screenshot(
-                        document, sheet, region, extractor, diagnostics
+                        document, sheet, region, extractor, diagnostics,
+                        section_limit=section_limit,
                     )
                     if rendered is not None:
                         sheet.assets = [*sheet.assets, rendered]

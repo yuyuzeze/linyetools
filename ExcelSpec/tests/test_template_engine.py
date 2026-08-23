@@ -64,7 +64,12 @@ class TemplateLoadingTests(unittest.TestCase):
         templates = load_templates(ROOT / "templates")
 
         self.assertEqual(
-            {"linye-screen-design", "linye-screen-design-6sheet", "linye-api-spec"},
+            {
+                "linye-screen-design",
+                "linye-screen-design-6sheet",
+                "linye-api-spec",
+                "linye-screen-transition",
+            },
             {template.template_id for template in templates},
         )
         screen = load_template(ROOT / "templates" / "linye-screen-design-v1.yaml")
@@ -309,6 +314,210 @@ class TemplateEngineTests(unittest.TestCase):
         coords = {cell.coordinate for table in region.tables for cell in table.cells}
         self.assertEqual({"A1", "C1", "A2", "C2"}, coords)
         self.assertEqual("A1:C2", region.source.range)
+
+    def test_key_value_grid_reads_label_pairs_without_fixed_columns(self) -> None:
+        from excelspec.models.template import (
+            ExtractionSpec,
+            LocatorMode,
+            RegionLocator,
+            RegionTemplate,
+            SheetTemplate,
+            TemplateMatch,
+            TemplateSpec,
+        )
+        from excelspec.templates import MatchResult, extract_with_template
+
+        sheet = raw_sheet(
+            "画面レイアウト",
+            0,
+            [
+                cell("A1", 1, 1, "基本設計"),
+                cell("D1", 1, 4, "プロダクト"),
+                cell("H1", 1, 8, "林業業務システム"),
+                cell("P1", 1, 16, "作成日"),
+                cell("T1", 1, 20, "2026/3/24"),
+                cell("X1", 1, 24, "作成者"),
+                cell("AA1", 1, 27, "OKI"),
+                cell("D2", 2, 4, "画面名"),
+                # Deliberately blank: the following label must not be stolen.
+                cell("P2", 2, 16, "画面ID"),
+                cell("T2", 2, 20, "SCR-A0010"),
+            ],
+        )
+        template = TemplateSpec(
+            template_id="grid-kv",
+            version="1.0",
+            name="grid-kv",
+            schema_version="1.0",
+            match=TemplateMatch(minimum_score=0.1),
+            sheets=[
+                SheetTemplate(
+                    sheet_id="layout",
+                    name_pattern="^画面レイアウト$",
+                    regions=[
+                        RegionTemplate(
+                            region_id="sheet-header",
+                            region_type="key_value",
+                            locator=RegionLocator(
+                                mode=LocatorMode.FIXED,
+                                range="A1:AA2",
+                            ),
+                            extractor=ExtractionSpec(
+                                kind="key_value",
+                                key_semantics={
+                                    "プロダクト": "product_name",
+                                    "作成日": "created_at",
+                                    "作成者": "author",
+                                    "画面名": "screen_name",
+                                    "画面ID": "screen_id",
+                                },
+                                options={
+                                    "scan_labels": True,
+                                    "value_mode": "next_nonblank",
+                                },
+                            ),
+                        )
+                    ],
+                )
+            ],
+        )
+        result = extract_with_template(
+            DocumentIR(document_id="grid-kv", title="grid-kv", sheets=[sheet]),
+            MatchResult(mode="template", template=template, candidates=[]),
+        )
+        values = result.document.sheets[0].regions[0].values
+        self.assertEqual("林業業務システム", values["product_name"])
+        self.assertEqual("2026/3/24", values["created_at"])
+        self.assertEqual("OKI", values["author"])
+        self.assertIsNone(values["screen_name"])
+        self.assertEqual("SCR-A0010", values["screen_id"])
+
+    def test_auto_header_rows_uses_merged_header_height(self) -> None:
+        from excelspec.models.template import (
+            ExtractionSpec,
+            LocatorMode,
+            RegionLocator,
+            RegionTemplate,
+            SheetTemplate,
+            TemplateMatch,
+            TemplateSpec,
+        )
+        from excelspec.templates import MatchResult, extract_with_template
+
+        no = cell("A1", 1, 1, "No.")
+        no.row_span = 2
+        name = cell("B1", 1, 2, "画面項目名")
+        name.row_span = 2
+        sheet = raw_sheet(
+            "画面入出力項目一覧",
+            0,
+            [no, name, cell("A3", 3, 1, 1), cell("B3", 3, 2, "検索")],
+        )
+        template = TemplateSpec(
+            template_id="auto-header",
+            version="1.0",
+            name="auto-header",
+            schema_version="1.0",
+            match=TemplateMatch(minimum_score=0.1),
+            sheets=[
+                SheetTemplate(
+                    sheet_id="items",
+                    name_pattern="^画面入出力項目一覧$",
+                    regions=[
+                        RegionTemplate(
+                            region_id="items",
+                            region_type="table",
+                            locator=RegionLocator(
+                                mode=LocatorMode.FIXED,
+                                range="A1:B3",
+                            ),
+                            extractor=ExtractionSpec(
+                                kind="table",
+                                header_rows=1,
+                                column_semantics={
+                                    "^No\\.$": "seq_no",
+                                    "^画面項目名$": "field_name",
+                                },
+                                options={"auto_header_rows": True},
+                            ),
+                        )
+                    ],
+                )
+            ],
+        )
+        result = extract_with_template(
+            DocumentIR(document_id="auto-header", title="auto", sheets=[sheet]),
+            MatchResult(mode="template", template=template, candidates=[]),
+        )
+        region = result.document.sheets[0].regions[0]
+        self.assertEqual(2, region.tables[0].header_rows)
+        self.assertEqual(2, region.metadata["resolved_header_rows"])
+
+    def test_six_sheet_template_matches_current_demo_without_com_screenshot(self) -> None:
+        from excelspec.pipeline import run_pipeline
+
+        workbook = ROOT / "demo" / "workbooks" / "SCR-A0010_画面設計書_保証一覧.xlsx"
+        template = ROOT / "templates" / "linye-screen-design-6sheet-v1.yaml"
+        with tempfile.TemporaryDirectory() as directory:
+            result = run_pipeline(
+                workbook,
+                template=template,
+                asset_dir=Path(directory) / "assets",
+            )
+
+        self.assertEqual("legacy-template", result.processing["processing_mode"])
+        self.assertEqual("linye-screen-design-6sheet", result.document.template_id)
+        self.assertEqual("1.1", result.document.template_version)
+        sheets = {sheet.name: sheet for sheet in result.document.sheets}
+        cover = next(
+            region for region in sheets["表紙"].regions if region.region_id == "document-info"
+        )
+        self.assertEqual("0.01", cover.values["version"])
+        revisions = next(
+            region
+            for region in sheets["修正履歴"].regions
+            if region.region_id == "revision-table"
+        )
+        self.assertEqual("change", revisions.tables[0].column_semantics["E"])
+        header = next(
+            region
+            for region in sheets["画面レイアウト"].regions
+            if region.region_id == "sheet-header"
+        )
+        self.assertEqual("SCR-A0010", header.values["screen_id"])
+        layout = next(
+            region
+            for region in sheets["画面レイアウト"].regions
+            if region.region_id == "screen-layout"
+        )
+        self.assertEqual("A7:I28", layout.source.range)
+        self.assertTrue(layout.asset_ids)
+        # The layout reuses its embedded image (no COM). Only the cell-drawn
+        # 凡例 needs an Excel screenshot; Excel is unavailable in tests, so it
+        # fails gracefully — screenshot_failed is reported only for the legend,
+        # and the legend keeps its text (fallback), never for the layout.
+        failed_regions = sorted(
+            {
+                diagnostic.region_id
+                for diagnostic in result.all_diagnostics()
+                if diagnostic.code == "template.screenshot_failed"
+            }
+        )
+        self.assertEqual(["legend"], failed_regions)
+        legend = next(
+            region
+            for region in sheets["画面入出力項目一覧"].regions
+            if region.region_id == "legend"
+        )
+        self.assertNotEqual("screenshot", legend.metadata.get("readable_mode"))
+        self.assertTrue(any(table.cells for table in legend.tables))  # text preserved
+        markdown = MarkdownExporter().render(result.document)
+        cover_markdown = markdown.split("## 修正履歴", 1)[0]
+        self.assertEqual(
+            1,
+            cover_markdown.count("- 林業業務システム更改に係る設計・開発"),
+        )
+        self.assertEqual(1, markdown.count("| 8 | 保証割合 |"))
 
     def test_ignore_option_excludes_sheet_header_from_document_ir(self) -> None:
         from excelspec.models.template import (

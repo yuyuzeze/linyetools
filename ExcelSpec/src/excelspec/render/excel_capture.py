@@ -104,6 +104,64 @@ def _capture_target(worksheet, a1_range: str, destination: Path) -> Path:
     return destination
 
 
+_MSO_GROUP = 6  # msoGroup
+
+
+def _shape_attr(shape, name: str, default=None):
+    try:
+        return getattr(shape, name)
+    except Exception:  # noqa: BLE001
+        return default
+
+
+def _shape_cells(shape) -> tuple[int, int, int, int] | None:
+    """Return ``(tl_row, tl_col, br_row, br_col)`` from a shape's anchor cells."""
+
+    try:
+        top_left = shape.TopLeftCell
+        bottom_right = shape.BottomRightCell
+        return (
+            int(top_left.Row),
+            int(top_left.Column),
+            int(bottom_right.Row),
+            int(bottom_right.Column),
+        )
+    except Exception:  # noqa: BLE001 - cell anchors unavailable (e.g. absoluteAnchor)
+        return None
+
+
+def _shape_geometry(shape) -> list[tuple]:
+    """Return ``[(name, type, tl_row, tl_col, br_row, br_col), ...]`` for a shape.
+
+    A GroupShape uses its outer bounds when valid; otherwise each GroupItem is
+    read individually so a connector inside a group still contributes.
+    """
+
+    stype = _shape_attr(shape, "Type")
+    name = str(_shape_attr(shape, "Name", "") or "")
+    outer = _shape_cells(shape)
+    if stype == _MSO_GROUP and outer is None:
+        entries: list[tuple] = []
+        group_items = _shape_attr(shape, "GroupItems")
+        if group_items is None:
+            return []
+        try:
+            count = int(group_items.Count)
+        except Exception:  # noqa: BLE001
+            return []
+        for index in range(1, count + 1):
+            item = group_items.Item(index)
+            cells = _shape_cells(item)
+            if cells is not None:
+                entries.append(
+                    (str(_shape_attr(item, "Name", "") or ""), _shape_attr(item, "Type"), *cells)
+                )
+        return entries
+    if outer is None:
+        return []
+    return [(name, stype, *outer)]
+
+
 class ExcelCaptureSession:
     """Reusable Excel COM context: one Application + one Workbook per batch.
 
@@ -174,6 +232,78 @@ class ExcelCaptureSession:
             self.open()
         worksheet = self._workbook.Worksheets(sheet_name)
         return _capture_target(worksheet, a1_range, Path(destination))
+
+    # -- shape geometry (read-only) -------------------------------------------
+
+    def resolve_shape_bounds(
+        self,
+        sheet_name: str,
+        *,
+        top_row: int,
+        left_column,
+        right_column,
+        section_limit: int | None = None,
+    ) -> dict:
+        """Read Worksheet.Shapes from the already-open workbook and return the
+        union bottom row of the shapes that belong to this diagram.
+
+        Reuses the open Workbook (no second Excel.Application, no second Open).
+        A shape is included when it is below ``top_row``, intersects the fixed
+        ``left_column``/``right_column`` band, and starts at/above
+        ``section_limit`` (so a later diagram's shapes are excluded). Handles
+        Connector / Arrow / TextBox / AutoShape / Picture and GroupShape (outer
+        bounds when valid, else its GroupItems).
+        """
+
+        from openpyxl.utils import column_index_from_string
+
+        if self._workbook is None:
+            self.open()
+        worksheet = self._workbook.Worksheets(sheet_name)
+
+        def _col(value) -> int:
+            return column_index_from_string(str(value)) if isinstance(value, str) else int(value)
+
+        left = _col(left_column)
+        right = _col(right_column)
+        if right < left:
+            left, right = right, left
+
+        included: list[dict] = []
+        excluded: list[dict] = []
+        bottoms: list[int] = []
+        for shape in worksheet.Shapes:
+            try:
+                entries = _shape_geometry(shape)
+            except Exception as error:  # noqa: BLE001 - one bad shape must not abort
+                excluded.append({"name": _shape_attr(shape, "Name"), "reason": f"read_error: {error}"})
+                continue
+            for name, stype, tl_row, tl_col, br_row, br_col in entries:
+                record = {
+                    "name": name,
+                    "type": stype,
+                    "range": f"R{tl_row}C{tl_col}:R{br_row}C{br_col}",
+                }
+                if br_row < top_row:
+                    record["reason"] = "above_top"
+                    excluded.append(record)
+                    continue
+                if section_limit is not None and tl_row > section_limit:
+                    record["reason"] = "beyond_section"
+                    excluded.append(record)
+                    continue
+                if br_col < left or tl_col > right:
+                    record["reason"] = "outside_band"
+                    excluded.append(record)
+                    continue
+                included.append(record)
+                bottoms.append(br_row)
+
+        return {
+            "bottom": max(bottoms) if bottoms else None,
+            "included_shapes": included,
+            "excluded_shapes": excluded,
+        }
 
     # -- context manager -------------------------------------------------------
 

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Iterable
 
 from .ingest import ingest_xlsx
-from .models.document_ir import DiagnosticIR, DocumentIR
+from .models.document_ir import DiagnosticIR, DiagnosticSeverity, DocumentIR
 from .models.template import TemplateSpec
 from .templates import (
     ExtractionResult,
@@ -188,6 +188,23 @@ def run_pipeline(
             selected = candidates[0]
             candidate = score_template(raw, selected)
             candidate.accepted = True
+            # An explicit single --legacy-template force-runs even when its
+            # file_name_patterns do not match; record an info diagnostic.
+            if (
+                selected.match.file_name_patterns
+                and candidate.filename_matched_pattern is None
+            ):
+                raw.diagnostics.append(
+                    DiagnosticIR(
+                        code="template.filename_not_matched",
+                        severity=DiagnosticSeverity.INFO,
+                        message=(
+                            f"文件名未匹配模板 file_name_patterns，显式模板强制运行: "
+                            f"{Path(raw.source_path).name if raw.source_path else ''}"
+                        ),
+                        details={"template_id": selected.template_id},
+                    )
+                )
             match = MatchResult(mode="template", template=selected, candidates=[candidate])
             extraction = extract_with_template(raw, match)
         else:
