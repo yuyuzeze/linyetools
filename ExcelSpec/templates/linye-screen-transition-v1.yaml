@@ -1,42 +1,43 @@
 schema_version: "1.0"
 template_id: linye-screen-transition
-version: "1.0"
-name: 画面遷移図（フロー図）
+version: "1.1"
+name: 画面遷移図（画面の流れ）
 description: |
-  画面遷移図 / 画面フロー系シート向け。
-  固定 top/left/right + 動的 bottom で図全体を 1 枚のスクリーンショットに収める。
-  bottom は OOXML Drawing anchor（図形・コネクタ・画像）と内容・罫線から算出し、
-  Excel が無い環境ではテキストと図形テキストにフォールバックする。
-  具体的な顧客ファイル名・絶対パス・固定 bottom 行は一切含まない。
+  OKI/林業系「画面遷移図」文書向け。文書名は「画面遷移図」だが、遷移フローを描く
+  シートは「画面の流れ_全体」「画面の流れ_<機能名>」のように名付けられる。
+  固定 top + 内容由来の left/right + 動的 bottom で図全体を 1 枚に収める。
+  bottom は OOXML Drawing anchor / Excel COM Shape bounds / 内容・罫線から算出する。
+  具体的な顧客ファイル名・絶対パス・固定 bottom 行は含まない。
 match:
   file_name_patterns:
-    - "^.*(画面遷移図|画面遷移|画面フロー).*\\.(xlsx|xlsm)$"
+    - "^.*(画面遷移図|画面遷移|画面フロー|画面の流れ).*\\.(xlsx|xlsm)$"
   require_file_name_match: true
   file_name_priority: true
   sheet_name_patterns:
-    - "^(画面遷移図|画面遷移|画面フロー)$"
+    - "^画面の流れ"
   fingerprints:
-    - sheet_name_pattern: "^(画面遷移図|画面遷移|画面フロー)$"
-      required_text: ["画面遷移"]
+    - sheet_name_pattern: "^画面の流れ"
+      required_text: ["画面の流れ"]
       weight: 1.0
   minimum_score: 0.4
 
 sheets:
   - sheet_id: screen-transition
-    name_pattern: "^(画面遷移図|画面遷移|画面フロー)$"
+    # 「画面の流れ_全体」「画面の流れ_求償権管理台帳」等、複数シートに一致する。
+    name_pattern: "^画面の流れ"
     order: 10
+    required: false   # 一致しなくても他シートの変換は続行（ハード失敗しない）
     regions:
       - region_id: transition-diagram
         region_type: layout
-        title: 画面遷移図
+        title: 画面の流れ
         order: 10
-        required: true
+        required: false
         locator:
           mode: anchor
-          anchor_pattern: "^\\s*■?\\s*(画面遷移図|画面遷移|画面フロー)\\s*$"
+          anchor_pattern: "^\\s*■?\\s*画面の流れ"
           row_offset: 1
-          # repeat_anchor makes each ■画面遷移図 heading its own diagram, each
-          # with an independently computed dynamic bottom.
+          # 1 シートに複数の ■画面の流れ セクションがあれば各々独立に取る。
           repeat_anchor: true
         extractor:
           kind: asset
@@ -45,9 +46,10 @@ sheets:
             screenshot_engine: excel_com
             screenshot_bounds: dynamic_bottom
             top_from_anchor: true
-            left_column: B
-            right_column: BZ
+            # left_column / right_column は指定しない → 内容の列範囲を自動採用
+            # （方眼紙右側の空きグレー領域を取り込まない）。必要なら明示可能。
             bottom_strategy: content_and_drawing
+            prefer_com_shape_bounds: true
             include_shapes: true
             include_connectors: true
             include_images: true
@@ -62,5 +64,6 @@ metadata:
   language: ja-JP
   document_kind: screen-transition
   layout_family: flow-diagram
-  screenshot_policy: fixed-three-sides-dynamic-bottom
+  screenshot_policy: fixed-top-content-width-dynamic-bottom
+  sheet_naming_note: "遷移フローのシート名は「画面の流れ_…」"
   synthetic_fixture_only: true
