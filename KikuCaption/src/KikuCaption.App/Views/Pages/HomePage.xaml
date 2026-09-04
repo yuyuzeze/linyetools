@@ -11,61 +11,25 @@
 
         <!-- ==================== Compact meeting control bar ==================== -->
         <Border Grid.Row="0" Background="{StaticResource CardBrush}" CornerRadius="8" Padding="12,10" Margin="0,0,0,12">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-
-                <!-- Recognition language (shows 日本語, value stays the ja/zh code) -->
-                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="{loc:Loc Home.RecognitionLanguage}" VerticalAlignment="Center" Foreground="{StaticResource MutedBrush}" />
-                    <ComboBox Width="96" Margin="8,0,0,0" ItemsSource="{Binding Realtime.Languages}"
-                              SelectedItem="{Binding Realtime.SelectedLanguage}"
-                              IsEnabled="{Binding Realtime.IsRunning, Converter={StaticResource InverseBool}}"
-                              ToolTip="{loc:Loc Home.LanguageTooltip}">
-                        <ComboBox.ItemTemplate>
-                            <DataTemplate>
-                                <TextBlock Text="{loc:LangName}" />
-                            </DataTemplate>
-                        </ComboBox.ItemTemplate>
-                    </ComboBox>
-                </StackPanel>
-
-                <!-- Translation toggle + direction (source follows recognition; target from session
-                     snapshot while running). Prefix: 翻译中/无需翻译; dimmed when off or same-language. -->
-                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="20,0,0,0">
-                    <CheckBox Content="{loc:Loc Home.Translation}" IsChecked="{Binding Translation.Enabled}" VerticalAlignment="Center" />
-                    <TextBlock VerticalAlignment="Center" Margin="8,0,0,0" Foreground="{StaticResource MutedBrush}">
-                        <Run Text="{Binding TranslationPrefix, Mode=OneWay}" /><Run Text="{Binding TranslationDirectionText, Mode=OneWay}" />
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Opacity" Value="1.0" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding TranslationDimmed}" Value="True">
-                                        <Setter Property="Opacity" Value="0.4" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
-                    <Button Content="{loc:Loc Home.NotConfiguredConfigure}" Style="{StaticResource NavButton}" Padding="8,3" Margin="8,0,0,0"
-                            Foreground="#B26A00" FontSize="12"
-                            Command="{Binding DataContext.GoSettingsCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                            Visibility="{Binding TranslationNotConfiguredHint, Converter={StaticResource BoolToVisibility}}" />
-                </StackPanel>
-
+            <!-- UI-R6B: DockPanel + WrapPanel so the bar adapts to narrow windows / high DPI: the
+                 primary actions stay pinned right and visible, while the language + translation
+                 controls wrap to a second line when the bar is too narrow for one row. -->
+            <DockPanel LastChildFill="True">
                 <!-- Primary + session actions -->
-                <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
+                    <!-- UI-R6A: effective-mode badge (shown when recognition is off = recording only) -->
+                    <Border Background="#EEF1F5" CornerRadius="4" Padding="8,3" Margin="0,0,10,0" VerticalAlignment="Center"
+                            Visibility="{Binding Realtime.Mode.IsRecordingOnly, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="{Binding Realtime.EffectiveModeText}" FontSize="12" Foreground="{StaticResource MutedBrush}" />
+                    </Border>
                     <Button Content="{loc:Loc Home.StartMeeting}" Style="{StaticResource PrimaryButton}" MinWidth="110" Click="StartMeeting_Click"
                             IsEnabled="{Binding Realtime.CanStartMeeting}" />
                     <Button Content="{loc:Loc Home.Stop}" Style="{StaticResource DangerButton}" MinWidth="80" Margin="8,0,0,0"
                             Command="{Binding Realtime.StopCommand}"
                             Visibility="{Binding Realtime.IsRunning, Converter={StaticResource BoolToVisibility}}" />
                     <!-- Overlay button text follows the overlay visibility (show / hide) -->
-                    <Button Margin="8,0,0,0" Command="{Binding Realtime.ToggleOverlayCommand}">
+                    <Button Margin="8,0,0,0" Command="{Binding Realtime.ToggleOverlayCommand}"
+                            IsEnabled="{Binding Realtime.SpeechControlsEnabled}">
                         <Button.Style>
                             <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
                                 <Setter Property="Content" Value="{loc:Loc Home.ShowOverlay}" />
@@ -78,7 +42,50 @@
                         </Button.Style>
                     </Button>
                 </StackPanel>
-            </Grid>
+
+                <!-- Language + translation: wrap to a second line when the bar is narrow. -->
+                <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- Recognition language (shows 日本語, value stays the ja/zh code) -->
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,2,0,2">
+                        <TextBlock Text="{loc:Loc Home.RecognitionLanguage}" VerticalAlignment="Center" Foreground="{StaticResource MutedBrush}" />
+                        <ComboBox Width="96" Margin="8,0,0,0" ItemsSource="{Binding Realtime.Languages}"
+                                  SelectedItem="{Binding Realtime.SelectedLanguage}"
+                                  IsEnabled="{Binding Realtime.CanEditRecognitionLanguage}"
+                                  ToolTip="{loc:Loc Home.LanguageTooltip}">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{loc:LangName}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </StackPanel>
+
+                    <!-- Translation toggle + direction (source follows recognition; target from session
+                         snapshot while running). Prefix: 翻译中/无需翻译; dimmed when off or same-language. -->
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="20,2,0,2"
+                                IsEnabled="{Binding Realtime.SpeechControlsEnabled}">
+                        <CheckBox Content="{loc:Loc Home.Translation}" IsChecked="{Binding Translation.Enabled}" VerticalAlignment="Center" />
+                        <TextBlock VerticalAlignment="Center" Margin="8,0,0,0" Foreground="{StaticResource MutedBrush}"
+                                   TextTrimming="CharacterEllipsis">
+                            <Run Text="{Binding TranslationPrefix, Mode=OneWay}" /><Run Text="{Binding TranslationDirectionText, Mode=OneWay}" />
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Opacity" Value="1.0" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding TranslationDimmed}" Value="True">
+                                            <Setter Property="Opacity" Value="0.4" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <Button Content="{loc:Loc Home.NotConfiguredConfigure}" Style="{StaticResource NavButton}" Padding="8,3" Margin="8,0,0,0"
+                                Foreground="#B26A00" FontSize="12"
+                                Command="{Binding DataContext.GoSettingsCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                Visibility="{Binding TranslationNotConfiguredHint, Converter={StaticResource BoolToVisibility}}" />
+                    </StackPanel>
+                </WrapPanel>
+            </DockPanel>
         </Border>
 
         <!-- ==================== Session card (left) + timeline (right) ==================== -->
@@ -216,33 +223,12 @@
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
-                    <!-- Header: count + overflow menu (load recent / clear) -->
-                    <Grid Grid.Row="0" Margin="12,12,10,6">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                            <TextBlock FontWeight="SemiBold" FontSize="15">
-                                <Run Text="{loc:Loc Timeline.HeaderPrefix}" /><Run Text="{Binding FinalCount, Mode=OneWay}" /><Run Text="{loc:Loc Timeline.HeaderSuffix}" />
-                            </TextBlock>
-                            <TextBlock Text="{loc:Loc Timeline.Hint}" Foreground="{StaticResource MutedBrush}" FontSize="11" Margin="0,1,0,0" />
-                        </StackPanel>
-
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0">
-                            <Button Content="{loc:Loc Search.Open}" Padding="10,6"
-                                    Click="SearchTimeline_Click" ToolTip="{loc:Loc Search.Open}"
-                                    AutomationProperties.Name="{loc:Loc Search.Open}" />
-                            <Button Content="{loc:Loc Summary.Generate}" Style="{StaticResource PrimaryButton}" Padding="12,6"
-                                    Margin="6,0,0,0" Click="GenerateSummary_Click"
-                                    IsEnabled="{Binding DataContext.CanGenerateSummary, RelativeSource={RelativeSource AncestorType=UserControl}}" />
-                            <Button Content="{loc:Loc Summary.Open}" Margin="6,0,0,0" Padding="10,6"
-                                    Click="OpenSummary_Click"
-                                    Visibility="{Binding DataContext.SummaryFileExists, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVisibility}}" />
-                        </StackPanel>
-
-                        <ToggleButton x:Name="TimelineMenuToggle" Grid.Column="2" Content="⋯" FontSize="16" Padding="10,2"
+                    <!-- Header: count + actions + overflow menu. UI-R6B: DockPanel keeps the ⋯ menu
+                         pinned right, while the title + Search/Generate actions live in a WrapPanel
+                         that drops the actions to a second line when the captions column is narrow,
+                         so the title never gets clipped by a long "Generate summary" button. -->
+                    <DockPanel Grid.Row="0" Margin="12,12,10,6" LastChildFill="True">
+                        <ToggleButton x:Name="TimelineMenuToggle" DockPanel.Dock="Right" Content="⋯" FontSize="16" Padding="10,2"
                                       Background="Transparent" BorderThickness="0" Cursor="Hand" VerticalAlignment="Center"
                                       AutomationProperties.Name="{loc:Loc Timeline.Menu}" ToolTip="{loc:Loc Timeline.Menu}">
                             <ToggleButton.Template>
@@ -261,7 +247,7 @@
                                 </ControlTemplate>
                             </ToggleButton.Template>
                         </ToggleButton>
-                        <Popup Grid.Column="2" IsOpen="{Binding IsChecked, ElementName=TimelineMenuToggle}" PlacementTarget="{Binding ElementName=TimelineMenuToggle}"
+                        <Popup IsOpen="{Binding IsChecked, ElementName=TimelineMenuToggle}" PlacementTarget="{Binding ElementName=TimelineMenuToggle}"
                                Placement="Bottom" StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade" HorizontalOffset="-140">
                             <Border Background="White" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="4" Margin="0,4,0,0" MinWidth="150">
                                 <Border.Effect>
@@ -290,7 +276,29 @@
                                 </StackPanel>
                             </Border>
                         </Popup>
-                    </Grid>
+
+                        <!-- Actions pinned right (preserves the wide-window layout); the title fills the
+                             rest and trims with an ellipsis when the captions column is narrow, so a long
+                             "Generate summary" button can never clip or overlap the title. -->
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
+                            <Button Content="{loc:Loc Search.Open}" Padding="10,6"
+                                    Click="SearchTimeline_Click" ToolTip="{loc:Loc Search.Open}"
+                                    AutomationProperties.Name="{loc:Loc Search.Open}" />
+                            <Button Content="{loc:Loc Summary.Generate}" Style="{StaticResource PrimaryButton}" Padding="12,6"
+                                    Margin="6,0,0,0" Click="GenerateSummary_Click"
+                                    IsEnabled="{Binding DataContext.CanGenerateSummary, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                            <Button Content="{loc:Loc Summary.Open}" Margin="6,0,0,0" Padding="10,6"
+                                    Click="OpenSummary_Click"
+                                    Visibility="{Binding DataContext.SummaryFileExists, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVisibility}}" />
+                        </StackPanel>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock FontWeight="SemiBold" FontSize="15" TextTrimming="CharacterEllipsis">
+                                <Run Text="{loc:Loc Timeline.HeaderPrefix}" /><Run Text="{Binding FinalCount, Mode=OneWay}" /><Run Text="{loc:Loc Timeline.HeaderSuffix}" />
+                            </TextBlock>
+                            <TextBlock Text="{loc:Loc Timeline.Hint}" Foreground="{StaticResource MutedBrush}" FontSize="11"
+                                       Margin="0,1,0,0" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                    </DockPanel>
 
                     <!-- Virtualized timeline -->
                     <Grid Grid.Row="1">

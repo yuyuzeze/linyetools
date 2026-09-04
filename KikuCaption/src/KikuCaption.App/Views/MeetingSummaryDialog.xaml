@@ -2,9 +2,13 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:loc="clr-namespace:KikuCaption.App.Localization"
-        Title="{loc:Loc Summary.Title}" Width="560" SizeToContent="Height"
+        xmlns:behaviors="clr-namespace:KikuCaption.App.Behaviors"
+        Title="{loc:Loc Summary.Title}" Width="560" SizeToContent="Height" MinWidth="360"
+        behaviors:WindowSizing.ClampToWorkArea="True"
         WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
         Background="{StaticResource WindowBrush}" ShowInTaskbar="False">
+    <!-- UI-R6B: scroll the content if the clamped height (small screen / high DPI) is shorter than it. -->
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
     <StackPanel Margin="20">
         <TextBlock Text="{loc:Loc Summary.Title}" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,10" />
 
@@ -77,4 +81,5 @@
             <Button Content="{loc:Loc Summary.Close}" MinWidth="80" Margin="8,0,0,0" IsCancel="True" />
         </StackPanel>
     </StackPanel>
+    </ScrollViewer>
 </Window>

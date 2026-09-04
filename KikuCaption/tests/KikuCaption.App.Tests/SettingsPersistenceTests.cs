@@ -162,6 +162,32 @@ public class SettingsPersistenceTests : IDisposable
         Assert.True(s.PrewarmWhisperInBackground);
     }
 
+    [Fact] // R6A: the speech-recognition toggle persists (both directions) through Save/Load
+    public void GeneralSettings_EnableSpeechRecognition_Persists()
+    {
+        var vm = GeneralVm(new LocalizationService());
+        Assert.True(vm.EnableSpeechRecognition); // default on
+
+        vm.EnableSpeechRecognition = false;
+        vm.SaveCommand.Execute(null);
+        Assert.False(_store.Load().Settings.EnableSpeechRecognition);
+
+        vm.EnableSpeechRecognition = true;
+        vm.SaveCommand.Execute(null);
+        Assert.True(_store.Load().Settings.EnableSpeechRecognition);
+    }
+
+    [Fact] // R6A: SessionModeState derives the recording-only flag from the speech toggle
+    public void SessionModeState_DerivesRecordingOnly()
+    {
+        var mode = new KikuCaption.App.Services.SessionModeState();
+        Assert.True(mode.SpeechRecognitionEnabled);
+        Assert.False(mode.IsRecordingOnly);
+
+        mode.SpeechRecognitionEnabled = false;
+        Assert.True(mode.IsRecordingOnly);
+    }
+
     private GeneralSettingsViewModel GeneralVm(LocalizationService loc)
     {
         var provider = new SpeechOptionsProvider(new SpeechOptions

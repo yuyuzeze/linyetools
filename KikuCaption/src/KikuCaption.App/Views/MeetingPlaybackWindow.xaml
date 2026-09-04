@@ -3,13 +3,15 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vlc="clr-namespace:LibVLCSharp.WPF;assembly=LibVLCSharp.WPF"
         xmlns:loc="clr-namespace:KikuCaption.App.Localization"
-        Title="{loc:Loc Playback.Title}" Width="1180" Height="760" MinWidth="820" MinHeight="520"
+        xmlns:behaviors="clr-namespace:KikuCaption.App.Behaviors"
+        Title="{loc:Loc Playback.Title}" Width="1120" Height="720" MinWidth="680" MinHeight="440"
+        behaviors:WindowSizing.ClampToWorkArea="True"
         WindowStartupLocation="CenterScreen" ShowInTaskbar="True"
         Background="{StaticResource WindowBrush}">
     <Grid Margin="14">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="3*" MinWidth="420" />
-            <ColumnDefinition Width="2*" MinWidth="300" />
+            <ColumnDefinition Width="3*" MinWidth="300" />
+            <ColumnDefinition Width="2*" MinWidth="240" />
         </Grid.ColumnDefinitions>
 
         <Grid Grid.Column="0" Margin="0,0,12,0">

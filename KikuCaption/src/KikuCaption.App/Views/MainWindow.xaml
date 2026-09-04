@@ -2,9 +2,11 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:loc="clr-namespace:KikuCaption.App.Localization"
-        Title="KikuMemo" Height="820" Width="1180" MinWidth="900" MinHeight="600"
+        xmlns:behaviors="clr-namespace:KikuCaption.App.Behaviors"
+        Title="KikuMemo" Height="760" Width="1180" MinWidth="720" MinHeight="480"
         Icon="/Resources/app.ico"
         Background="{StaticResource WindowBrush}"
+        behaviors:WindowSizing.ClampToWorkArea="True"
         WindowStartupLocation="CenterScreen">
     <Grid>
         <Grid.RowDefinitions>

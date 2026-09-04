@@ -129,6 +129,97 @@ public class UserSettingsStoreTests
         Directory.Delete(dir, true);
     }
 
+    [Fact] // R6A-1: a settings file that predates the flag (missing field) defaults to ON
+    public void MissingSpeechField_DefaultsOn()
+    {
+        var dir = TempDir();
+        // A legacy file with no EnableSpeechRecognition key at all.
+        File.WriteAllText(Path.Combine(dir, "settings.json"), "{ \"RecognitionLanguage\": \"ja\" }");
+        var store = new UserSettingsStore(dir);
+
+        var (loaded, reset) = store.Load();
+        Assert.False(reset);
+        Assert.True(loaded.EnableSpeechRecognition); // preserves the historical behavior
+
+        Directory.Delete(dir, true);
+    }
+
+    [Fact] // R6A-2/3: both true and false persist and round-trip exactly
+    public void SpeechFlag_TrueAndFalse_Persist()
+    {
+        var dir = TempDir();
+        var store = new UserSettingsStore(dir);
+
+        store.Save(new UserSettings { EnableSpeechRecognition = false });
+        Assert.False(store.Load().Settings.EnableSpeechRecognition);
+
+        store.Save(new UserSettings { EnableSpeechRecognition = true });
+        Assert.True(store.Load().Settings.EnableSpeechRecognition);
+
+        Directory.Delete(dir, true);
+    }
+
+    [Fact] // R6A: brand-new install with no edition marker defaults speech ON
+    public void FreshInstall_NoMarker_DefaultsOn()
+    {
+        var dir = TempDir();
+        var markerDir = TempDir(); // empty — no edition.txt
+        var store = new UserSettingsStore(dir, markerDir);
+
+        var (loaded, reset) = store.Load(); // no settings.json yet
+        Assert.False(reset);
+        Assert.True(loaded.EnableSpeechRecognition);
+
+        Directory.Delete(dir, true);
+        Directory.Delete(markerDir, true);
+    }
+
+    [Fact] // R6A: first launch of a RecordingOnly package (edition.txt) defaults speech OFF
+    public void FreshInstall_RecordingOnlyMarker_DefaultsOff()
+    {
+        var dir = TempDir();
+        var markerDir = TempDir();
+        File.WriteAllText(Path.Combine(markerDir, "edition.txt"), "RecordingOnly");
+        var store = new UserSettingsStore(dir, markerDir);
+
+        var (loaded, reset) = store.Load(); // no settings.json yet
+        Assert.False(reset);
+        Assert.False(loaded.EnableSpeechRecognition); // recording-only first-launch default
+
+        Directory.Delete(dir, true);
+        Directory.Delete(markerDir, true);
+    }
+
+    [Fact] // R6A: a Full package marker keeps speech ON at first launch
+    public void FreshInstall_FullMarker_DefaultsOn()
+    {
+        var dir = TempDir();
+        var markerDir = TempDir();
+        File.WriteAllText(Path.Combine(markerDir, "edition.txt"), "Full");
+        var store = new UserSettingsStore(dir, markerDir);
+
+        var (loaded, _) = store.Load();
+        Assert.True(loaded.EnableSpeechRecognition);
+
+        Directory.Delete(dir, true);
+        Directory.Delete(markerDir, true);
+    }
+
+    [Fact] // R6A: once a settings.json exists, the edition marker is ignored (user choice wins)
+    public void ExistingSettings_IgnoreMarker()
+    {
+        var dir = TempDir();
+        var markerDir = TempDir();
+        File.WriteAllText(Path.Combine(markerDir, "edition.txt"), "RecordingOnly");
+        var store = new UserSettingsStore(dir, markerDir);
+        store.Save(new UserSettings { EnableSpeechRecognition = true }); // user enabled it
+
+        Assert.True(store.Load().Settings.EnableSpeechRecognition); // not overridden by the marker
+
+        Directory.Delete(dir, true);
+        Directory.Delete(markerDir, true);
+    }
+
     private static string TempDir()
     {
         var dir = Path.Combine(Path.GetTempPath(), "kiku_settings", Guid.NewGuid().ToString("N"));

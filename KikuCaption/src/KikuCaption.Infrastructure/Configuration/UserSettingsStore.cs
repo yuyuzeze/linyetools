@@ -13,11 +13,16 @@ public sealed class UserSettingsStore
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
     private readonly string _path;
+    private readonly string _editionMarkerDirectory;
 
-    public UserSettingsStore(string directory)
+    /// <param name="directory">User-writable settings directory.</param>
+    /// <param name="editionMarkerDirectory">Directory holding the packaged <c>edition.txt</c> marker;
+    /// defaults to the app base directory (next to the executable). Injectable for tests.</param>
+    public UserSettingsStore(string directory, string? editionMarkerDirectory = null)
     {
         Directory.CreateDirectory(directory);
         _path = Path.Combine(directory, "settings.json");
+        _editionMarkerDirectory = editionMarkerDirectory ?? AppContext.BaseDirectory;
     }
 
     /// <summary>Default location: <c>%LOCALAPPDATA%/KikuCaption</c> (user-writable).</summary>
@@ -31,7 +36,10 @@ public sealed class UserSettingsStore
     {
         if (!File.Exists(_path))
         {
-            return (new UserSettings(), false);
+            // First launch: the packaged edition decides the speech-recognition default. The Full
+            // edition (and any dev build) defaults ON; the RecordingOnly edition defaults OFF because
+            // it ships without Python/Whisper. The user can flip it in Settings and upgrade later.
+            return (new UserSettings { EnableSpeechRecognition = FirstLaunchSpeechDefault() }, false);
         }
 
         try
@@ -51,6 +59,24 @@ public sealed class UserSettingsStore
 
             return (new UserSettings(), true);
         }
+    }
+
+    // Reads the optional edition marker (edition.txt) shipped next to the executable. Only the
+    // RecordingOnly edition turns the first-launch speech default OFF; anything else keeps it ON.
+    private bool FirstLaunchSpeechDefault()
+    {
+        try
+        {
+            var marker = Path.Combine(_editionMarkerDirectory, "edition.txt");
+            if (File.Exists(marker) &&
+                File.ReadAllText(marker).Trim().Equals("RecordingOnly", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+        }
+        catch { /* best effort — fall back to the ON default */ }
+
+        return true;
     }
 
     public void Save(UserSettings settings)

@@ -34,17 +34,23 @@ public sealed class EnvironmentItemViewModel
         }
     }
 
-    public string StatusText => _loc["Env.Status." + _result.Status];
+    // UI-R6A: a probe skipped for the current recording mode is shown as neutral info,
+    // never green/yellow/red, so it cannot read as "healthy" or "broken".
+    public string StatusText => _result.Skipped
+        ? _loc["Env.Status.Skipped"]
+        : _loc["Env.Status." + _result.Status];
 
     /// <summary>Hex colour bound directly to a WPF Brush target (string→Brush conversion).</summary>
-    public string StatusColor => _result.Status switch
-    {
-        EnvironmentCheckStatus.Ok => "#2E7D32",
-        EnvironmentCheckStatus.Warning => "#F9A825",
-        EnvironmentCheckStatus.Missing => "#C62828",
-        EnvironmentCheckStatus.Error => "#B71C1C",
-        _ => "#616161"
-    };
+    public string StatusColor => _result.Skipped
+        ? "#616161"
+        : _result.Status switch
+        {
+            EnvironmentCheckStatus.Ok => "#2E7D32",
+            EnvironmentCheckStatus.Warning => "#F9A825",
+            EnvironmentCheckStatus.Missing => "#C62828",
+            EnvironmentCheckStatus.Error => "#B71C1C",
+            _ => "#616161"
+        };
 
     public string? DetectedVersion => _result.DetectedVersion;
     public bool HasDetectedVersion => !string.IsNullOrWhiteSpace(_result.DetectedVersion);

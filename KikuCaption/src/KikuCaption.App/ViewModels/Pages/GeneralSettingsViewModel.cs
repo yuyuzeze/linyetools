@@ -23,16 +23,18 @@ public sealed partial class GeneralSettingsViewModel : ObservableObject
     private readonly ILogger<GeneralSettingsViewModel> _logger;
     private readonly CorrectionModelLocator _correctionModel;
     private readonly SpeechPrewarmCoordinator? _prewarm;
+    private readonly SessionModeState? _mode;
     private bool _loading;
 
     public GeneralSettingsViewModel(UserSettingsStore store, LocalizationService localization,
-        CorrectionModelLocator correctionModel, SpeechPrewarmCoordinator prewarm,
+        CorrectionModelLocator correctionModel, SpeechPrewarmCoordinator prewarm, SessionModeState mode,
         ILogger<GeneralSettingsViewModel> logger)
     {
         _store = store;
         _localization = localization;
         _correctionModel = correctionModel;
         _prewarm = prewarm;
+        _mode = mode;
         _logger = logger;
         LoadFromStore();
     }
@@ -68,6 +70,7 @@ public sealed partial class GeneralSettingsViewModel : ObservableObject
     [ObservableProperty] private bool _closeToTray;
     [ObservableProperty] private bool _autoCorrectAfterMeeting = true;
     [ObservableProperty] private bool _prewarmWhisperInBackground;
+    [ObservableProperty] private bool _enableSpeechRecognition = true;
     [ObservableProperty] private bool _isCorrectionModelAvailable;
     [ObservableProperty] private string _correctionModelHint = string.Empty;
     [ObservableProperty] private string _statusText = string.Empty;
@@ -115,7 +118,10 @@ public sealed partial class GeneralSettingsViewModel : ObservableObject
                 CloseToTray = CloseToTray,
                 AutoCorrectAfterMeeting = AutoCorrectAfterMeeting
                 ,PrewarmWhisperInBackground = PrewarmWhisperInBackground
+                ,EnableSpeechRecognition = EnableSpeechRecognition
             });
+            // UI-R6A: the effective mode reflects the PERSISTED setting (applies from the next meeting).
+            if (_mode is not null) _mode.SpeechRecognitionEnabled = EnableSpeechRecognition;
             StatusText = _localization["Settings.Saved"];
         }
         catch (Exception ex)
@@ -140,6 +146,7 @@ public sealed partial class GeneralSettingsViewModel : ObservableObject
         CloseToTray = d.CloseToTray;
         AutoCorrectAfterMeeting = d.AutoCorrectAfterMeeting;
         PrewarmWhisperInBackground = d.PrewarmWhisperInBackground;
+        EnableSpeechRecognition = d.EnableSpeechRecognition;
         _loading = false;
         // Language reset applies live + persists via the changed handler.
         UiLanguage = d.UiLanguage;
@@ -164,6 +171,7 @@ public sealed partial class GeneralSettingsViewModel : ObservableObject
         RefreshCorrectionAvailability();
         AutoCorrectAfterMeeting = s.AutoCorrectAfterMeeting && IsCorrectionModelAvailable;
         PrewarmWhisperInBackground = s.PrewarmWhisperInBackground;
+        EnableSpeechRecognition = s.EnableSpeechRecognition;
         _loading = false;
     }
 

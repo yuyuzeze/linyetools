@@ -28,6 +28,12 @@ public sealed record UserSettings
     public bool MinimizeToTray { get; init; } = true;
     public bool CloseToTray { get; init; }
 
+    // UI-R6A: enable local speech recognition. Default true preserves existing behavior; a missing
+    // field in an older settings file also defaults to true (record init default). When false, a
+    // meeting only records screen + system audio + optional mic (no Python/Whisper/captions). Takes
+    // effect from the NEXT meeting (snapshotted into SessionCapabilities at start).
+    public bool EnableSpeechRecognition { get; init; } = true;
+
     // UI-R5C meeting-summary output language. Null = never chosen (follow the UI language); once the
     // user picks one in the dialog it is persisted here (zh/ja/en) and no longer follows the UI.
     public string? SummaryOutputLanguage { get; init; }

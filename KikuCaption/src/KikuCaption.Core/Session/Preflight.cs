@@ -1,6 +1,6 @@
 namespace KikuCaption.Core.Session;
 
-/// <summary>Severity of a single pre-start check (Milestone 7 §2).</summary>
+/// <summary>Severity of a single pre-start check (Milestone 7 §2, UI-R6A).</summary>
 public enum PreflightSeverity
 {
     /// <summary>OK.</summary>
@@ -10,7 +10,10 @@ public enum PreflightSeverity
     Warn,
 
     /// <summary>Must be resolved before a real-time caption session can start.</summary>
-    Block
+    Block,
+
+    /// <summary>Not applicable in this mode (e.g. speech deps when recognition is off) — never blocks.</summary>
+    Skip
 }
 
 /// <summary>One pre-start check result.</summary>
@@ -19,6 +22,10 @@ public sealed record PreflightCheck(string Name, PreflightSeverity Severity, str
 /// <summary>Facts gathered by the App before evaluating readiness. All are simple, testable values.</summary>
 public sealed record PreflightInputs
 {
+    /// <summary>UI-R6A: false when local speech recognition is disabled — the Python/worker/model
+    /// checks then become <see cref="PreflightSeverity.Skip"/> (not blocking) instead of required.</summary>
+    public bool SpeechRecognitionRequested { get; init; } = true;
+
     // Blocking prerequisites for any real-time caption session.
     public bool DotNetOk { get; init; } = true;
     public bool PythonOk { get; init; }
@@ -65,12 +72,14 @@ public static class PreflightEvaluator
 {
     public static PreflightReport Evaluate(PreflightInputs i)
     {
+        // UI-R6A: when recognition is off, the speech dependencies are skipped (not required), so a
+        // recording-only meeting is not blocked by a missing Python/worker/model.
         var checks = new List<PreflightCheck>
         {
             Req(".NET 运行环境", i.DotNetOk, "缺少 .NET 运行环境"),
-            Req("Python 运行环境", i.PythonOk, "未找到可用的 Python"),
-            Req("faster-whisper 依赖", i.WhisperDepsOk, "缺少识别依赖"),
-            Req("Whisper small 模型", i.ModelOk, "模型缺失或无法加载"),
+            ReqOrSkip("Python 运行环境", i.PythonOk, "未找到可用的 Python", i.SpeechRecognitionRequested),
+            ReqOrSkip("faster-whisper 依赖", i.WhisperDepsOk, "缺少识别依赖", i.SpeechRecognitionRequested),
+            ReqOrSkip("Whisper small 模型", i.ModelOk, "模型缺失或无法加载", i.SpeechRecognitionRequested),
             Req("SQLite 可打开", i.SqliteOk, "数据库无法打开"),
             Req("系统音频输出设备", i.WasapiDeviceOk, "未检测到 WASAPI 输出设备"),
             Req("输出目录可写", i.OutputWritable, "输出目录不可写（请选择用户可写目录）"),
@@ -100,6 +109,12 @@ public static class PreflightEvaluator
 
     private static PreflightCheck Req(string name, bool ok, string failDetail)
         => new(name, ok ? PreflightSeverity.Pass : PreflightSeverity.Block, ok ? "通过" : failDetail);
+
+    // Required when this mode needs it; otherwise skipped (never blocks) — used for the speech deps.
+    private static PreflightCheck ReqOrSkip(string name, bool ok, string failDetail, bool required)
+        => required
+            ? Req(name, ok, failDetail)
+            : new PreflightCheck(name, PreflightSeverity.Skip, "当前录制模式不需要");
 
     private static PreflightCheck Warnable(string name, bool ok, string failDetail)
         => new(name, ok ? PreflightSeverity.Pass : PreflightSeverity.Warn, ok ? "通过" : failDetail);

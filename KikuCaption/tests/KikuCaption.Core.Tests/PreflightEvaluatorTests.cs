@@ -79,4 +79,42 @@ public class PreflightEvaluatorTests
         Assert.False(r.HasBlocking);
         Assert.True(r.TranslationAvailable);
     }
+
+    // ---- UI-R6A: recording-only (speech recognition off) --------------------------------------
+
+    [Fact] // R6A-11: missing python/worker/model does NOT block when recognition is off
+    public void SpeechOff_MissingSpeechDeps_DoesNotBlock()
+    {
+        var i = AllGood() with
+        {
+            SpeechRecognitionRequested = false,
+            PythonOk = false, WhisperDepsOk = false, ModelOk = false
+        };
+
+        var r = PreflightEvaluator.Evaluate(i);
+
+        Assert.False(r.HasBlocking);        // recording-only meeting can still start
+        Assert.True(r.RecordingAvailable);  // recording deps are all present
+        // The speech deps are reported as Skip (neutral), never Block.
+        Assert.Contains(r.Checks, c => c.Name.Contains("Python") && c.Severity == PreflightSeverity.Skip);
+        Assert.Contains(r.Checks, c => c.Name.Contains("Whisper") && c.Severity == PreflightSeverity.Skip);
+        Assert.DoesNotContain(r.Checks, c => c.Severity == PreflightSeverity.Block);
+    }
+
+    [Fact] // R6A-12: missing FFmpeg STILL blocks recording even when recognition is off
+    public void SpeechOff_MissingFfmpeg_RecordingUnavailable()
+    {
+        var i = AllGood() with { SpeechRecognitionRequested = false, FfmpegOk = false, FfprobeOk = false };
+        var r = PreflightEvaluator.Evaluate(i);
+
+        Assert.False(r.RecordingAvailable); // the only output was recording → now unavailable
+        Assert.True(r.HasWarnings);
+    }
+
+    [Fact] // R6A: with recognition ON (default), missing speech deps block as before
+    public void SpeechOn_MissingModel_StillBlocks()
+    {
+        var r = PreflightEvaluator.Evaluate(AllGood() with { ModelOk = false }); // SpeechRecognitionRequested defaults true
+        Assert.True(r.HasBlocking);
+    }
 }

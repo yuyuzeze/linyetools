@@ -46,11 +46,15 @@ public sealed class PreflightService
     }
 
     public async Task<PreflightReport> RunAsync(bool recordingRequested, string captureType, string? captureTarget, CancellationToken cancellationToken)
+        => await RunAsync(recordingRequested, speechRecognitionRequested: true, captureType, captureTarget, cancellationToken).ConfigureAwait(false);
+
+    public async Task<PreflightReport> RunAsync(bool recordingRequested, bool speechRecognitionRequested, string captureType, string? captureTarget, CancellationToken cancellationToken)
     {
         var root = _storage.ResolveOutputRoot();
 
         var inputs = new PreflightInputs
         {
+            SpeechRecognitionRequested = speechRecognitionRequested,
             DotNetOk = true,
             PythonOk = !string.IsNullOrWhiteSpace(_whisper.PythonExecutable) && File.Exists(_whisper.PythonExecutable),
             WhisperDepsOk = !string.IsNullOrWhiteSpace(_whisper.WorkerScript) && File.Exists(_whisper.WorkerScript),

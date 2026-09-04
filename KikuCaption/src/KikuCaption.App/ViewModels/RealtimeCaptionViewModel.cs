@@ -44,7 +44,11 @@ public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptur
     private readonly ILogger<RealtimeCaptionViewModel> _logger;
     private readonly KikuCaption.App.Services.PostMeetingCorrectionService _correction;
     private readonly UserSettingsStore _userSettingsStore;
+    private readonly KikuCaption.App.Services.SessionModeState _mode;
     private readonly DispatcherTimer _metricsTimer;
+
+    // UI-R6A: the immutable capability snapshot for the running meeting (null when idle).
+    private SessionCapabilities? _sessionCapabilities;
 
     // UI-R3: the long-lived status strings are held as resource keys/args and re-localized when the
     // language changes, so switching language refreshes the running page immediately.
@@ -78,7 +82,9 @@ public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptur
     private FFmpegCapabilities? _capabilities;
     private CancellationTokenSource? _cts;
 
-    [ObservableProperty] private bool _isRunning;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanEditRecognitionLanguage))]
+    private bool _isRunning;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(SelectedLanguageDisplay))]
@@ -144,10 +150,12 @@ public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptur
         PreflightService preflight,
         KikuCaption.App.Services.PostMeetingCorrectionService correction,
         UserSettingsStore userSettingsStore,
+        KikuCaption.App.Services.SessionModeState mode,
         LocalizationService localization,
         ILogger<RealtimeCaptionViewModel> logger)
     {
         _loc = localization;
+        _mode = mode;
         _mixerFactory = mixerFactory;
         _pipelineFactory = pipelineFactory;
         _recorder = recorder;
@@ -173,6 +181,13 @@ public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptur
         SessionStateText = _loc["Session.State." + _sessionState.State];
         SetStatus("Status.Idle");
         SetRecorder(recordingRuntime.FFmpegPath is null ? "Recorder.NoFFmpeg" : "Recorder.Ready");
+        // UI-R6A: the effective-mode label + caption-control enablement follow the live mode setting.
+        _mode.PropertyChanged += (_, _) => Dispatch(() =>
+        {
+            OnPropertyChanged(nameof(SpeechControlsEnabled));
+            OnPropertyChanged(nameof(CanEditRecognitionLanguage));
+            OnPropertyChanged(nameof(EffectiveModeText));
+        });
         // Re-localize the long-lived status strings live when the UI language changes (UI-R3).
         _loc.LanguageChanged += (_, _) => Dispatch(RefreshLocalizedText);
         // UI-R4A: the live translation source always follows the recognition language (idle preview).
@@ -202,6 +217,18 @@ public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptur
     public MeetingTimelineViewModel Timeline { get; }
 
     public IReadOnlyList<string> Languages { get; } = new[] { "ja", "zh" };
+
+    /// <summary>UI-R6A: the live "recording only vs captions" effective mode for the Home page.</summary>
+    public KikuCaption.App.Services.SessionModeState Mode => _mode;
+
+    /// <summary>Caption-only controls (translation toggle / overlay) are usable only with speech on.</summary>
+    public bool SpeechControlsEnabled => _mode.SpeechRecognitionEnabled;
+
+    /// <summary>Recognition language can be changed only when speech is on and no meeting is running.</summary>
+    public bool CanEditRecognitionLanguage => _mode.SpeechRecognitionEnabled && !IsRunning;
+
+    /// <summary>Localized effective-mode label ("captions + recording" or "recording only").</summary>
+    public string EffectiveModeText => _mode.IsRecordingOnly ? _loc["Mode.RecordingOnly"] : _loc["Mode.WithCaptions"];
 
     public bool HasError => !string.IsNullOrEmpty(ErrorMessage);
 
@@ -311,6 +338,7 @@ public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptur
             AudioQualityWarning = string.Format(_loc["AudioQuality.Dropped"], mixer.SpeechDroppedChunks);
         }
         OnPropertyChanged(nameof(SelectedLanguageDisplay));
+        OnPropertyChanged(nameof(EffectiveModeText)); // UI-R6A mode label re-localizes
     }
 
     [RelayCommand]
@@ -333,7 +361,10 @@ public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptur
         }
 
         _correction.CancelCurrent();
-        _autoCorrectThisSession = _userSettingsStore.Load().Settings.AutoCorrectAfterMeeting;
+        // UI-R6A: read the current settings ONCE — the capability snapshot is built from this and
+        // downstream code reads the snapshot, never UserSettings again, for this meeting.
+        var startSettings = _userSettingsStore.Load().Settings;
+        bool enableSpeech = startSettings.EnableSpeechRecognition;
         ErrorMessage = null;
         StorageError = null;
         AudioQualityWarning = string.Empty;
@@ -342,8 +373,9 @@ public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptur
         var root = _storageOptions.ResolveOutputRoot();
         bool recordingRequested = _recordingRuntime.FFmpegPath is not null;
 
-        // Preflight before creating any session (Milestone 7 §2).
-        var report = await _preflight.RunAsync(recordingRequested, SelectedCaptureType, SelectedWindow, CancellationToken.None);
+        // Preflight before creating any session (Milestone 7 §2). When recognition is off, the speech
+        // dependencies (Python/worker/model) are skipped, not required, so they never block recording.
+        var report = await _preflight.RunAsync(recordingRequested, enableSpeech, SelectedCaptureType, SelectedWindow, CancellationToken.None);
         PreflightSummary = SummarizePreflight(report);
         if (report.HasBlocking)
         {
@@ -368,6 +400,28 @@ public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptur
             SetRecorder("Recorder.Unavailable");
         }
 
+        // UI-R6A: build the immutable capability snapshot for THIS meeting. Translation and post-meeting
+        // correction both require speech recognition; recording-only means none of them run.
+        bool translationEffective = _translationOptions.Enabled
+            && !string.Equals(SelectedLanguage, string.IsNullOrWhiteSpace(_translationOptions.TargetLanguage) ? "zh" : _translationOptions.TargetLanguage, StringComparison.OrdinalIgnoreCase);
+        _sessionCapabilities = SessionCapabilities.Compute(
+            recordingAvailable: recordThisSession,
+            speechRecognitionEnabled: enableSpeech,
+            translationEffective: translationEffective,
+            postMeetingCorrectionRequested: startSettings.AutoCorrectAfterMeeting);
+
+        // A meeting that neither records nor recognizes has nothing to do — reject it (e.g. recording
+        // requested but FFmpeg missing, AND recognition off). Recording deps still block recording.
+        if (_sessionCapabilities.ProducesNothing)
+        {
+            ErrorMessage = _loc["Error.NothingToDo"];
+            SetStatus("Status.PreflightBlocked");
+            _sessionState.TryTransition(Core.Enums.SessionState.Idle);
+            return;
+        }
+
+        _autoCorrectThisSession = _sessionCapabilities.PostMeetingCorrectionEnabled;
+
         _sessionState.TryTransition(Core.Enums.SessionState.Starting);
         try
         {
@@ -378,29 +432,47 @@ public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptur
             // recorder — so exactly one loopback exists and the mic reaches both captions and meeting.mp4.
             var mixOptions = new AudioMixOptions(_recordSystemAudio, _recordMicrophone, _micDeviceId);
             _mixer = _mixerFactory(mixOptions);
+
+            // UI-R6A: register only the fan-out branches this meeting actually consumes, BEFORE Start.
+            // Recording-only meetings never create the speech branch — no channel exists, nothing is
+            // written to it, and it can never drop or starve the recorder.
             _recordingAudioSource = recordThisSession ? _mixer.CreateRecordingSource() : null;
+            var speechSource = _sessionCapabilities.SpeechRecognitionEnabled ? _mixer.CreateSpeechSource() : null;
             _mixer.Start(_cts.Token);
 
-            _pipeline = _pipelineFactory();
-            _pipeline.PartialUpdated += OnPartial;
-            _pipeline.FinalProduced += OnFinalProduced;
-            _pipeline.Faulted += OnFaulted;
-
-            // UI-R3: clear prior lines and apply the DefaultShowOverlay preference for the new
-            // meeting. A user's manual show/hide during the session is never overridden afterwards.
-            Overlay.PrepareForNewSession();
             Timeline.BeginSession(); // fresh full-meeting timeline (Milestone 3.1)
-            SetStatus("Status.Loading");
 
-            await _pipeline.StartAsync(_mixer.SpeechSource.CaptureAsync(_cts.Token), SelectedLanguage, _cts.Token);
+            // The Speech branch + pipeline are created + consumed ONLY when recognition is enabled. In
+            // recording-only mode we never create the pipeline, never start Python/Whisper, and never
+            // produce captions/translation.
+            Guid sessionId;
+            if (_sessionCapabilities.SpeechRecognitionEnabled)
+            {
+                _pipeline = _pipelineFactory();
+                _pipeline.PartialUpdated += OnPartial;
+                _pipeline.FinalProduced += OnFinalProduced;
+                _pipeline.Faulted += OnFaulted;
+
+                // UI-R3: clear prior lines and apply the DefaultShowOverlay preference for the new
+                // meeting. A user's manual show/hide during the session is never overridden afterwards.
+                Overlay.PrepareForNewSession();
+                SetStatus("Status.Loading");
+
+                await _pipeline.StartAsync(speechSource!.CaptureAsync(_cts.Token), SelectedLanguage, _cts.Token);
+                sessionId = _pipeline.SessionId;
+            }
+            else
+            {
+                sessionId = Guid.NewGuid(); // no pipeline → generate the session id ourselves
+                SetStatus("Status.RecordingOnly");
+            }
 
             // UI-R4A: snapshot the translation direction now (source = recognition language; target =
-            // the configured target). Immutable for the whole meeting, even if the user later changes
-            // the target in settings. Same-language → EffectiveEnabled is false (no jobs, no API).
+            // the configured target). Immutable for the whole meeting. Recording-only → disabled.
             _sessionTranslation = new SessionTranslationOptions(
                 SourceLanguage: SelectedLanguage,
                 TargetLanguage: string.IsNullOrWhiteSpace(_translationOptions.TargetLanguage) ? "zh" : _translationOptions.TargetLanguage,
-                Enabled: _translationOptions.Enabled,
+                Enabled: _sessionCapabilities.TranslationEnabled,
                 Model: _translationOptions.Model,
                 PromptVersion: TranslationPrompt.Version);
             OnPropertyChanged(nameof(SessionTargetLanguage));
@@ -409,7 +481,7 @@ public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptur
             var startedAt = DateTimeOffset.Now;
             var seed = new MeetingSession
             {
-                Id = _pipeline.SessionId,
+                Id = sessionId,
                 StartedAt = startedAt,
                 RecognitionLanguage = SelectedLanguage,
                 OutputDirectory = root,
@@ -595,6 +667,7 @@ public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptur
 
         _cts?.Dispose();
         _cts = null;
+        _sessionCapabilities = null; // UI-R6A: forget the snapshot once the meeting ends
     }
 
     private async Task StartRecordingAsync(string sessionDirectory)

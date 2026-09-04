@@ -24,6 +24,12 @@ public sealed record AudioMixOptions(bool RecordSystemAudio, bool RecordMicropho
 /// other consumer, and neither branch can grow without bound. A microphone failure is non-fatal (mic
 /// falls to silence, system audio and recording continue); a system-capture failure faults the
 /// branches (matching the pre-R5A loopback-only behavior).
+///
+/// UI-R6A: both fan-out branches are opt-in. A branch — and its bounded buffer — is created only when
+/// the caller explicitly registers that consumer (<see cref="CreateSpeechSource"/> /
+/// <see cref="CreateRecordingSource"/>) before <see cref="Start"/>. In recording-only mode the speech
+/// branch is never created: no channel exists, nothing is written to it, and it can never drop or
+/// starve — the mixer feeds only the recorder.
 /// </summary>
 public sealed class SessionAudioMixer : IAsyncDisposable
 {
@@ -35,8 +41,8 @@ public sealed class SessionAudioMixer : IAsyncDisposable
     private readonly int _frameMs;
     private readonly AudioMixTimeline _timeline;
 
-    private readonly BoundedAudioBuffer _speechBranch = new(BranchCapacity);
-    private readonly BranchSource _speechSource;
+    private BoundedAudioBuffer? _speechBranch;
+    private BranchSource? _speechSource;
     private BoundedAudioBuffer? _recordingBranch;
     private BranchSource? _recordingSource;
 
@@ -62,11 +68,11 @@ public sealed class SessionAudioMixer : IAsyncDisposable
         _logger = logger;
         _frameMs = frameMilliseconds;
         _timeline = new AudioMixTimeline(frameMilliseconds);
-        _speechSource = new BranchSource(_speechBranch);
     }
 
-    /// <summary>The mixed-audio source for the caption pipeline (always available; single reader).</summary>
-    public IAudioCaptureService SpeechSource => _speechSource;
+    /// <summary>The mixed-audio source for the caption pipeline, or null when speech recognition is
+    /// off (UI-R6A) — i.e. <see cref="CreateSpeechSource"/> was never called.</summary>
+    public IAudioCaptureService? SpeechSource => _speechSource;
 
     public AudioMixMetrics GetMetrics() => _timeline.GetMetrics(_clock?.Elapsed ?? TimeSpan.Zero);
 
@@ -74,13 +80,34 @@ public sealed class SessionAudioMixer : IAsyncDisposable
     public long RecordingDroppedChunks => Interlocked.Read(ref _recordingDropped);
 
     /// <summary>
-    /// Enables a second fan-out branch for the recorder and returns it as an audio source. Call before
+    /// Enables the caption fan-out branch and returns it as an audio source (UI-R6A). Call before
+    /// <see cref="Start"/> and only when speech recognition is enabled; when it is not called, the
+    /// speech branch/buffer is never created and the mixer feeds the recorder only.
+    /// </summary>
+    public IAudioCaptureService CreateSpeechSource()
+    {
+        EnsureNotStarted();
+        _speechBranch ??= new BoundedAudioBuffer(BranchCapacity);
+        return _speechSource ??= new BranchSource(_speechBranch);
+    }
+
+    /// <summary>
+    /// Enables the recorder fan-out branch and returns it as an audio source. Call before
     /// <see cref="Start"/>. The recorder consumes mixed PCM identical to the caption pipeline's.
     /// </summary>
     public IAudioCaptureService CreateRecordingSource()
     {
+        EnsureNotStarted();
         _recordingBranch ??= new BoundedAudioBuffer(BranchCapacity);
         return _recordingSource ??= new BranchSource(_recordingBranch);
+    }
+
+    private void EnsureNotStarted()
+    {
+        if (Volatile.Read(ref _started) != 0)
+        {
+            throw new InvalidOperationException("Fan-out consumers must be registered before Start().");
+        }
     }
 
     /// <summary>Starts the capture pumps and the mix loop. Idempotent-safe (second call is a no-op).</summary>
@@ -128,7 +155,7 @@ public sealed class SessionAudioMixer : IAsyncDisposable
                 // System capture is the primary source: propagate the fault to the consumers, matching
                 // the pre-R5A loopback-only behavior (captions fault on a system-audio device error).
                 _logger.LogWarning(ex, "System audio capture ended unexpectedly; faulting mixed output.");
-                _speechBranch.Complete(ex);
+                _speechBranch?.Complete(ex);
                 _recordingBranch?.Complete(ex);
             }
             else
@@ -173,7 +200,7 @@ public sealed class SessionAudioMixer : IAsyncDisposable
         int samples = pcm.Length / 2;
         var chunk = new AudioChunk(pcm, TimeSpan.Zero, TimeSpan.FromSeconds((double)samples / AudioMixTimeline.SampleRate));
 
-        if (!_speechBranch.TryWrite(chunk)) { Interlocked.Increment(ref _speechDropped); }
+        if (_speechBranch is not null && !_speechBranch.TryWrite(chunk)) { Interlocked.Increment(ref _speechDropped); }
         if (_recordingBranch is not null && !_recordingBranch.TryWrite(chunk)) { Interlocked.Increment(ref _recordingDropped); }
     }
 
@@ -204,7 +231,7 @@ public sealed class SessionAudioMixer : IAsyncDisposable
             {
                 int samples = tail.Length / 2;
                 var chunk = new AudioChunk(tail, TimeSpan.Zero, TimeSpan.FromSeconds((double)samples / AudioMixTimeline.SampleRate));
-                _speechBranch.TryWrite(chunk);
+                _speechBranch?.TryWrite(chunk);
                 _recordingBranch?.TryWrite(chunk);
             }
         }
@@ -213,7 +240,7 @@ public sealed class SessionAudioMixer : IAsyncDisposable
             _logger.LogWarning(ex, "Error flushing the final mixed audio tail.");
         }
 
-        _speechBranch.Complete();
+        _speechBranch?.Complete();
         _recordingBranch?.Complete();
 
         if (_system is not null) { try { await _system.DisposeAsync().ConfigureAwait(false); } catch { /* ignore */ } }

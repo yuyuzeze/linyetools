@@ -55,4 +55,11 @@ public sealed record DependencyCheckResult
     /// Required dependencies that are missing produce a blocking (but non-crashing) warning.
     /// </summary>
     public bool IsRequired { get; init; }
+
+    /// <summary>
+    /// UI-R6A: the check is not applicable in the current mode (e.g. the Whisper worker/model when
+    /// local speech recognition is off). Shown as an informational/grey row and never affects overall
+    /// health. A skipped check is always non-required.
+    /// </summary>
+    public bool Skipped { get; init; }
 }

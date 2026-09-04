@@ -155,6 +155,8 @@ public partial class App : Application
                     // Milestone 7: preflight + user settings store (non-sensitive prefs).
                     services.AddSingleton<KikuCaption.App.Services.PreflightService>();
                     services.AddSingleton(_ => UserSettingsStore.CreateDefault());
+                    // UI-R6A: the single live "recording only vs captions" mode state for the UI.
+                    services.AddSingleton<KikuCaption.App.Services.SessionModeState>();
 
                     // UI-R1: app-composition environment probes (reuse already-composed options).
                     // These join the Infrastructure probes via IEnumerable<IEnvironmentProbe>.
@@ -363,6 +365,9 @@ public partial class App : Application
         }
 
         var (us, _) = store.Load();
+
+        // UI-R6A: seed the live effective mode from the persisted setting (drives the Home page).
+        sp.GetRequiredService<KikuCaption.App.Services.SessionModeState>().SpeechRecognitionEnabled = us.EnableSpeechRecognition;
 
         var localization = sp.GetRequiredService<KikuCaption.App.Localization.LocalizationService>();
         // A corrupt/unsupported persisted code normalizes to zh-CN (UI-R3.1 unified fallback).
