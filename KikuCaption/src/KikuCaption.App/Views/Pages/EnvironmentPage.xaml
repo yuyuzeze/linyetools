@@ -26,8 +26,75 @@
             </StackPanel>
         </Border>
 
-        <!-- Per-dependency rows. -->
+        <!-- Per-dependency rows + R7B model section. -->
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+          <StackPanel>
+            <!-- R7B: speech-recognition models (small = realtime, medium = correction). -->
+            <Border Background="{StaticResource CardBrush}" CornerRadius="8" Padding="16" Margin="0,0,0,12">
+                <StackPanel>
+                    <TextBlock Text="{Binding Models.Title}" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,10" />
+                    <ItemsControl ItemsSource="{Binding Models.Models}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6"
+                                        Padding="12" Margin="0,0,0,8">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Grid.Column="0" Width="14" Height="14" CornerRadius="7"
+                                                VerticalAlignment="Top" Margin="0,3,10,0" Background="{Binding StatusColor}" />
+                                        <StackPanel Grid.Column="1">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="15" />
+                                                <Border Margin="7,0,0,0" Width="16" Height="16" CornerRadius="8"
+                                                        BorderBrush="{StaticResource MutedBrush}" BorderThickness="1"
+                                                        VerticalAlignment="Center" ToolTip="{Binding Tooltip}">
+                                                    <TextBlock Text="?" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                               Foreground="{StaticResource MutedBrush}" FontSize="11" />
+                                                </Border>
+                                            </StackPanel>
+                                            <TextBlock Text="{Binding RoleText}" Foreground="{StaticResource MutedBrush}"
+                                                       FontSize="12" Margin="0,2,0,0" />
+                                            <TextBlock Text="{Binding SizeText}" Foreground="{StaticResource MutedBrush}"
+                                                       FontSize="12" Margin="0,2,0,0"
+                                                       Visibility="{Binding HasSize, Converter={StaticResource BoolToVisibility}}" />
+                                            <StackPanel Margin="0,6,0,0"
+                                                        Visibility="{Binding IsDownloading, Converter={StaticResource BoolToVisibility}}">
+                                                <ProgressBar Height="6" Minimum="0" Maximum="1" Value="{Binding Progress}"
+                                                             IsIndeterminate="{Binding IsIndeterminate}" />
+                                                <TextBlock Text="{Binding PhaseText}" Foreground="{StaticResource MutedBrush}"
+                                                           FontSize="11" Margin="0,3,0,0" />
+                                            </StackPanel>
+                                            <TextBlock Text="{Binding ErrorText}" Foreground="#C0392B" TextWrapping="Wrap"
+                                                       FontSize="12" Margin="0,4,0,0"
+                                                       Visibility="{Binding HasError, Converter={StaticResource BoolToVisibility}}" />
+                                            <TextBlock Text="{Binding NoSourceText}" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap"
+                                                       FontSize="12" Margin="0,4,0,0"
+                                                       Visibility="{Binding ShowNoSource, Converter={StaticResource BoolToVisibility}}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Top">
+                                            <Border Background="{Binding StatusColor}" CornerRadius="4" Padding="8,2"
+                                                    VerticalAlignment="Center" Margin="0,0,8,0">
+                                                <TextBlock Text="{Binding StatusText}" Foreground="White" FontSize="12" />
+                                            </Border>
+                                            <Button Content="{loc:Loc Models.Download}" Command="{Binding DownloadCommand}" Padding="12,4"
+                                                    Visibility="{Binding CanDownload, Converter={StaticResource BoolToVisibility}}" />
+                                            <Button Content="{loc:Loc Models.Cancel}" Command="{Binding CancelCommand}" Padding="12,4"
+                                                    Visibility="{Binding CanCancel, Converter={StaticResource BoolToVisibility}}" />
+                                            <Button Content="{loc:Loc Models.Retry}" Command="{Binding RetryCommand}" Padding="12,4" Margin="8,0,0,0"
+                                                    Visibility="{Binding CanRetry, Converter={StaticResource BoolToVisibility}}" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
             <ItemsControl ItemsSource="{Binding Items}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
@@ -61,6 +128,7 @@
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
+          </StackPanel>
         </ScrollViewer>
 
         <!-- Actions: re-check / open settings / copy sanitized diagnostics. -->

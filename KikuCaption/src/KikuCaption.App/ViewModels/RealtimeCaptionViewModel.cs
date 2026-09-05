@@ -45,6 +45,8 @@ public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptur
     private readonly KikuCaption.App.Services.PostMeetingCorrectionService _correction;
     private readonly UserSettingsStore _userSettingsStore;
     private readonly KikuCaption.App.Services.SessionModeState _mode;
+    private readonly KikuCaption.Core.Interfaces.IModelUsageRegistry _modelUsageRegistry;
+    private KikuCaption.Core.Interfaces.IModelUsageLease? _modelLease;
     private readonly DispatcherTimer _metricsTimer;
 
     // UI-R6A: the immutable capability snapshot for the running meeting (null when idle).
@@ -151,11 +153,13 @@ public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptur
         KikuCaption.App.Services.PostMeetingCorrectionService correction,
         UserSettingsStore userSettingsStore,
         KikuCaption.App.Services.SessionModeState mode,
+        KikuCaption.Core.Interfaces.IModelUsageRegistry modelUsageRegistry,
         LocalizationService localization,
         ILogger<RealtimeCaptionViewModel> logger)
     {
         _loc = localization;
         _mode = mode;
+        _modelUsageRegistry = modelUsageRegistry;
         _mixerFactory = mixerFactory;
         _pipelineFactory = pipelineFactory;
         _recorder = recorder;
@@ -460,6 +464,9 @@ public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptur
 
                 await _pipeline.StartAsync(speechSource!.CaptureAsync(_cts.Token), SelectedLanguage, _cts.Token);
                 sessionId = _pipeline.SessionId;
+                // R7B.1: hold a lease on the small model so it cannot be replaced while in use.
+                _modelLease = _modelUsageRegistry.Acquire(
+                    KikuCaption.App.Services.ModelCatalog.Small.ComponentId, KikuCaption.Core.Models.WhisperModelPurpose.Realtime);
             }
             else
             {
@@ -668,6 +675,8 @@ public partial class RealtimeCaptionViewModel : ObservableObject, IMeetingCaptur
         _cts?.Dispose();
         _cts = null;
         _sessionCapabilities = null; // UI-R6A: forget the snapshot once the meeting ends
+        _modelLease?.Dispose(); // R7B.1: release the small-model lease (even on fault/cancel)
+        _modelLease = null;
     }
 
     private async Task StartRecordingAsync(string sessionDirectory)

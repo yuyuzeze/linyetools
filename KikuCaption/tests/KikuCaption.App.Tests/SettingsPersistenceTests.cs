@@ -140,6 +140,17 @@ public class SettingsPersistenceTests : IDisposable
         Assert.Equal(LocalizedStrings.EnUS, _store.Load().Settings.UiLanguage); // persisted
     }
 
+    [Fact] // R7B.2: with no valid medium model, "auto-generate corrected captions" cannot be enabled
+    public void AutoCorrect_Disabled_WhenMediumUnavailable()
+    {
+        // GeneralVm points the correction locator at an empty cache dir → medium is unavailable.
+        var vm = GeneralVm(new LocalizationService());
+        Assert.False(vm.IsCorrectionModelAvailable);
+
+        vm.AutoCorrectAfterMeeting = true;              // user tries to enable it
+        Assert.False(vm.AutoCorrectAfterMeeting);       // forced back off — the checkbox cannot enable
+    }
+
     [Fact] // general settings save writes the non-secret fields
     public void GeneralSettings_Save_PersistsFields()
     {

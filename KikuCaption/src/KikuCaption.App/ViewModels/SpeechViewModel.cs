@@ -16,6 +16,7 @@ public partial class SpeechViewModel : ObservableObject
 {
     private readonly Func<ISpeechRecognizer> _recognizerFactory;
     private readonly ISpeechOptionsProvider _speechOptionsProvider;
+    private readonly IModelUsageRegistry _modelUsage;
     private readonly ILogger<SpeechViewModel> _logger;
 
     [ObservableProperty]
@@ -34,10 +35,12 @@ public partial class SpeechViewModel : ObservableObject
     public SpeechViewModel(
         Func<ISpeechRecognizer> recognizerFactory,
         ISpeechOptionsProvider speechOptionsProvider,
+        IModelUsageRegistry modelUsage,
         ILogger<SpeechViewModel> logger)
     {
         _recognizerFactory = recognizerFactory;
         _speechOptionsProvider = speechOptionsProvider;
+        _modelUsage = modelUsage;
         _logger = logger;
     }
 
@@ -59,11 +62,15 @@ public partial class SpeechViewModel : ObservableObject
         Results.Clear();
         StatusText = "正在启动 Worker 并加载模型（首次约 1–2 秒，未缓存模型时更久）……";
 
+        // R7B.1: WAV recognition uses the small model too — hold a lease for its duration.
+        using var lease = _modelUsage.Acquire(
+            KikuCaption.App.Services.ModelCatalog.Small.ComponentId, WhisperModelPurpose.WavRecognition);
         try
         {
             await using var recognizer = _recognizerFactory();
             // Same full, per-language config as the real-time pipeline (single source of truth).
-            await recognizer.InitializeAsync(_speechOptionsProvider.ForLanguage(SelectedLanguage), CancellationToken.None);
+            await recognizer.InitializeAsync(
+                _speechOptionsProvider.ForLanguage(SelectedLanguage, WhisperModelPurpose.WavRecognition), CancellationToken.None);
             StatusText = "模型已就绪，正在识别……";
 
             await foreach (var update in recognizer.RecognizeAsync(WavFileAudioReader.ReadAsync(wavPath), CancellationToken.None))

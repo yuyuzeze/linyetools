@@ -1,6 +1,8 @@
+using KikuCaption.ComponentManagement.Archives;
 using KikuCaption.ComponentManagement.Configuration;
 using KikuCaption.ComponentManagement.Downloading;
 using KikuCaption.ComponentManagement.Http;
+using KikuCaption.ComponentManagement.Installing;
 using KikuCaption.ComponentManagement.Manifest;
 using KikuCaption.ComponentManagement.Paths;
 using Microsoft.Extensions.DependencyInjection;
@@ -44,6 +46,21 @@ public static class ComponentManagementServiceCollectionExtensions
             sp.GetRequiredService<IRawHttpTransport>(),
             sp.GetService<ILogger<SecureDownloader>>(),
             options.MaxRedirects));
+
+        // R7B: safe extraction + the install coordinator. The verifier and replacement guard have
+        // safe defaults here; the app replaces them (a model light-load verifier and a worker-in-use
+        // guard) with a later registration, which wins at resolve time.
+        services.TryAddSingleton<SafeZipExtractor>();
+        services.TryAddSingleton<IComponentVerifier, NoOpComponentVerifier>();
+        services.TryAddSingleton<IComponentReplacementGuard, AlwaysAllowReplacementGuard>();
+        services.TryAddSingleton<IComponentInstaller>(sp => new ComponentInstallCoordinator(
+            sp.GetRequiredService<SecureDownloader>(),
+            sp.GetRequiredService<SafeZipExtractor>(),
+            sp.GetRequiredService<ComponentPathResolver>(),
+            options,
+            sp.GetRequiredService<IComponentVerifier>(),
+            sp.GetRequiredService<IComponentReplacementGuard>(),
+            sp.GetService<ILogger<ComponentInstallCoordinator>>()));
 
         return services;
     }

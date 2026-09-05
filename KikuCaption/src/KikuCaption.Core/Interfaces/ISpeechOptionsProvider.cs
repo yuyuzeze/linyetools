@@ -11,4 +11,11 @@ namespace KikuCaption.Core.Interfaces;
 public interface ISpeechOptionsProvider
 {
     SpeechOptions ForLanguage(string language);
+
+    /// <summary>
+    /// R7B.1: resolves options for a specific model <paramref name="purpose"/> so the model path is
+    /// resolved through the one shared model locator. The default delegates to
+    /// <see cref="ForLanguage(string)"/> for implementations that do not care about purpose (tests).
+    /// </summary>
+    SpeechOptions ForLanguage(string language, WhisperModelPurpose purpose) => ForLanguage(language);
 }

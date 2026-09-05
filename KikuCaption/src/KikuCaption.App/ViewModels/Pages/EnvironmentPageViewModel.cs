@@ -38,10 +38,15 @@ public partial class EnvironmentPageViewModel : ObservableObject
     private readonly LocalizationService _localization;
     private readonly ILogger<EnvironmentPageViewModel> _logger;
 
-    public EnvironmentPageViewModel(IEnvironmentChecker environmentChecker, LocalizationService localization, ILogger<EnvironmentPageViewModel> logger)
+    /// <summary>R7B: the "speech recognition models" section (small/medium download + status).</summary>
+    public KikuCaption.App.ViewModels.ModelManagementViewModel? Models { get; }
+
+    public EnvironmentPageViewModel(IEnvironmentChecker environmentChecker, LocalizationService localization,
+        ILogger<EnvironmentPageViewModel> logger, KikuCaption.App.ViewModels.ModelManagementViewModel? models = null)
     {
         _environmentChecker = environmentChecker;
         _localization = localization;
+        Models = models;
         _logger = logger;
 
         _overallMessage = _localization["Env.Msg.NotChecked"];
@@ -152,6 +157,7 @@ public partial class EnvironmentPageViewModel : ObservableObject
                 _ => "Env.Msg.Healthy"
             });
             HasChecked = true;
+            Models?.RefreshStatus(); // R7B: re-check the model rows' on-disk presence too
             LastCheckedText = string.Format(_localization["Env.LastChecked"], DateTime.Now.ToString("HH:mm:ss"));
         }
         catch (OperationCanceledException)

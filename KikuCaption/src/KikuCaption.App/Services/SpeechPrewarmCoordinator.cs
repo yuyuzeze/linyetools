@@ -1,5 +1,5 @@
 using KikuCaption.Core.Interfaces;
-using KikuCaption.Infrastructure.Configuration;
+using KikuCaption.Core.Models;
 using KikuCaption.Speech.Worker;
 using Microsoft.Extensions.Logging;
 
@@ -10,14 +10,17 @@ public sealed class SpeechPrewarmCoordinator
 {
     private readonly SpeechRecognizerPrewarmer _prewarmer;
     private readonly ISpeechOptionsProvider _options;
+    private readonly IModelUsageRegistry _usage;
     private readonly ILogger<SpeechPrewarmCoordinator> _logger;
     private CancellationTokenSource? _operation;
+    private IModelUsageLease? _lease; // R7B.1: held while the small model is warm
 
     public SpeechPrewarmCoordinator(SpeechRecognizerPrewarmer prewarmer, ISpeechOptionsProvider options,
-        ILogger<SpeechPrewarmCoordinator> logger)
+        IModelUsageRegistry usage, ILogger<SpeechPrewarmCoordinator> logger)
     {
         _prewarmer = prewarmer;
         _options = options;
+        _usage = usage;
         _logger = logger;
     }
 
@@ -29,15 +32,29 @@ public sealed class SpeechPrewarmCoordinator
         try
         {
             if (enabled)
-                await _prewarmer.PrewarmAsync(_options.ForLanguage(language), _operation.Token);
+            {
+                // Resolve the (possibly managed) small model through the shared locator.
+                await _prewarmer.PrewarmAsync(_options.ForLanguage(language, WhisperModelPurpose.Prewarm), _operation.Token);
+                _lease ??= _usage.Acquire(ModelCatalog.Small.ComponentId, WhisperModelPurpose.Prewarm);
+            }
             else
+            {
                 await _prewarmer.ClearAsync();
+                ReleaseLease();
+            }
         }
-        catch (OperationCanceledException) { }
+        catch (OperationCanceledException) { ReleaseLease(); }
         catch (Exception ex)
         {
             // Prewarming is only an optimization; never prevent normal on-demand recognition.
+            ReleaseLease();
             _logger.LogWarning(ex, "Whisper background prewarm failed.");
         }
+    }
+
+    private void ReleaseLease()
+    {
+        _lease?.Dispose();
+        _lease = null;
     }
 }

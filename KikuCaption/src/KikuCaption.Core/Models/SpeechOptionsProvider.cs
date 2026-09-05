@@ -23,29 +23,43 @@ public sealed class SpeechOptionsProvider : ISpeechOptionsProvider
     private readonly SpeechOptions _base;
     private readonly IReadOnlyDictionary<string, SpeechContext> _contexts;
     private readonly ISpeechDictionaryStore? _store;
+    private readonly IWhisperModelLocator? _modelLocator;
 
     /// <summary>Fixed per-language context map (used by tests and static configurations).</summary>
-    public SpeechOptionsProvider(SpeechOptions baseOptions, IReadOnlyDictionary<string, SpeechContext>? contexts = null)
+    public SpeechOptionsProvider(SpeechOptions baseOptions, IReadOnlyDictionary<string, SpeechContext>? contexts = null,
+        IWhisperModelLocator? modelLocator = null)
     {
         _base = baseOptions;
         _contexts = contexts ?? new Dictionary<string, SpeechContext>();
+        _modelLocator = modelLocator;
     }
 
     /// <summary>
     /// Resolves the context from the active dictionary in <paramref name="store"/> at call time.
     /// A missing/unsupported language yields no context (base options only).
     /// </summary>
-    public SpeechOptionsProvider(SpeechOptions baseOptions, ISpeechDictionaryStore store)
+    public SpeechOptionsProvider(SpeechOptions baseOptions, ISpeechDictionaryStore store,
+        IWhisperModelLocator? modelLocator = null)
     {
         _base = baseOptions;
         _store = store;
         _contexts = new Dictionary<string, SpeechContext>();
+        _modelLocator = modelLocator;
     }
 
-    public SpeechOptions ForLanguage(string language)
+    public SpeechOptions ForLanguage(string language) => ForLanguage(language, WhisperModelPurpose.Realtime);
+
+    public SpeechOptions ForLanguage(string language, WhisperModelPurpose purpose)
     {
         // Start from the shared base, cleared of any context, then apply only THIS language's context.
         var options = _base with { Language = language, InitialPrompt = null, Hotwords = null };
+
+        // R7B.1: resolve the model through the single locator (session-start snapshot). A managed
+        // install yields its ABSOLUTE directory; otherwise the legacy model name is kept.
+        if (_modelLocator is not null)
+        {
+            options = options with { Model = _modelLocator.Resolve(_base.Model, purpose).ModelName };
+        }
 
         var context = ResolveContext(language);
         if (context is not null)

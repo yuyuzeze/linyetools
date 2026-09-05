@@ -100,6 +100,8 @@ public sealed class PostMeetingCorrectionService : IAsyncDisposable
     private readonly ISpeechOptionsProvider _speechOptionsProvider;
     private readonly IMeetingAudioExtractor _extractor;
     private readonly CorrectionModelLocator _modelLocator;
+    private readonly KikuCaption.Core.Interfaces.IWhisperModelLocator? _whisperLocator;
+    private readonly KikuCaption.Core.Interfaces.IModelUsageRegistry? _modelUsage;
     private readonly ILogger<PostMeetingCorrectionService> _logger;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private CancellationTokenSource? _activeCts;
@@ -109,12 +111,16 @@ public sealed class PostMeetingCorrectionService : IAsyncDisposable
         ISpeechOptionsProvider speechOptionsProvider,
         IMeetingAudioExtractor extractor,
         CorrectionModelLocator modelLocator,
-        ILogger<PostMeetingCorrectionService> logger)
+        ILogger<PostMeetingCorrectionService> logger,
+        KikuCaption.Core.Interfaces.IWhisperModelLocator? whisperLocator = null,
+        KikuCaption.Core.Interfaces.IModelUsageRegistry? modelUsage = null)
     {
         _recognizerFactory = recognizerFactory;
         _speechOptionsProvider = speechOptionsProvider;
         _extractor = extractor;
         _modelLocator = modelLocator;
+        _whisperLocator = whisperLocator;
+        _modelUsage = modelUsage;
         _logger = logger;
     }
 
@@ -132,19 +138,35 @@ public sealed class PostMeetingCorrectionService : IAsyncDisposable
         var tempWav = Path.Combine(request.OutputDirectory, $".correction-{request.SessionId:N}.wav");
         try
         {
-            var availability = _modelLocator.Check();
-            if (!availability.IsAvailable || string.IsNullOrWhiteSpace(availability.ModelPath))
+            // R7B.1: resolve medium through the SHARED locator first (managed install → absolute dir);
+            // otherwise fall back to the legacy CorrectionModelLocator. Both point at the same
+            // <cache>/faster-whisper-medium directory, so status page and worker never diverge.
+            string? mediumPath = null;
+            var managed = _whisperLocator?.Resolve("medium", KikuCaption.Core.Models.WhisperModelPurpose.PostMeetingCorrection);
+            if (managed is { IsManagedInstall: true })
+            {
+                mediumPath = managed.ModelName;
+            }
+            else
+            {
+                var availability = _modelLocator.Check();
+                if (availability.IsAvailable && !string.IsNullOrWhiteSpace(availability.ModelPath))
+                    mediumPath = availability.ModelPath;
+            }
+
+            if (string.IsNullOrWhiteSpace(mediumPath))
                 throw new InvalidOperationException("The local faster-whisper medium model is not installed or is incomplete.");
 
             Directory.CreateDirectory(request.OutputDirectory);
             await _extractor.ExtractAsync(request.MediaPath, tempWav, linked.Token).ConfigureAwait(false);
 
+            // Only the decoding context (prompt/hotwords) is taken from here; Model is set to mediumPath below.
             var baseOptions = _speechOptionsProvider.ForLanguage(request.Language);
             var options = baseOptions with
             {
                 // Pass the complete local snapshot/directory itself. faster-whisper then loads it
                 // directly and never attempts a Hugging Face download through the company proxy.
-                Model = availability.ModelPath,
+                Model = mediumPath,
                 Device = "cpu",
                 ComputeType = "int8",
                 BeamSize = Math.Max(2, baseOptions.BeamSize),
@@ -152,6 +174,9 @@ public sealed class PostMeetingCorrectionService : IAsyncDisposable
             };
 
             var captions = new List<CorrectedCaption>();
+            // R7B.1: hold a lease on the medium model for the whole correction (released on exit/fault).
+            using var mediumLease = _modelUsage?.Acquire(
+                KikuCaption.App.Services.ModelCatalog.Medium.ComponentId, KikuCaption.Core.Models.WhisperModelPurpose.PostMeetingCorrection);
             await using (var recognizer = _recognizerFactory())
             {
                 await recognizer.InitializeAsync(options, linked.Token).ConfigureAwait(false);

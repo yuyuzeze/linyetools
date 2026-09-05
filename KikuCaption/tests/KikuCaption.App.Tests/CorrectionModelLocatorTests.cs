@@ -38,6 +38,17 @@ public sealed class CorrectionModelLocatorTests : IDisposable
         Assert.False(Locator().Check().IsAvailable);
     }
 
+    [Fact] // R7B.2: the real incomplete-medium case — config/tokenizer/vocabulary present but NO model.bin
+    public void OtherFilesPresent_NoModelBin_IsUnavailable()
+    {
+        var dir = Path.Combine(_root, "faster-whisper-medium");
+        Directory.CreateDirectory(dir);
+        foreach (var file in new[] { "config.json", "tokenizer.json", "vocabulary.txt" })
+            File.WriteAllText(Path.Combine(dir, file), "x");
+        // No model.bin written.
+        Assert.False(Locator().Check().IsAvailable); // directory existing must NOT imply availability
+    }
+
     [Fact]
     public void SiblingManualDownload_IsAvailable()
     {

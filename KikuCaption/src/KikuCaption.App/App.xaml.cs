@@ -7,6 +7,7 @@ using KikuCaption.App.ViewModels.Pages;
 using KikuCaption.App.Views;
 using KikuCaption.Infrastructure.Diagnostics;
 using KikuCaption.Audio.DependencyInjection;
+using KikuCaption.ComponentManagement.DependencyInjection;
 using KikuCaption.Infrastructure.Configuration;
 using KikuCaption.Infrastructure.DependencyInjection;
 using KikuCaption.Infrastructure.Logging;
@@ -95,7 +96,8 @@ public partial class App : Application
                         sp.GetRequiredService<ILogger<SpeechDictionaryStore>>()));
 
                     services.AddSingleton<ISpeechOptionsProvider>(sp =>
-                        new SpeechOptionsProvider(baseSpeechOptions, sp.GetRequiredService<ISpeechDictionaryStore>()));
+                        new SpeechOptionsProvider(baseSpeechOptions, sp.GetRequiredService<ISpeechDictionaryStore>(),
+                            sp.GetService<KikuCaption.Core.Interfaces.IWhisperModelLocator>()));
 
                     // Progressive caption options (validated at startup) — all tunables now mapped.
                     var progressive = new ProgressiveCaptionOptions
@@ -157,6 +159,36 @@ public partial class App : Application
                     services.AddSingleton(_ => UserSettingsStore.CreateDefault());
                     // UI-R6A: the single live "recording only vs captions" mode state for the UI.
                     services.AddSingleton<KikuCaption.App.Services.SessionModeState>();
+
+                    // R7B: remote component management (one-click model download + safe install). The
+                    // model cache root is both the component install root and where status is checked;
+                    // downloads are cached under %LOCALAPPDATA%. Registering our path resolver BEFORE
+                    // AddComponentManagement keeps its TryAdd default from winning.
+                    var remoteResourceOptions = context.Configuration.GetSection("RemoteResources")
+                        .Get<KikuCaption.ComponentManagement.Configuration.RemoteResourceOptions>()
+                        ?? new KikuCaption.ComponentManagement.Configuration.RemoteResourceOptions();
+                    var modelCacheRoot = whisperOptions.ModelCacheDirectory ?? AppContext.BaseDirectory;
+                    var downloadsCache = Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "KikuCaption", "downloads");
+                    services.AddSingleton(new KikuCaption.ComponentManagement.Paths.ComponentPathResolver(modelCacheRoot, downloadsCache));
+                    services.AddComponentManagement(remoteResourceOptions);
+                    // R7B.1: per-model usage registry (leases) + worker-in-use guard override.
+                    services.AddSingleton<KikuCaption.App.Services.ModelUsageRegistry>();
+                    services.AddSingleton<KikuCaption.Core.Interfaces.IModelUsageRegistry>(
+                        sp => sp.GetRequiredService<KikuCaption.App.Services.ModelUsageRegistry>());
+                    services.AddSingleton<KikuCaption.ComponentManagement.Installing.IComponentReplacementGuard,
+                        KikuCaption.App.Services.WorkerModelReplacementGuard>();
+                    // R7B.1: real runtime-load verifier (structure + faster-whisper load when a venv exists).
+                    services.AddSingleton<KikuCaption.App.Services.IModelRuntimeLoader>(sp =>
+                        new KikuCaption.App.Services.PythonModelRuntimeLoader(whisperOptions,
+                            sp.GetRequiredService<ILogger<KikuCaption.App.Services.PythonModelRuntimeLoader>>()));
+                    services.AddSingleton<KikuCaption.ComponentManagement.Installing.IComponentVerifier>(sp =>
+                        new KikuCaption.App.Services.WhisperModelVerifier(sp.GetRequiredService<KikuCaption.App.Services.IModelRuntimeLoader>()));
+                    services.AddSingleton(new KikuCaption.App.Services.ModelCatalog(modelCacheRoot));
+                    // R7B.1: the single model locator shared by realtime/WAV/prewarm/correction + status.
+                    services.AddSingleton<KikuCaption.Core.Interfaces.IWhisperModelLocator, KikuCaption.App.Services.WhisperModelLocator>();
+                    services.AddSingleton<KikuCaption.App.Services.IModelDownloadCoordinator, KikuCaption.App.Services.ModelDownloadCoordinator>();
+                    services.AddSingleton<ModelManagementViewModel>();
 
                     // UI-R1: app-composition environment probes (reuse already-composed options).
                     // These join the Infrastructure probes via IEnumerable<IEnvironmentProbe>.
