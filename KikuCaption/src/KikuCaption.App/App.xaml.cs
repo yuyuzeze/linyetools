@@ -180,7 +180,7 @@ public partial class App : Application
                         KikuCaption.App.Services.WorkerModelReplacementGuard>();
                     // R7B.1: real runtime-load verifier (structure + faster-whisper load when a venv exists).
                     services.AddSingleton<KikuCaption.App.Services.IModelRuntimeLoader>(sp =>
-                        new KikuCaption.App.Services.PythonModelRuntimeLoader(whisperOptions,
+                        new KikuCaption.App.Services.PythonModelRuntimeLoader(sp.GetRequiredService<WhisperWorkerOptions>(),
                             sp.GetRequiredService<ILogger<KikuCaption.App.Services.PythonModelRuntimeLoader>>()));
                     services.AddSingleton<KikuCaption.ComponentManagement.Installing.IComponentVerifier>(sp =>
                         new KikuCaption.App.Services.WhisperModelVerifier(sp.GetRequiredService<KikuCaption.App.Services.IModelRuntimeLoader>()));
@@ -189,6 +189,59 @@ public partial class App : Application
                     services.AddSingleton<KikuCaption.Core.Interfaces.IWhisperModelLocator, KikuCaption.App.Services.WhisperModelLocator>();
                     services.AddSingleton<KikuCaption.App.Services.IModelDownloadCoordinator, KikuCaption.App.Services.ModelDownloadCoordinator>();
                     services.AddSingleton<ModelManagementViewModel>();
+
+                    // R7C: managed Python environment (one-click install/repair). One locator is the
+                    // single source of the worker Python; override WhisperWorkerOptions so worker,
+                    // probes and model verifier all use the locator-resolved venv.
+                    var devVenvPython = KikuCaption.Speech.Worker.WhisperWorkerLocator.TryLocate(AppContext.BaseDirectory)?.PythonExecutable;
+                    var requirementsLock = string.IsNullOrWhiteSpace(whisperOptions.WorkerScript)
+                        ? string.Empty
+                        : Path.Combine(Path.GetDirectoryName(whisperOptions.WorkerScript)!, "requirements-lock.txt");
+                    services.AddSingleton<KikuCaption.App.Services.Python.IPythonProcessRunner, KikuCaption.App.Services.Python.PythonProcessRunner>();
+                    // R7C.1: cross-process install lock (a second KikuCaption instance can't install at once).
+                    services.AddSingleton<KikuCaption.App.Services.Python.IInstallLock>(_ => new KikuCaption.App.Services.Python.CrossProcessInstallLock());
+                    // R7C.1: startup crash-recovery for a half-finished venv switch.
+                    services.AddSingleton(sp => new KikuCaption.App.Services.Python.PythonEnvironmentRecovery(
+                        sp.GetRequiredService<KikuCaption.App.Services.Python.IPythonProcessRunner>(),
+                        sp.GetRequiredService<ILogger<KikuCaption.App.Services.Python.PythonEnvironmentRecovery>>()));
+                    services.AddSingleton<KikuCaption.App.Services.Python.SystemPythonDetector>();
+                    services.AddSingleton<KikuCaption.App.Services.Python.ISystemPythonDetector>(
+                        sp => sp.GetRequiredService<KikuCaption.App.Services.Python.SystemPythonDetector>());
+                    services.AddSingleton<KikuCaption.Core.Interfaces.IPythonEnvironmentLocator>(sp =>
+                        new KikuCaption.App.Services.Python.PythonEnvironmentLocator(
+                            configuredWorkerPython: speechSettings.PythonExecutable,
+                            devVenvPython: devVenvPython,
+                            legacyVenvPython: null,
+                            sp.GetRequiredService<ILogger<KikuCaption.App.Services.Python.PythonEnvironmentLocator>>()));
+                    services.AddSingleton<KikuCaption.Core.Interfaces.IPythonEnvironmentInstaller>(sp =>
+                        new KikuCaption.App.Services.Python.PythonEnvironmentInstaller(
+                            sp.GetRequiredService<KikuCaption.App.Services.Python.SystemPythonDetector>(),
+                            sp.GetRequiredService<KikuCaption.App.Services.Python.IPythonProcessRunner>(),
+                            sp.GetRequiredService<KikuCaption.Core.Interfaces.IPythonEnvironmentLocator>(),
+                            sp.GetRequiredService<KikuCaption.Core.Interfaces.IModelUsageRegistry>(),
+                            sp.GetRequiredService<KikuCaption.Core.Interfaces.IWhisperModelLocator>(),
+                            sp.GetRequiredService<KikuCaption.App.Services.ModelCatalog>(),
+                            configuredPython: speechSettings.PythonExecutable,
+                            workerScript: whisperOptions.WorkerScript,
+                            requirementsLock: requirementsLock,
+                            sp.GetRequiredService<ILogger<KikuCaption.App.Services.Python.PythonEnvironmentInstaller>>(),
+                            pythonRoot: null,
+                            installLock: sp.GetRequiredService<KikuCaption.App.Services.Python.IInstallLock>()));
+                    // Worker/probe/verifier Python now follows the locator (single source of truth).
+                    services.AddSingleton(sp =>
+                    {
+                        var r = sp.GetRequiredService<KikuCaption.Core.Interfaces.IPythonEnvironmentLocator>().Resolve();
+                        if (string.IsNullOrWhiteSpace(r.WorkerPython)) return whisperOptions;
+                        return new WhisperWorkerOptions
+                        {
+                            PythonExecutable = r.WorkerPython!,
+                            WorkerScript = whisperOptions.WorkerScript,
+                            ModelCacheDirectory = whisperOptions.ModelCacheDirectory,
+                            ShutdownTimeout = whisperOptions.ShutdownTimeout,
+                            IncomingCapacity = whisperOptions.IncomingCapacity
+                        };
+                    });
+                    services.AddSingleton<PythonEnvironmentViewModel>();
 
                     // UI-R1: app-composition environment probes (reuse already-composed options).
                     // These join the Infrastructure probes via IEnumerable<IEnvironmentProbe>.
@@ -268,6 +321,25 @@ public partial class App : Application
                 .Build();
 
             await _host.StartAsync();
+
+            // R7C.1: reconcile any half-finished managed-venv switch left by a crash/power loss BEFORE any
+            // Python probe, prewarm, or the install button becomes available. Best-effort + bounded — a
+            // recovery hiccup must never block app startup.
+            try
+            {
+                using var recoveryCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+                var recovery = await _host.Services.GetRequiredService<KikuCaption.App.Services.Python.PythonEnvironmentRecovery>()
+                    .RecoverAsync(recoveryCts.Token);
+                if (recovery.Action != KikuCaption.Core.Models.PythonRecoveryAction.None)
+                {
+                    Log.Information("Python environment recovery ran at startup: {Action} (managed usable: {Usable}).",
+                        recovery.Action, recovery.ManagedUsable);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Python environment recovery failed at startup; continuing.");
+            }
 
             // UI-R3: apply persisted UI preferences (language, subtitle appearance, capture target)
             // before the window is shown.

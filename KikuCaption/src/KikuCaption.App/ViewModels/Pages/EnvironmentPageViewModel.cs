@@ -41,12 +41,26 @@ public partial class EnvironmentPageViewModel : ObservableObject
     /// <summary>R7B: the "speech recognition models" section (small/medium download + status).</summary>
     public KikuCaption.App.ViewModels.ModelManagementViewModel? Models { get; }
 
+    /// <summary>R7C: the managed Python environment section (install/repair).</summary>
+    public KikuCaption.App.ViewModels.PythonEnvironmentViewModel? Python { get; }
+
     public EnvironmentPageViewModel(IEnvironmentChecker environmentChecker, LocalizationService localization,
-        ILogger<EnvironmentPageViewModel> logger, KikuCaption.App.ViewModels.ModelManagementViewModel? models = null)
+        ILogger<EnvironmentPageViewModel> logger, KikuCaption.App.ViewModels.ModelManagementViewModel? models = null,
+        KikuCaption.App.ViewModels.PythonEnvironmentViewModel? python = null)
     {
         _environmentChecker = environmentChecker;
         _localization = localization;
         Models = models;
+        Python = python;
+        if (Python is not null)
+        {
+            // R7C: after a successful install, re-run the probes + refresh model runtime status.
+            Python.EnvironmentChanged += (_, _) =>
+            {
+                if (!IsChecking) { CheckCommand.Execute(null); }
+                Models?.RefreshStatus();
+            };
+        }
         _logger = logger;
 
         _overallMessage = _localization["Env.Msg.NotChecked"];
@@ -158,6 +172,7 @@ public partial class EnvironmentPageViewModel : ObservableObject
             });
             HasChecked = true;
             Models?.RefreshStatus(); // R7B: re-check the model rows' on-disk presence too
+            if (Python is not null) { await Python.RefreshAsync().ConfigureAwait(true); } // R7C: refresh env status
             LastCheckedText = string.Format(_localization["Env.LastChecked"], DateTime.Now.ToString("HH:mm:ss"));
         }
         catch (OperationCanceledException)

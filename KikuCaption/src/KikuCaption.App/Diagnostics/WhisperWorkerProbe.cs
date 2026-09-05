@@ -18,11 +18,14 @@ public sealed class WhisperWorkerProbe : IEnvironmentProbe
 {
     private readonly WhisperWorkerOptions _worker;
     private readonly UserSettingsStore _settings;
+    private readonly KikuCaption.Core.Interfaces.IPythonEnvironmentLocator? _pythonLocator;
 
-    public WhisperWorkerProbe(WhisperWorkerOptions worker, UserSettingsStore settings)
+    public WhisperWorkerProbe(WhisperWorkerOptions worker, UserSettingsStore settings,
+        KikuCaption.Core.Interfaces.IPythonEnvironmentLocator? pythonLocator = null)
     {
         _worker = worker;
         _settings = settings;
+        _pythonLocator = pythonLocator;
     }
 
     public DependencyKind Kind => DependencyKind.WhisperWorker;
@@ -46,8 +49,9 @@ public sealed class WhisperWorkerProbe : IEnvironmentProbe
 
         var scriptOk = !string.IsNullOrWhiteSpace(_worker.WorkerScript) && File.Exists(_worker.WorkerScript);
 
-        // Python may be a bare command name ("python") resolved via PATH, or an absolute venv path.
-        var python = _worker.PythonExecutable;
+        // R7C: the worker Python comes from the ONE locator (managed venv → dev → …). When no venv is
+        // resolved the worker is unavailable; a bare command name is only accepted as a legacy fallback.
+        var python = _pythonLocator?.Resolve().WorkerPython ?? _worker.PythonExecutable;
         var pythonOk = !string.IsNullOrWhiteSpace(python)
             && (File.Exists(python) || !Path.IsPathRooted(python));
 
