@@ -146,7 +146,7 @@ public sealed class TransferServiceTests : IDisposable
         }));
 
         var csv = Path.Combine(OutputDir, "エクスポート_1.csv");
-        var code = await Program.RunAsync(new[] { csv, "--config", configPath });
+        var code = await Program.RunAsync([csv, "--config", configPath]);
 
         Assert.Equal(0, code);
         Assert.True(File.Exists(Path.Combine(BackupDir, "エクスポート_1.csv")));
@@ -157,9 +157,34 @@ public sealed class TransferServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Program_reads_transfer_json_beside_exe_when_extra_args_are_omitted()
+    {
+        var exeDir = Path.Combine(_root, "exe");
+        Directory.CreateDirectory(exeDir);
+        WriteCsv("output", "エクスポート_1.csv", "h1,h2\n");
+        await File.WriteAllTextAsync(Path.Combine(exeDir, "transfer.json"), JsonSerializer.Serialize(new
+        {
+            intermediateFolder = _root,
+            containerName = "from-json",
+            sas = "sv=2024-secret-token",
+            rescanDelayMs = 0,
+            lockWaitMs = 1000
+        }));
+
+        var csv = Path.Combine(OutputDir, "エクスポート_1.csv");
+        var code = await Program.RunAsync([csv], appDirectory: exeDir);
+
+        Assert.Equal(0, code);
+        Assert.True(File.Exists(Path.Combine(BackupDir, "エクスポート_1.csv")));
+        var log = ReadLog();
+        Assert.Contains("blob=from-json/エクスポート_1.csv", log);
+        Assert.DoesNotContain("sv=2024-secret-token", log);
+    }
+
+    [Fact]
     public async Task Program_returns_1_when_config_is_missing()
     {
-        var code = await Program.RunAsync(new[] { "--config", Path.Combine(_root, "missing.json") });
+        var code = await Program.RunAsync(["--config", Path.Combine(_root, "missing.json")]);
         Assert.Equal(1, code);
     }
 

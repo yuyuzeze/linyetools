@@ -11,7 +11,7 @@ public static class Program
         return await RunAsync(args).ConfigureAwait(false);
     }
 
-    public static async Task<int> RunAsync(string[] args, IBlobUploader? uploader = null)
+    public static async Task<int> RunAsync(string[] args, IBlobUploader? uploader = null, string? appDirectory = null)
     {
         try
         {
@@ -21,7 +21,7 @@ public static class Program
                 return 0;
             }
 
-            var options = OptionResolver.Resolve(args);
+            var options = OptionResolver.Resolve(args, appDirectory);
             using var log = new TransferLog(options.LogFilePath);
             var blob = uploader ?? new LoggingBlobUploader(log);
             var service = new TransferService(options, log, blob);
@@ -52,18 +52,18 @@ public static class Program
             Transfer.exe — AnyForm エクスポート後に実行するプログラム
 
             AnyForm の「エクスポート後に実行するプログラム」に本 exe を指定する。
-            第 1 引数はエクスポートした CSV のパス（AnyForm が固定で渡す）。
-            追加引数に --config を指定できる。
+            第 1 引数は出力ファイルパス（AnyForm が既定で渡す。追加しない）。
+            追加引数を空にした場合は、exe と同じフォルダの transfer.json を読む。
 
             このビルドは Azure Blob Storage に接続しない。
             対象 CSV をログに記録し、成功分を処理済フォルダ（backup）へ移動する。
 
             使い方:
-              Transfer.exe <export.csv> [--config transfer.json]
-              Transfer.exe --config transfer.json
+              Transfer.exe <出力ファイル.csv>
+              Transfer.exe <出力ファイル.csv> --config 別の設定.json
 
             オプション:
-              --config <path>         設定ファイル（JSON）
+              --config <path>         設定ファイル（JSON）。省略時は exe と同じフォルダの transfer.json
               --intermediate <path>   中間フォルダ（output / backup / retry / log の親）
               --output <path>         転送対象フォルダ（既定: {intermediate}\output）
               --processed <path>      転送成功後の移動先（既定: {intermediate}\backup）
@@ -80,9 +80,18 @@ public static class Program
 
 public static class OptionResolver
 {
-    public static TransferOptions Resolve(string[] args)
+    public static TransferOptions Resolve(string[] args, string? appDirectory = null)
     {
         var exportFile = Parse(args, out var flags);
+        if (!flags.ContainsKey("config"))
+        {
+            var defaultConfig = Path.Combine(ExeDirectory(appDirectory), "transfer.json");
+            if (File.Exists(defaultConfig))
+            {
+                flags["config"] = defaultConfig;
+            }
+        }
+
         TransferConfigFile? config = null;
         if (flags.TryGetValue("config", out var configPath))
         {
@@ -161,6 +170,26 @@ public static class OptionResolver
             RescanDelayMs = ParseInt(First(flags, "rescan-delay", config?.RescanDelayMs?.ToString()), 500, "--rescan-delay"),
             ExportFile = string.IsNullOrWhiteSpace(exportFile) ? null : Path.GetFullPath(exportFile)
         };
+    }
+
+    private static string ExeDirectory(string? appDirectory)
+    {
+        if (!string.IsNullOrWhiteSpace(appDirectory))
+        {
+            return Path.GetFullPath(appDirectory);
+        }
+
+        var processPath = Environment.ProcessPath;
+        if (!string.IsNullOrEmpty(processPath))
+        {
+            var dir = Path.GetDirectoryName(processPath);
+            if (!string.IsNullOrEmpty(dir))
+            {
+                return dir;
+            }
+        }
+
+        return AppContext.BaseDirectory;
     }
 
     private static string? Parse(string[] args, out Dictionary<string, string> flags)
