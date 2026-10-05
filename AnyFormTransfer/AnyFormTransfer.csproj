@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>AnyFormTransfer</RootNamespace>
+    <AssemblyName>Transfer</AssemblyName>
+    <Description>AnyForm エクスポート後に起動し、CSV をログ記録して backup へ移す（Azure Blob には接続しない）。</Description>
+  </PropertyGroup>
+
+</Project>

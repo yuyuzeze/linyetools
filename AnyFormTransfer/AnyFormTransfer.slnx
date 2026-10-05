@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="../AnyFormTransfer.Tests/AnyFormTransfer.Tests.csproj" />
+  <Project Path="AnyFormTransfer.csproj" />
+</Solution>

@@ -1,0 +1,10 @@
+{
+  "intermediateFolder": "C:\\AnyForm\\ocr-work",
+  "processedFolder": "",
+  "logFilePath": "",
+  "sas": "",
+  "containerName": "ocr",
+  "maxRetry": 3,
+  "lockWaitMs": 60000,
+  "rescanDelayMs": 500
+}
