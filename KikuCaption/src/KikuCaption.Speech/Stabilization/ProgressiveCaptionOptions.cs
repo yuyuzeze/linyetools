@@ -3,7 +3,7 @@ namespace KikuCaption.Speech.Stabilization;
 /// <summary>Validated parameters for the safe complete-utterance progressive-caption pipeline.</summary>
 public sealed class ProgressiveCaptionOptions
 {
-    public int PartialIntervalMs { get; init; } = 800;
+    public int PartialIntervalMs { get; init; } = 2000;
     public int RecentCandidates { get; init; } = 2;
     public int SilenceFinalMs { get; init; } = 700;
     public double MaxSentenceSeconds { get; init; } = 12;
@@ -16,7 +16,10 @@ public sealed class ProgressiveCaptionOptions
 
     public void Validate()
     {
-        Range(PartialIntervalMs, 500, 1000, nameof(PartialIntervalMs));
+        // Upper bound widened to 3000 ms: on CPU the real-time path re-transcribes the whole utterance
+        // each cycle, so a larger interval is the main lever for keeping the effective real-time factor
+        // below 1 on long, continuous speech (measured). 2000 ms is the recommended CPU default.
+        Range(PartialIntervalMs, 500, 3000, nameof(PartialIntervalMs));
         Range(RecentCandidates, 2, 3, nameof(RecentCandidates));
         Range(SilenceFinalMs, 500, 1500, nameof(SilenceFinalMs));
         Range(MaxLines, 1, 5, nameof(MaxLines));

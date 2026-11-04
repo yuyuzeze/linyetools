@@ -102,6 +102,7 @@ public partial class App : Application
                     // Progressive caption options (validated at startup) — all tunables now mapped.
                     var progressive = new ProgressiveCaptionOptions
                     {
+                        PartialIntervalMs = speechSettings.PartialIntervalMs,
                         SilenceFinalMs = speechSettings.SilenceFinalMs,
                         StableRepeatCount = speechSettings.StableRepeatCount,
                         MaxSentenceSeconds = speechSettings.MaxSentenceSeconds,

@@ -23,6 +23,12 @@ public sealed class SpeechSettings
     public int BeamSize { get; set; } = 2;
 
     // Progressive-captioning tunables (mapped through to the pipeline).
+    // How often the real-time pipeline re-transcribes the current utterance to refresh the partial
+    // caption. This is the dominant CPU cost on the real-time path: every cycle re-runs Whisper on the
+    // WHOLE growing utterance, so a smaller interval multiplies redundant work. On CPU, 2000 ms keeps
+    // the effective real-time factor well below 1 (measured); lower values can make it exceed 1 and the
+    // captions fall progressively behind on long, continuous speech.
+    public int PartialIntervalMs { get; set; } = 2000;
     public int SilenceFinalMs { get; set; } = 700;
     public int StableRepeatCount { get; set; } = 2;
     public double MaxSentenceSeconds { get; set; } = 12;
