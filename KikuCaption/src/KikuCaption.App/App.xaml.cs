@@ -103,6 +103,8 @@ public partial class App : Application
                     var progressive = new ProgressiveCaptionOptions
                     {
                         PartialIntervalMs = speechSettings.PartialIntervalMs,
+                        AdaptiveLatency = speechSettings.AdaptiveLatency,
+                        AdaptiveMinIntervalMs = speechSettings.AdaptiveMinIntervalMs,
                         SilenceFinalMs = speechSettings.SilenceFinalMs,
                         StableRepeatCount = speechSettings.StableRepeatCount,
                         MaxSentenceSeconds = speechSettings.MaxSentenceSeconds,
