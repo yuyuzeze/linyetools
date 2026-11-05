@@ -29,13 +29,6 @@ public sealed class SpeechSettings
     // the effective real-time factor well below 1 (measured); lower values can make it exceed 1 and the
     // captions fall progressively behind on long, continuous speech.
     public int PartialIntervalMs { get; set; } = 2000;
-
-    // Adaptive latency: when true, the re-transcription interval is adjusted at runtime from the measured
-    // decode time (lower caption latency on fast hardware, automatic back-off on slow hardware) between
-    // AdaptiveMinIntervalMs and PartialIntervalMs. When false, the interval is fixed at PartialIntervalMs.
-    public bool AdaptiveLatency { get; set; } = true;
-    public int AdaptiveMinIntervalMs { get; set; } = 600;
-
     public int SilenceFinalMs { get; set; } = 700;
     public int StableRepeatCount { get; set; } = 2;
     public double MaxSentenceSeconds { get; set; } = 12;

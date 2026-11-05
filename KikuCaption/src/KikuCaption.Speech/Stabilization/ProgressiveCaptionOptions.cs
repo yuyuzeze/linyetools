@@ -4,16 +4,6 @@ namespace KikuCaption.Speech.Stabilization;
 public sealed class ProgressiveCaptionOptions
 {
     public int PartialIntervalMs { get; init; } = 2000;
-
-    // Adaptive latency (R-perf): when true, the re-transcription interval is adjusted dynamically from
-    // the measured decode time so it stays as low as the machine can sustain (lower latency on fast
-    // hardware) and backs off toward PartialIntervalMs when decoding is slow (no "falling behind").
-    // When false, the interval is fixed at PartialIntervalMs (the original, deterministic behavior).
-    // The adaptive interval is always clamped to [AdaptiveMinIntervalMs, PartialIntervalMs], so adaptive
-    // is never slower than fixed and never faster than the floor.
-    public bool AdaptiveLatency { get; init; }
-    public int AdaptiveMinIntervalMs { get; init; } = 600;
-
     public int RecentCandidates { get; init; } = 2;
     public int SilenceFinalMs { get; init; } = 700;
     public double MaxSentenceSeconds { get; init; } = 12;
@@ -30,11 +20,6 @@ public sealed class ProgressiveCaptionOptions
         // each cycle, so a larger interval is the main lever for keeping the effective real-time factor
         // below 1 on long, continuous speech (measured). 2000 ms is the recommended CPU default.
         Range(PartialIntervalMs, 500, 3000, nameof(PartialIntervalMs));
-        // Adaptive floor: must be a sane minimum and never above the fixed ceiling (PartialIntervalMs).
-        Range(AdaptiveMinIntervalMs, 300, 3000, nameof(AdaptiveMinIntervalMs));
-        if (AdaptiveMinIntervalMs > PartialIntervalMs)
-            throw new ArgumentOutOfRangeException(nameof(AdaptiveMinIntervalMs),
-                AdaptiveMinIntervalMs, "Must not exceed PartialIntervalMs (the adaptive ceiling).");
         Range(RecentCandidates, 2, 3, nameof(RecentCandidates));
         Range(SilenceFinalMs, 500, 1500, nameof(SilenceFinalMs));
         Range(MaxLines, 1, 5, nameof(MaxLines));

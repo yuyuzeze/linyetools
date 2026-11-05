@@ -77,12 +77,6 @@ public sealed class RealtimeCaptionPipeline : IAsyncDisposable
     private int _stableUnchanged;
     private long _seq;
 
-    // Adaptive-latency controller state: the current re-transcription interval (ms). In fixed mode this
-    // stays at _options.PartialIntervalMs; in adaptive mode NextIntervalMs() steers it between
-    // _options.AdaptiveMinIntervalMs and _options.PartialIntervalMs from the measured decode time. Only
-    // ever read/written on the single cycle-loop task.
-    private int _currentIntervalMs;
-
     // Energy-based hallucination guard (data-loss Hotfix §7): true once any ingested chunk in the
     // CURRENT utterance measured above SilenceRmsThreshold. If an utterance never had any such
     // audio (i.e. was silent for its entire duration), any text the recognizer still returned is
@@ -165,7 +159,6 @@ public sealed class RealtimeCaptionPipeline : IAsyncDisposable
                 PartialLatencyMs = _partialLatencyMs,
                 FinalLatencyMs = _finalLatencyMs,
                 QueueDepthMs = QueueDepthMs(),
-                IntervalMs = _currentIntervalMs,
                 SkippedCycles = Interlocked.Read(ref _skippedCycles),
                 AudioReceivedSeconds = Interlocked.Read(ref _audioReceivedBytes) / (double)BytesPerSecond,
                 AudioIncludedInSnapshotsSeconds = included,
@@ -217,7 +210,6 @@ public sealed class RealtimeCaptionPipeline : IAsyncDisposable
         _stabilizer = new TranscriptStabilizer(_options, _sessionId, language);
         _finalizer = new Finalizer(_options);
         _fragmentGate = new ShortFragmentGate(_options);
-        _currentIntervalMs = _options.PartialIntervalMs; // start at the safe ceiling; adapt downward
         _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
         SetState(CaptionPipelineState.Running);
@@ -316,7 +308,7 @@ public sealed class RealtimeCaptionPipeline : IAsyncDisposable
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                await Task.Delay(NextIntervalMs(), cancellationToken).ConfigureAwait(false);
+                await Task.Delay(_options.PartialIntervalMs, cancellationToken).ConfigureAwait(false);
 
                 // Read `ended` BEFORE the snapshot (not after): _inputEnded is set only once Ingest
                 // has appended every chunk, so observing it here first and only then copying the
@@ -764,30 +756,6 @@ public sealed class RealtimeCaptionPipeline : IAsyncDisposable
             offset += take;
             await Task.Yield();
         }
-    }
-
-    /// <summary>
-    /// The delay before the next re-transcription cycle. Fixed mode returns the configured interval
-    /// unchanged (original behavior). Adaptive mode steers the interval from the last cycle's decode
-    /// time: it targets ~2x the decode time (keeping decode ~50% of the cycle, leaving head-room),
-    /// smooths the change (EMA) to avoid oscillation, and clamps to
-    /// [AdaptiveMinIntervalMs, PartialIntervalMs]. On fast hardware decode is small, so the interval
-    /// (and thus caption latency) drops toward the floor; on slow hardware it rises toward the ceiling,
-    /// which is exactly the fixed value — so adaptive is never slower than fixed and never faster than
-    /// the floor, and the existing MaxSentenceSeconds/MaxWaitSeconds caps still bound the buffer. Called
-    /// only on the single cycle-loop task, so _lastInferenceMs (set by the prior RunCycleAsync) and
-    /// _currentIntervalMs need no synchronization.
-    /// </summary>
-    private int NextIntervalMs()
-    {
-        if (!_options.AdaptiveLatency)
-        {
-            return _options.PartialIntervalMs;
-        }
-
-        _currentIntervalMs = AdaptiveIntervalController.Next(
-            _lastInferenceMs, _currentIntervalMs, _options.AdaptiveMinIntervalMs, _options.PartialIntervalMs);
-        return _currentIntervalMs;
     }
 
     private int QueueDepthMs()

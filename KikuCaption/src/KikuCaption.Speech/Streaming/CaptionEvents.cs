@@ -47,10 +47,6 @@ public sealed class CaptionMetrics
     public int QueueDepthMs { get; init; }
     public long SkippedCycles { get; init; }
 
-    /// <summary>Current re-transcription interval. In fixed mode this equals the configured
-    /// PartialIntervalMs; in adaptive mode it is the controller's current value (observability).</summary>
-    public int IntervalMs { get; init; }
-
     /// <summary>Total PCM seconds ingested this session (regardless of loudness/silence).</summary>
     public double AudioReceivedSeconds { get; init; }
 
