@@ -55,3 +55,38 @@ def test_buffer_clears_after_flush():
     assert buf.buffered_bytes == 1600
     list(buf.flush())
     assert buf.buffered_bytes == 0
+
+
+class _BoomRecognizer:
+    """A recognizer whose decode fails the way ctranslate2 does when the prompt fills the window."""
+
+    def transcribe(self, audio_f32, language):
+        raise RuntimeError("The maximum decoding length must be > 0")
+
+
+def test_flush_swallows_decode_error_instead_of_crashing_stream():
+    # A failed decode cycle must NOT propagate (which would surface as "实时字幕中断");
+    # the next cycle re-transcribes from the C#-side authoritative buffer.
+    buf = streaming.AudioBuffer(_BoomRecognizer(), "ja")
+    buf.append(_pcm(1600))
+    assert list(buf.flush()) == []  # no events, no exception
+    # Buffer was still consumed, so the next flush on silence is a clean no-op.
+    assert buf.buffered_bytes == 0
+
+
+class _PartialThenBoomRecognizer:
+    """Decodes one segment, then fails — the decoded segment must still be committed."""
+
+    def transcribe(self, audio_f32, language):
+        yield FakeSegment(0.0, 1.0, " kept ")
+        raise RuntimeError("The maximum decoding length must be > 0")
+
+
+def test_flush_keeps_already_decoded_segments_on_mid_cycle_error():
+    buf = streaming.AudioBuffer(_PartialThenBoomRecognizer(), "ja")
+    buf.append(_pcm(1600))
+    events = list(buf.flush())
+    kinds = [k for k, _ in events]
+    # The one decoded segment is emitted as partial AND final; the error after it is swallowed.
+    assert kinds == ["partial", "final"]
+    assert events[-1][1]["text"] == "kept"

@@ -7,7 +7,8 @@ window / Stable Prefix / Finalizer algorithm is Milestone 3 and is NOT implement
 from __future__ import annotations
 
 import math
-from typing import Any, Iterator, Tuple
+import sys
+from typing import Any, Iterator, List, Tuple
 
 import numpy as np
 
@@ -45,16 +46,32 @@ class AudioBuffer:
         if audio.size == 0:
             return
 
-        finals: list[dict[str, Any]] = []
-        for segment in self._recognizer.transcribe(audio, self._language):
-            payload = {
-                "start": round(float(segment.start), 3),
-                "end": round(float(segment.end), 3),
-                "text": segment.text.strip(),
-                "confidence": _confidence(segment),
-            }
-            yield ("partial", payload)
-            finals.append(payload)
+        # A single decode can fail transiently inside ctranslate2/faster-whisper (e.g.
+        # "The maximum decoding length must be > 0" when the prompt context fills the 448-token
+        # window, or other per-utterance decode errors). The authoritative audio buffer lives on
+        # the C# side and is re-sent every cycle, so the safe behaviour is to drop THIS cycle's
+        # result and let the next cycle re-transcribe — never to tear down the whole real-time
+        # caption stream. We log to stderr (counts/repr only, never caption text) so a persistent
+        # failure stays diagnosable.
+        finals: List[dict[str, Any]] = []
+        try:
+            for segment in self._recognizer.transcribe(audio, self._language):
+                payload = {
+                    "start": round(float(segment.start), 3),
+                    "end": round(float(segment.end), 3),
+                    "text": segment.text.strip(),
+                    "confidence": _confidence(segment),
+                }
+                yield ("partial", payload)
+                finals.append(payload)
+        except (RuntimeError, ValueError) as exc:
+            # Emit any segments that DID decode (never drop already-committed audio), then stop.
+            print(
+                f"decode skipped mid-cycle ({audio.size} samples, "
+                f"{len(finals)} segment(s) kept): {exc!r}",
+                file=sys.stderr,
+                flush=True,
+            )
 
         for payload in finals:
             yield ("final", payload)
