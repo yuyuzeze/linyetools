@@ -1,3 +1,4 @@
+using KikuCaption.Core.Enums;
 using KikuCaption.Core.Interfaces;
 
 namespace KikuCaption.Core.Models;
@@ -24,14 +25,16 @@ public sealed class SpeechOptionsProvider : ISpeechOptionsProvider
     private readonly IReadOnlyDictionary<string, SpeechContext> _contexts;
     private readonly ISpeechDictionaryStore? _store;
     private readonly IWhisperModelLocator? _modelLocator;
+    private readonly ISpeechEngineSelection? _engineSelection;
 
     /// <summary>Fixed per-language context map (used by tests and static configurations).</summary>
     public SpeechOptionsProvider(SpeechOptions baseOptions, IReadOnlyDictionary<string, SpeechContext>? contexts = null,
-        IWhisperModelLocator? modelLocator = null)
+        IWhisperModelLocator? modelLocator = null, ISpeechEngineSelection? engineSelection = null)
     {
         _base = baseOptions;
         _contexts = contexts ?? new Dictionary<string, SpeechContext>();
         _modelLocator = modelLocator;
+        _engineSelection = engineSelection;
     }
 
     /// <summary>
@@ -39,13 +42,18 @@ public sealed class SpeechOptionsProvider : ISpeechOptionsProvider
     /// A missing/unsupported language yields no context (base options only).
     /// </summary>
     public SpeechOptionsProvider(SpeechOptions baseOptions, ISpeechDictionaryStore store,
-        IWhisperModelLocator? modelLocator = null)
+        IWhisperModelLocator? modelLocator = null, ISpeechEngineSelection? engineSelection = null)
     {
         _base = baseOptions;
         _store = store;
         _contexts = new Dictionary<string, SpeechContext>();
         _modelLocator = modelLocator;
+        _engineSelection = engineSelection;
     }
+
+    /// <summary>speech.cpp models we ship are Japanese-only (Haas); zh always stays on Whisper.</summary>
+    private static bool SpeechCppSupportsLanguage(string language) =>
+        string.Equals(language, "ja", StringComparison.OrdinalIgnoreCase);
 
     public SpeechOptions ForLanguage(string language) => ForLanguage(language, WhisperModelPurpose.Realtime);
 
@@ -53,6 +61,27 @@ public sealed class SpeechOptionsProvider : ISpeechOptionsProvider
     {
         // Start from the shared base, cleared of any context, then apply only THIS language's context.
         var options = _base with { Language = language, InitialPrompt = null, Hotwords = null };
+
+        // speech.cpp engine: only for live/file/prewarm (never post-meeting correction, which stays
+        // on Whisper medium), and only for a language we ship a model for. A speech.cpp session takes
+        // no Whisper prompt/hotwords; it uses per-segment timestamps for file recognition and none
+        // for real-time (the pipeline supplies timing). Availability is already folded into the
+        // selection, so Engine == SpeechCpp here means the backend is actually usable.
+        if (_engineSelection is { Engine: SpeechEngine.SpeechCpp } selection
+            && !string.IsNullOrWhiteSpace(selection.SpeechCppModel)
+            && SpeechCppSupportsLanguage(language)
+            && purpose is WhisperModelPurpose.Realtime or WhisperModelPurpose.WavRecognition or WhisperModelPurpose.Prewarm)
+        {
+            return options with
+            {
+                Engine = SpeechEngine.SpeechCpp,
+                Model = selection.SpeechCppModel!,
+                InitialPrompt = null,
+                Hotwords = null,
+                Keywords = null, // reserved: Haas keyword readings are not derived from the glossary yet
+                RequestTimestamps = purpose == WhisperModelPurpose.WavRecognition
+            };
+        }
 
         // R7B.1: resolve the model through the single locator (session-start snapshot). A managed
         // install yields its ABSOLUTE directory; otherwise the legacy model name is kept.

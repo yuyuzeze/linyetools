@@ -24,7 +24,7 @@ public class SpeechRecognizerPrewarmerTests
     public async Task MatchingPrewarm_IsTransferredWithoutSecondInitialization()
     {
         var fake = new FakeRecognizer();
-        await using var subject = new SpeechRecognizerPrewarmer(() => fake, NullLogger<SpeechRecognizerPrewarmer>.Instance);
+        await using var subject = new SpeechRecognizerPrewarmer(_ => fake, NullLogger<SpeechRecognizerPrewarmer>.Instance);
         var options = new SpeechOptions { Language = "ja" };
         await subject.PrewarmAsync(options);
         var acquired = await subject.AcquireAsync(options, CancellationToken.None);
@@ -38,7 +38,7 @@ public class SpeechRecognizerPrewarmerTests
     public async Task DisableOrExit_ReleasesCachedRecognizer_Idempotently()
     {
         var fake = new FakeRecognizer();
-        var subject = new SpeechRecognizerPrewarmer(() => fake, NullLogger<SpeechRecognizerPrewarmer>.Instance);
+        var subject = new SpeechRecognizerPrewarmer(_ => fake, NullLogger<SpeechRecognizerPrewarmer>.Instance);
         await subject.PrewarmAsync(new SpeechOptions { Language = "ja" });
         await subject.ClearAsync();
         Assert.Equal(1, fake.Disposed);

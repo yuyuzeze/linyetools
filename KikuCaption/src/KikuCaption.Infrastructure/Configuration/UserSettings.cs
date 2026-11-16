@@ -34,6 +34,15 @@ public sealed record UserSettings
     // effect from the NEXT meeting (snapshotted into SessionCapabilities at start).
     public bool EnableSpeechRecognition { get; init; } = true;
 
+    // Recognition engine for real-time + file recognition. "Whisper" (default, Python faster-whisper)
+    // or "SpeechCpp" (native speech.exe, FastConformer/CTC — lower real-time latency, Japanese only).
+    // Post-meeting correction always stays on Whisper medium. Takes effect from the next session; the
+    // app silently falls back to Whisper when speech.cpp is not installed.
+    public string SpeechEngine { get; init; } = "Whisper";
+
+    /// <summary>speech.cpp model when <see cref="SpeechEngine"/> is "SpeechCpp" (e.g. "haas-ja-v1.0").</summary>
+    public string SpeechCppModel { get; init; } = "haas-ja-v1.0";
+
     // UI-R5C meeting-summary output language. Null = never chosen (follow the UI language); once the
     // user picks one in the dialog it is persisted here (zh/ja/en) and no longer follows the UI.
     public string? SummaryOutputLanguage { get; init; }

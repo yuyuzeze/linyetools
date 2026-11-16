@@ -1,3 +1,5 @@
+using KikuCaption.Core.Enums;
+
 namespace KikuCaption.Core.Models;
 
 /// <summary>
@@ -6,10 +8,31 @@ namespace KikuCaption.Core.Models;
 /// </summary>
 public sealed record SpeechOptions
 {
+    /// <summary>
+    /// Which backend serves this session. Default <see cref="SpeechEngine.Whisper"/> preserves the
+    /// existing behaviour; <see cref="SpeechEngine.SpeechCpp"/> routes to the native speech.cpp
+    /// worker. The factory picks the recognizer implementation from this value (with fallback).
+    /// </summary>
+    public SpeechEngine Engine { get; init; } = SpeechEngine.Whisper;
+
     public string Model { get; init; } = "small";
     public string Device { get; init; } = "cpu";
     public string ComputeType { get; init; } = "int8";
     public int BeamSize { get; init; } = 1;
+
+    /// <summary>
+    /// speech.cpp only (Haas): custom-vocabulary keywords, one per line as <c>written=reading</c>.
+    /// Null/empty = none. Mutually exclusive with <see cref="RequestTimestamps"/> on Haas, so the
+    /// recognizer drops keywords when timestamps are requested.
+    /// </summary>
+    public string? Keywords { get; init; }
+
+    /// <summary>
+    /// speech.cpp only: request per-segment timestamps (maps each <c>segment</c> to its own
+    /// final-candidate update). Used for file recognition; real-time leaves it false and lets the
+    /// pipeline supply timing.
+    /// </summary>
+    public bool RequestTimestamps { get; init; }
 
     /// <summary>Recognition language chosen by the user: "ja" or "zh".</summary>
     public required string Language { get; init; }

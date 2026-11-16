@@ -65,7 +65,20 @@ public partial class App : Application
                     var subtitleSettings = context.Configuration.GetSection("Subtitle").Get<SubtitleSettings>() ?? new SubtitleSettings();
                     var whisperOptions = BuildWhisperWorkerOptions(speechSettings);
                     services.AddSingleton(whisperOptions); // for Milestone 7 preflight
-                    services.AddKikuCaptionSpeech(whisperOptions);
+
+                    // speech.cpp backend: registered only when speech.exe is found; otherwise the
+                    // engine factory keeps the Whisper-only path (silent fallback).
+                    var speechCppExe = KikuCaption.App.Services.SpeechCppLocator.LocateExecutable(null);
+                    var speechCppOptions = speechCppExe is null
+                        ? null
+                        : new KikuCaption.Speech.SpeechCpp.SpeechCppWorkerOptions { ExecutablePath = speechCppExe };
+                    services.AddKikuCaptionSpeech(whisperOptions, speechCppOptions);
+
+                    // The effective engine (user choice AND availability), read live at session start.
+                    services.AddSingleton<KikuCaption.Core.Interfaces.ISpeechEngineSelection>(sp =>
+                        new KikuCaption.App.Services.UserSettingsSpeechEngineSelection(
+                            sp.GetRequiredService<UserSettingsStore>(),
+                            sp.GetRequiredService<KikuCaption.Speech.SpeechCpp.ISpeechCppEnvironment>()));
 
                     // One provider shared by the real-time pipeline AND the WAV entry point: base
                     // options (model/device/compute/beam/cache) + per-language decoding context, so a
@@ -97,7 +110,8 @@ public partial class App : Application
 
                     services.AddSingleton<ISpeechOptionsProvider>(sp =>
                         new SpeechOptionsProvider(baseSpeechOptions, sp.GetRequiredService<ISpeechDictionaryStore>(),
-                            sp.GetService<KikuCaption.Core.Interfaces.IWhisperModelLocator>()));
+                            sp.GetService<KikuCaption.Core.Interfaces.IWhisperModelLocator>(),
+                            sp.GetService<KikuCaption.Core.Interfaces.ISpeechEngineSelection>()));
 
                     // Progressive caption options (validated at startup) — all tunables now mapped.
                     var progressive = new ProgressiveCaptionOptions

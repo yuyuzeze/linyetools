@@ -14,7 +14,7 @@ namespace KikuCaption.App.ViewModels;
 /// </summary>
 public partial class SpeechViewModel : ObservableObject
 {
-    private readonly Func<ISpeechRecognizer> _recognizerFactory;
+    private readonly ISpeechRecognizerFactory _recognizerFactory;
     private readonly ISpeechOptionsProvider _speechOptionsProvider;
     private readonly IModelUsageRegistry _modelUsage;
     private readonly ILogger<SpeechViewModel> _logger;
@@ -33,7 +33,7 @@ public partial class SpeechViewModel : ObservableObject
     private string? _errorMessage;
 
     public SpeechViewModel(
-        Func<ISpeechRecognizer> recognizerFactory,
+        ISpeechRecognizerFactory recognizerFactory,
         ISpeechOptionsProvider speechOptionsProvider,
         IModelUsageRegistry modelUsage,
         ILogger<SpeechViewModel> logger)
@@ -67,10 +67,11 @@ public partial class SpeechViewModel : ObservableObject
             KikuCaption.App.Services.ModelCatalog.Small.ComponentId, WhisperModelPurpose.WavRecognition);
         try
         {
-            await using var recognizer = _recognizerFactory();
-            // Same full, per-language config as the real-time pipeline (single source of truth).
-            await recognizer.InitializeAsync(
-                _speechOptionsProvider.ForLanguage(SelectedLanguage, WhisperModelPurpose.WavRecognition), CancellationToken.None);
+            // Same full, per-language config as the real-time pipeline (single source of truth); the
+            // factory picks the engine (Whisper or speech.cpp) from the options.
+            var options = _speechOptionsProvider.ForLanguage(SelectedLanguage, WhisperModelPurpose.WavRecognition);
+            await using var recognizer = _recognizerFactory.Create(options);
+            await recognizer.InitializeAsync(options, CancellationToken.None);
             StatusText = "模型已就绪，正在识别……";
 
             await foreach (var update in recognizer.RecognizeAsync(WavFileAudioReader.ReadAsync(wavPath), CancellationToken.None))
