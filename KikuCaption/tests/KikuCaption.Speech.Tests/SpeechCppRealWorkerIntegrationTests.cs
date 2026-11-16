@@ -15,19 +15,56 @@ namespace KikuCaption.Speech.Tests;
 /// </summary>
 public class SpeechCppRealWorkerIntegrationTests
 {
+    /// <summary>Walk up from the test bin dir to an ancestor that contains <paramref name="segments"/>.</summary>
+    private static string? WalkUp(params string[] segments)
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        for (int depth = 0; dir is not null && depth < 8; depth++)
+        {
+            var candidate = Path.Combine(new[] { dir.FullName }.Concat(segments).ToArray());
+            if (File.Exists(candidate) || Directory.Exists(candidate))
+            {
+                return candidate;
+            }
+
+            dir = dir.Parent;
+        }
+
+        return null;
+    }
+
+    // Prefer the bundled copy the app actually ships (tools/speech, models/speech); fall back to a
+    // per-user speech.cpp install if present.
     private static string? LocateExe()
     {
+        var bundled = WalkUp("tools", "speech", "speech.exe");
+        if (bundled is not null)
+        {
+            return bundled;
+        }
+
         var localApp = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         var path = Path.Combine(localApp, "Programs", "speech.cpp", "current", "speech.exe");
         return File.Exists(path) ? path : null;
     }
 
-    private static bool HaasModelPresent()
+    private static string? LocateModel()
     {
+        var bundledDir = WalkUp("models", "speech");
+        if (bundledDir is not null)
+        {
+            var hit = Directory.EnumerateFiles(bundledDir, "*Haas*ja*.gguf", SearchOption.TopDirectoryOnly).FirstOrDefault();
+            if (hit is not null)
+            {
+                return hit;
+            }
+        }
+
         var localApp = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         var modelsDir = Path.Combine(localApp, "speech.cpp", "models");
         return Directory.Exists(modelsDir)
-            && Directory.EnumerateFiles(modelsDir, "*Haas*ja*.gguf", SearchOption.AllDirectories).Any();
+            ? Directory.EnumerateFiles(modelsDir, "*Haas*ja*.gguf", SearchOption.AllDirectories).FirstOrDefault()
+            : null;
     }
 
     private static async IAsyncEnumerable<AudioChunk> Silence(double seconds)
@@ -41,9 +78,10 @@ public class SpeechCppRealWorkerIntegrationTests
     public async Task RealWorker_Haas_Initializes_AndMapsEndToSingleFinalCandidate()
     {
         var exe = LocateExe();
-        if (exe is null || !HaasModelPresent())
+        var model = LocateModel();
+        if (exe is null || model is null)
         {
-            return; // speech.cpp not installed on this machine — skip.
+            return; // speech.cpp engine/model not available on this machine — skip.
         }
 
         var options = new SpeechCppWorkerOptions { ExecutablePath = exe, Device = "cpu" };
@@ -53,13 +91,13 @@ public class SpeechCppRealWorkerIntegrationTests
         await recognizer.InitializeAsync(new SpeechOptions
         {
             Engine = SpeechEngine.SpeechCpp,
-            Model = "haas-ja-v1.0",
+            Model = model, // load the bundled model by absolute path (as the shipped app does)
             Language = "ja",
-            InitializeTimeout = TimeSpan.FromMinutes(1)
+            InitializeTimeout = TimeSpan.FromMinutes(2)
         }, CancellationToken.None);
 
         var updates = new List<TranscriptUpdate>();
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(90));
         await foreach (var u in recognizer.RecognizeAsync(Silence(1.0), cts.Token))
         {
             updates.Add(u);

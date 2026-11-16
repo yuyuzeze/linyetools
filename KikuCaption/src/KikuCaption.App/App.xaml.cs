@@ -66,19 +66,23 @@ public partial class App : Application
                     var whisperOptions = BuildWhisperWorkerOptions(speechSettings);
                     services.AddSingleton(whisperOptions); // for Milestone 7 preflight
 
-                    // speech.cpp backend: registered only when speech.exe is found; otherwise the
-                    // engine factory keeps the Whisper-only path (silent fallback).
-                    var speechCppExe = KikuCaption.App.Services.SpeechCppLocator.LocateExecutable(null);
+                    // speech.cpp backend: bundled under tools/speech (self-contained, no separate
+                    // install). Registered only when speech.exe is found; otherwise the engine factory
+                    // keeps the Whisper-only path (silent fallback).
+                    var speechCppExe = KikuCaption.App.Services.SpeechCppLocator.LocateExecutable(null, AppContext.BaseDirectory);
+                    var bundledSpeechCppModel = KikuCaption.App.Services.SpeechCppLocator.LocateBundledModel(AppContext.BaseDirectory, "haas");
                     var speechCppOptions = speechCppExe is null
                         ? null
                         : new KikuCaption.Speech.SpeechCpp.SpeechCppWorkerOptions { ExecutablePath = speechCppExe };
                     services.AddKikuCaptionSpeech(whisperOptions, speechCppOptions);
 
-                    // The effective engine (user choice AND availability), read live at session start.
+                    // The effective engine (user choice AND availability), read live at session start;
+                    // the bundled model is used by absolute path when present.
                     services.AddSingleton<KikuCaption.Core.Interfaces.ISpeechEngineSelection>(sp =>
                         new KikuCaption.App.Services.UserSettingsSpeechEngineSelection(
                             sp.GetRequiredService<UserSettingsStore>(),
-                            sp.GetRequiredService<KikuCaption.Speech.SpeechCpp.ISpeechCppEnvironment>()));
+                            sp.GetRequiredService<KikuCaption.Speech.SpeechCpp.ISpeechCppEnvironment>(),
+                            bundledSpeechCppModel));
 
                     // One provider shared by the real-time pipeline AND the WAV entry point: base
                     // options (model/device/compute/beam/cache) + per-language decoding context, so a

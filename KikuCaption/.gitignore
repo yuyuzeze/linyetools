@@ -29,6 +29,12 @@ coverage*.json
 tools/ffmpeg/*
 !tools/ffmpeg/.gitkeep
 
+# speech.cpp bundled engine binaries (speech.exe + speech.dll; not committed — keep .gitkeep only).
+# Placed in tools/speech so the app is self-contained and needs no separate speech.cpp install.
+# Its .gguf models live under /models/speech and are already ignored by the /models/ rule below.
+tools/speech/*
+!tools/speech/.gitkeep
+
 # Local secrets / user-specific config (PROJECT.md 5.6, 13)
 appsettings.*.local.json
 secrets.json
