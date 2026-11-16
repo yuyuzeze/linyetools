@@ -52,4 +52,22 @@
     <Resource Include="Resources\app.ico" />
   </ItemGroup>
 
+  <!-- Bundle the native speech.cpp engine (tools/speech) and its models (models/speech) into the
+       output directory so the app resolves them by an EXE-RELATIVE path (no walk-up to the repo, no
+       separate speech.cpp install). The binaries/models are git-ignored; these globs copy whatever
+       is present and match nothing (no error) on a machine that has not placed them yet. -->
+  <ItemGroup>
+    <!-- speech.cpp is self-contained in exactly two files (engine exe + dll); copy them by name. -->
+    <None Include="..\..\tools\speech\speech.exe;..\..\tools\speech\speech.dll">
+      <Link>tools\speech\%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Visible>false</Visible>
+    </None>
+    <None Include="..\..\models\speech\**\*">
+      <Link>models\speech\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Visible>false</Visible>
+    </None>
+  </ItemGroup>
+
 </Project>

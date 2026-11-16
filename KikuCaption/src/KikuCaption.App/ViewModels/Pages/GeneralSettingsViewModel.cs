@@ -24,12 +24,10 @@ public sealed partial class GeneralSettingsViewModel : ObservableObject
     private readonly CorrectionModelLocator _correctionModel;
     private readonly SpeechPrewarmCoordinator? _prewarm;
     private readonly SessionModeState? _mode;
-    private readonly KikuCaption.Speech.SpeechCpp.ISpeechCppEnvironment? _speechCppEnv;
     private bool _loading;
 
     public GeneralSettingsViewModel(UserSettingsStore store, LocalizationService localization,
         CorrectionModelLocator correctionModel, SpeechPrewarmCoordinator prewarm, SessionModeState mode,
-        KikuCaption.Speech.SpeechCpp.ISpeechCppEnvironment speechCppEnv,
         ILogger<GeneralSettingsViewModel> logger)
     {
         _store = store;
@@ -37,7 +35,6 @@ public sealed partial class GeneralSettingsViewModel : ObservableObject
         _correctionModel = correctionModel;
         _prewarm = prewarm;
         _mode = mode;
-        _speechCppEnv = speechCppEnv;
         _logger = logger;
         LoadFromStore();
     }
@@ -62,12 +59,6 @@ public sealed partial class GeneralSettingsViewModel : ObservableObject
     public IReadOnlyList<string> RecognitionLanguages { get; } = new[] { "ja", "zh" };
     public IReadOnlyList<string> RecordingTargets { get; } = new[] { "screen", "window" };
 
-    /// <summary>Recognition engines. "Whisper" (default) or "SpeechCpp" (native, Japanese, low-latency).</summary>
-    public IReadOnlyList<string> SpeechEngines { get; } = new[] { "Whisper", "SpeechCpp" };
-
-    /// <summary>speech.cpp models (Japanese). The selected one is used when the engine is SpeechCpp.</summary>
-    public IReadOnlyList<string> SpeechCppModels { get; } = new[] { "haas-ja-v1.0", "reazonspeech-v2" };
-
     [ObservableProperty] private string _uiLanguage = LocalizedStrings.ZhCN;
     [ObservableProperty] private string _defaultRecognitionLanguage = "ja";
     [ObservableProperty] private string? _outputDirectory;
@@ -82,20 +73,7 @@ public sealed partial class GeneralSettingsViewModel : ObservableObject
     [ObservableProperty] private bool _enableSpeechRecognition = true;
     [ObservableProperty] private bool _isCorrectionModelAvailable;
     [ObservableProperty] private string _correctionModelHint = string.Empty;
-    [ObservableProperty] private string _speechEngine = "Whisper";
-    [ObservableProperty] private string _speechCppModel = "haas-ja-v1.0";
-    [ObservableProperty] private bool _isSpeechCppAvailable;
-    [ObservableProperty] private string _speechCppHint = string.Empty;
     [ObservableProperty] private string _statusText = string.Empty;
-
-    /// <summary>True when SpeechCpp is the selected engine — drives the model-row visibility.</summary>
-    public bool IsSpeechCppEngine => string.Equals(SpeechEngine, "SpeechCpp", StringComparison.OrdinalIgnoreCase);
-
-    partial void OnSpeechEngineChanged(string value)
-    {
-        OnPropertyChanged(nameof(IsSpeechCppEngine));
-        RefreshSpeechCppAvailability();
-    }
 
     // UI language applies live and persists immediately (discrete choice, safe to write once).
     partial void OnUiLanguageChanged(string value)
@@ -141,17 +119,9 @@ public sealed partial class GeneralSettingsViewModel : ObservableObject
                 AutoCorrectAfterMeeting = AutoCorrectAfterMeeting
                 ,PrewarmWhisperInBackground = PrewarmWhisperInBackground
                 ,EnableSpeechRecognition = EnableSpeechRecognition
-                ,SpeechEngine = SpeechEngine
-                ,SpeechCppModel = SpeechCppModel
             });
             // UI-R6A: the effective mode reflects the PERSISTED setting (applies from the next meeting).
             if (_mode is not null) _mode.SpeechRecognitionEnabled = EnableSpeechRecognition;
-            // Re-prewarm so a background warm model matches the newly-chosen engine (takes effect next session otherwise).
-            if (_prewarm is not null && PrewarmWhisperInBackground)
-            {
-                _ = _prewarm.ApplyAsync(true, DefaultRecognitionLanguage);
-            }
-
             StatusText = _localization["Settings.Saved"];
         }
         catch (Exception ex)
@@ -177,8 +147,6 @@ public sealed partial class GeneralSettingsViewModel : ObservableObject
         AutoCorrectAfterMeeting = d.AutoCorrectAfterMeeting;
         PrewarmWhisperInBackground = d.PrewarmWhisperInBackground;
         EnableSpeechRecognition = d.EnableSpeechRecognition;
-        SpeechEngine = d.SpeechEngine;
-        SpeechCppModel = d.SpeechCppModel;
         _loading = false;
         // Language reset applies live + persists via the changed handler.
         UiLanguage = d.UiLanguage;
@@ -204,18 +172,7 @@ public sealed partial class GeneralSettingsViewModel : ObservableObject
         AutoCorrectAfterMeeting = s.AutoCorrectAfterMeeting && IsCorrectionModelAvailable;
         PrewarmWhisperInBackground = s.PrewarmWhisperInBackground;
         EnableSpeechRecognition = s.EnableSpeechRecognition;
-        SpeechEngine = string.IsNullOrWhiteSpace(s.SpeechEngine) ? "Whisper" : s.SpeechEngine;
-        SpeechCppModel = string.IsNullOrWhiteSpace(s.SpeechCppModel) ? "haas-ja-v1.0" : s.SpeechCppModel;
-        RefreshSpeechCppAvailability();
         _loading = false;
-    }
-
-    private void RefreshSpeechCppAvailability()
-    {
-        IsSpeechCppAvailable = _speechCppEnv?.IsAvailable ?? false;
-        SpeechCppHint = IsSpeechCppAvailable
-            ? _localization["General.SpeechCppReady"]
-            : _localization["General.SpeechCppMissing"];
     }
 
     private void RefreshCorrectionAvailability()

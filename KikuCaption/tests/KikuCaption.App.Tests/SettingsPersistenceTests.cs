@@ -173,24 +173,6 @@ public class SettingsPersistenceTests : IDisposable
         Assert.True(s.PrewarmWhisperInBackground);
     }
 
-    [Fact] // the recognition engine + speech.cpp model persist through Save/Load
-    public void GeneralSettings_SpeechEngine_RoundTrips()
-    {
-        var vm = GeneralVm(new LocalizationService());
-        Assert.Equal("Whisper", vm.SpeechEngine); // default
-        Assert.False(vm.IsSpeechCppEngine);
-
-        vm.SpeechEngine = "SpeechCpp";
-        vm.SpeechCppModel = "haas-ja-v1.0";
-        Assert.True(vm.IsSpeechCppEngine);
-
-        vm.SaveCommand.Execute(null);
-
-        var (s, _) = _store.Load();
-        Assert.Equal("SpeechCpp", s.SpeechEngine);
-        Assert.Equal("haas-ja-v1.0", s.SpeechCppModel);
-    }
-
     [Fact] // R6A: the speech-recognition toggle persists (both directions) through Save/Load
     public void GeneralSettings_EnableSpeechRecognition_Persists()
     {

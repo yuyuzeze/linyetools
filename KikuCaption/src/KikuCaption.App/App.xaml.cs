@@ -76,11 +76,11 @@ public partial class App : Application
                         : new KikuCaption.Speech.SpeechCpp.SpeechCppWorkerOptions { ExecutablePath = speechCppExe };
                     services.AddKikuCaptionSpeech(whisperOptions, speechCppOptions);
 
-                    // The effective engine (user choice AND availability), read live at session start;
+                    // The effective engine comes from appsettings.json (single source) AND availability;
                     // the bundled model is used by absolute path when present.
                     services.AddSingleton<KikuCaption.Core.Interfaces.ISpeechEngineSelection>(sp =>
-                        new KikuCaption.App.Services.UserSettingsSpeechEngineSelection(
-                            sp.GetRequiredService<UserSettingsStore>(),
+                        new KikuCaption.App.Services.AppSettingsSpeechEngineSelection(
+                            speechSettings,
                             sp.GetRequiredService<KikuCaption.Speech.SpeechCpp.ISpeechCppEnvironment>(),
                             bundledSpeechCppModel));
 

@@ -4,14 +4,12 @@ using Microsoft.Extensions.Logging;
 namespace KikuCaption.App.Services;
 
 /// <summary>
-/// Locates the native <c>speech.exe</c> (and an optional bundled model) for the speech.cpp backend.
-/// Search order mirrors the FFmpeg resolver so the app is self-contained and needs no separate
-/// speech.cpp install: an explicit override, then a bundled <c>tools/speech</c> found by walking up
-/// from the app base directory (dev: the repo's <c>tools/speech</c>; published: next to the exe),
-/// then the per-user install, then PATH. The engine binaries live in <c>tools/speech</c>; bundled
-/// models live under <c>models/speech</c> (alongside the Whisper <c>models/whisper</c> cache) and are
-/// loaded by absolute path. Returns null when not found — the engine factory then keeps the
-/// Whisper-only path. Logs only the source/category, never scanned paths.
+/// Locates the native <c>speech.exe</c> and an optional bundled model, always relative to the app's
+/// own directory: <c>&lt;baseDir&gt;/tools/speech/speech.exe</c> and
+/// <c>&lt;baseDir&gt;/models/speech/*.gguf</c>. The build copies <c>tools/speech</c> and
+/// <c>models/speech</c> into the output, so the same exe-relative paths work in dev and when
+/// published — no walk-up to the source repo, no per-user install. Returns null when not present,
+/// and the engine factory then keeps the Whisper-only path. Logs only the source/category.
 /// </summary>
 public static class SpeechCppLocator
 {
@@ -25,41 +23,28 @@ public static class SpeechCppLocator
             return explicitPath;
         }
 
-        var bundled = WalkUpForToolsSpeech(baseDirectory, ExeName);
-        if (bundled is not null)
+        var baseDir = string.IsNullOrWhiteSpace(baseDirectory) ? AppContext.BaseDirectory : baseDirectory;
+        var bundled = Path.Combine(baseDir, "tools", "speech", ExeName);
+        if (File.Exists(bundled))
         {
-            logger?.LogInformation("speech.cpp located in the bundled tools/speech folder.");
+            logger?.LogInformation("speech.cpp located in the app's tools/speech folder.");
             return bundled;
         }
 
-        var localApp = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        var perUser = Path.Combine(localApp, "Programs", "speech.cpp", "current", ExeName);
-        if (File.Exists(perUser))
-        {
-            logger?.LogInformation("speech.cpp located in the per-user install.");
-            return perUser;
-        }
-
-        var onPath = ProbePath();
-        if (onPath is not null)
-        {
-            logger?.LogInformation("speech.cpp located on PATH.");
-            return onPath;
-        }
-
-        logger?.LogInformation("speech.cpp not found; the speech.cpp engine will be unavailable.");
+        logger?.LogInformation("speech.cpp not found next to the app; the speech.cpp engine will be unavailable.");
         return null;
     }
 
     /// <summary>
-    /// A model file bundled under <c>models/speech</c>, if exactly one (or a <paramref name="nameHint"/>
-    /// match) is present. Lets the app ship a self-contained model that is loaded by absolute path,
-    /// independent of the per-user speech.cpp model store. Returns null when none is bundled.
+    /// A model file bundled under <c>&lt;baseDir&gt;/models/speech</c>, if exactly one (or a
+    /// <paramref name="nameHint"/> match) is present. Loaded by absolute path, independent of any
+    /// per-user speech.cpp model store. Returns null when none is bundled.
     /// </summary>
     public static string? LocateBundledModel(string? baseDirectory, string? nameHint = null)
     {
-        var modelsDir = WalkUpForDirectory(baseDirectory, "models", "speech");
-        if (modelsDir is null)
+        var baseDir = string.IsNullOrWhiteSpace(baseDirectory) ? AppContext.BaseDirectory : baseDirectory;
+        var modelsDir = Path.Combine(baseDir, "models", "speech");
+        if (!Directory.Exists(modelsDir))
         {
             return null;
         }
@@ -81,7 +66,6 @@ public static class SpeechCppLocator
 
         if (!string.IsNullOrWhiteSpace(nameHint))
         {
-            // Prefer a file whose name contains a distinctive token of the hint (e.g. "haas").
             var token = nameHint.Split('-', '.', '/', '\\')[0];
             var match = ggufs.FirstOrDefault(f =>
                 Path.GetFileName(f).Contains(token, StringComparison.OrdinalIgnoreCase));
@@ -92,76 +76,5 @@ public static class SpeechCppLocator
         }
 
         return ggufs.Length == 1 ? ggufs[0] : null;
-    }
-
-    private static string? WalkUpForToolsSpeech(string? baseDirectory, string fileName)
-    {
-        var dir = WalkUpForDirectory(baseDirectory, "tools", "speech");
-        if (dir is null)
-        {
-            return null;
-        }
-
-        var candidate = Path.Combine(dir, fileName);
-        return File.Exists(candidate) ? candidate : null;
-    }
-
-    /// <summary>
-    /// Walks up from <paramref name="baseDirectory"/> (the app base dir by default) looking for an
-    /// ancestor that contains <paramref name="segments"/> as a sub-path, and returns that sub-path's
-    /// full path. Used to find the repo/publish <c>tools/speech</c> and <c>models/speech</c> folders.
-    /// </summary>
-    private static string? WalkUpForDirectory(string? baseDirectory, params string[] segments)
-    {
-        var start = string.IsNullOrWhiteSpace(baseDirectory) ? AppContext.BaseDirectory : baseDirectory;
-        DirectoryInfo? directory;
-        try
-        {
-            directory = new DirectoryInfo(start);
-        }
-        catch
-        {
-            return null;
-        }
-
-        for (int depth = 0; directory is not null && depth < 8; depth++)
-        {
-            var candidate = Path.Combine(new[] { directory.FullName }.Concat(segments).ToArray());
-            if (Directory.Exists(candidate))
-            {
-                return candidate;
-            }
-
-            directory = directory.Parent;
-        }
-
-        return null;
-    }
-
-    private static string? ProbePath()
-    {
-        var pathVar = Environment.GetEnvironmentVariable("PATH");
-        if (string.IsNullOrEmpty(pathVar))
-        {
-            return null;
-        }
-
-        foreach (var dir in pathVar.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-        {
-            try
-            {
-                var candidate = Path.Combine(dir, ExeName);
-                if (File.Exists(candidate))
-                {
-                    return candidate;
-                }
-            }
-            catch
-            {
-                // malformed PATH entry — ignore
-            }
-        }
-
-        return null;
     }
 }

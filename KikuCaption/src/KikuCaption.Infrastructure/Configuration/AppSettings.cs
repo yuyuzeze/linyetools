@@ -16,7 +16,18 @@ public sealed class KikuCaptionOptions
 
 public sealed class SpeechSettings
 {
+    /// <summary>
+    /// Recognition engine: "Whisper" (default) or "SpeechCpp" (native speech.exe, FastConformer/CTC,
+    /// Japanese, low latency). This is the SINGLE place the engine is chosen — real-time + file
+    /// recognition read it; post-meeting correction always stays on Whisper medium. SpeechCpp falls
+    /// back to Whisper when speech.exe/model is missing or the language is not Japanese.
+    /// </summary>
     public string Engine { get; set; } = "Whisper";
+
+    /// <summary>speech.cpp model when <see cref="Engine"/> is "SpeechCpp" (a name like "haas-ja-v1.0",
+    /// or an absolute .gguf path). A bundled model under models/speech is preferred and loaded by path.</summary>
+    public string SpeechCppModel { get; set; } = "haas-ja-v1.0";
+
     public string Model { get; set; } = "small";
     public string ComputeType { get; set; } = "int8";
     public string Language { get; set; } = "ja";

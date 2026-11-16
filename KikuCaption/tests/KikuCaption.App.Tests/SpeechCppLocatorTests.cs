@@ -5,88 +5,78 @@ using Xunit;
 namespace KikuCaption.App.Tests;
 
 /// <summary>
-/// Deterministic tests for the bundled-tools walk-up (no dependence on any installed speech.cpp).
-/// Builds a temporary <c>tools/speech</c> tree and checks discovery from a nested base directory.
+/// Deterministic tests for the exe-relative resolution (no walk-up, no installed speech.cpp). Builds
+/// a temporary base dir that holds <c>tools/speech</c> and <c>models/speech</c> and resolves from it.
 /// </summary>
 public sealed class SpeechCppLocatorTests : IDisposable
 {
-    private readonly string _root;
+    private readonly string _baseDir;
 
     public SpeechCppLocatorTests()
     {
-        _root = Path.Combine(Path.GetTempPath(), "kiku_speechcpp", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(_root);
+        _baseDir = Path.Combine(Path.GetTempPath(), "kiku_speechcpp", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(_baseDir);
     }
 
     public void Dispose()
     {
-        try { Directory.Delete(_root, true); } catch { /* best effort */ }
-    }
-
-    private string Nested()
-    {
-        // Mimics an app bin dir several levels below the repo root that holds tools/speech.
-        var nested = Path.Combine(_root, "src", "App", "bin", "Debug", "net10.0-windows");
-        Directory.CreateDirectory(nested);
-        return nested;
+        try { Directory.Delete(_baseDir, true); } catch { /* best effort */ }
     }
 
     [Fact]
-    public void LocateExecutable_FindsBundledExe_ByWalkingUp()
+    public void LocateExecutable_FindsExe_RelativeToBaseDir()
     {
-        var toolsSpeech = Path.Combine(_root, "tools", "speech");
+        var toolsSpeech = Path.Combine(_baseDir, "tools", "speech");
         Directory.CreateDirectory(toolsSpeech);
         var exe = Path.Combine(toolsSpeech, "speech.exe");
         File.WriteAllText(exe, "stub");
 
-        var located = SpeechCppLocator.LocateExecutable(null, Nested());
+        Assert.Equal(exe, SpeechCppLocator.LocateExecutable(null, _baseDir));
+    }
 
-        Assert.Equal(exe, located);
+    [Fact]
+    public void LocateExecutable_NotPresent_ReturnsNull()
+    {
+        Assert.Null(SpeechCppLocator.LocateExecutable(null, _baseDir));
     }
 
     [Fact]
     public void LocateExecutable_ExplicitPath_Wins()
     {
-        var explicitExe = Path.Combine(_root, "custom-speech.exe");
+        var explicitExe = Path.Combine(_baseDir, "custom-speech.exe");
         File.WriteAllText(explicitExe, "stub");
 
-        var located = SpeechCppLocator.LocateExecutable(explicitExe, Nested());
-
-        Assert.Equal(explicitExe, located);
+        Assert.Equal(explicitExe, SpeechCppLocator.LocateExecutable(explicitExe, _baseDir));
     }
 
     [Fact]
     public void LocateBundledModel_SingleGguf_Found()
     {
-        var modelsDir = Path.Combine(_root, "models", "speech");
+        var modelsDir = Path.Combine(_baseDir, "models", "speech");
         Directory.CreateDirectory(modelsDir);
         var gguf = Path.Combine(modelsDir, "Haas-616M-ja-v1.0-Q8_0.gguf");
         File.WriteAllText(gguf, "stub");
 
-        var located = SpeechCppLocator.LocateBundledModel(Nested(), "haas");
-
-        Assert.Equal(gguf, located);
+        Assert.Equal(gguf, SpeechCppLocator.LocateBundledModel(_baseDir, "haas"));
     }
 
     [Fact]
     public void LocateBundledModel_None_ReturnsNull()
     {
-        Directory.CreateDirectory(Path.Combine(_root, "models", "speech"));
+        Directory.CreateDirectory(Path.Combine(_baseDir, "models", "speech"));
 
-        var located = SpeechCppLocator.LocateBundledModel(Nested(), "haas");
-
-        Assert.Null(located);
+        Assert.Null(SpeechCppLocator.LocateBundledModel(_baseDir, "haas"));
     }
 
     [Fact]
     public void LocateBundledModel_Multiple_MatchesNameHint()
     {
-        var modelsDir = Path.Combine(_root, "models", "speech");
+        var modelsDir = Path.Combine(_baseDir, "models", "speech");
         Directory.CreateDirectory(modelsDir);
         File.WriteAllText(Path.Combine(modelsDir, "Haas-616M-ja-v1.0-Q8_0.gguf"), "stub");
         File.WriteAllText(Path.Combine(modelsDir, "reazonspeech-nemo-619M-v2-Q8_0.gguf"), "stub");
 
-        var located = SpeechCppLocator.LocateBundledModel(Nested(), "haas");
+        var located = SpeechCppLocator.LocateBundledModel(_baseDir, "haas");
 
         Assert.NotNull(located);
         Assert.Contains("Haas", Path.GetFileName(located!));
